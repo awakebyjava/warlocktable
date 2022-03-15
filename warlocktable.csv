@@ -1,0 +1,3 @@
+name,bytearray,pattern,sound
+test1,bytearray(b'\x04:7\x1a\xcfO\x81'),blink fade,outre.wav
+test2,bytearray(b'\x04\xf00\x1a\xcfO\x80'),fireflies,cigarette.wav
