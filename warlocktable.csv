@@ -1,3 +1,13 @@
 name,bytearray,pattern,sound
 test1,bytearray(b'\x04:7\x1a\xcfO\x81'),blink fade,outre.wav
 test2,bytearray(b'\x04\xf00\x1a\xcfO\x80'),fireflies,cigarette.wav
+magician,bytearray(b'\x049i\x9afp\x81'),green ripple reflections,crowley.wav
+aceofpentacles,bytearray(b'\x049h\x9afp\x81'),glitchbands,peromyscus.wav
+thedevil,bytearray(b'\x049g\x9afp\x81'),sparkfire,javan.wav
+wheeloffortune,bytearray(b'\x049f\x9afp\x81'),spincycle,audley.wav
+death,bytearray(b'\x049j\x9afp\x81'),opposites,september.wav
+forest,bytearray(b'\x049e\x9afp\x81'),GreenCard
+plains,bytearray(b'\x049c\x9afp\x81'),WhiteCard
+swamp,bytearray(b'\x049b\x9afp\x81'),BlackCard
+island,bytearray(b'\x049a\x9afp\x81'),BlueCard
+mountain,bytearray(b'\x049d\x9afp\x81'),RedCard
