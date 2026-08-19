@@ -71,7 +71,9 @@ The big themes:
 - **Getting audio to the Pi:** `rsync` over the existing passwordless SSH — code goes via GitHub, media goes direct. Two different transport paths for two different kinds of asset.
 - Note the legacy V1 code expects these files at `/home/pi/Documents/MagicTarot/Ov/...`; v2 should read the audio path from config rather than hardcoding it.
 
-- **To expand:** where speakers physically live, how many independent audio zones, what the soundscape library looks like, how audio syncs with light scenes. Also: a proper backup for the audio masters, since they're no longer protected by being in git.
+- **Backup:** masters are backed up on a personal external hard drive. Worth re-checking that backup is current whenever the sound library grows, since git no longer provides an incidental second copy.
+
+- **To expand:** where speakers physically live, how many independent audio zones, what the soundscape library looks like, how audio syncs with light scenes.
 
 ### 3.4 Voice / Live Audio Input
 - Two related but distinct ideas:
