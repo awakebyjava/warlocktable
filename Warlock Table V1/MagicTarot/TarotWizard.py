@@ -34,7 +34,7 @@ from pixelblaze import *
 
 if __name__ == "__main__":
 
-    pixelblazeIP = "10.10.0.171/"     # insert your own IP address here    
+    pixelblazeIP = "10.10.0.171"     # insert your own IP address here
     basicPatternName = "KITT"         # everybody has KITT!
     TableTest1 = "blink fade"  # a pattern with exported variables
     TableTest2 = "fireflies"
