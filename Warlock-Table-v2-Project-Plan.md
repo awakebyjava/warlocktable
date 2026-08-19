@@ -57,7 +57,7 @@ The big themes:
 - **Existing card inventory (already RFID-tagged):**
   - **5 environment cards** — the five Magic: The Gathering mana types (White/Blue/Black/Red/Green). Likely used to set the environment / mood of the table.
   - **A few tarot cards** — e.g., Wheel of Fortune, The Devil, Ace of Pentacles. **Tarot is the intended expansion path** — the card set that grows and carries the richer, more numerous interactions.
-- **To expand:** what a "card interaction" should be able to trigger (a light scene? a sound? a screen change? a combination?), how cards are stored/managed, whether cards have state, and the specific behaviors for the mana/environment cards vs. the tarot cards.
+- **Resolved — see §4.3–4.5 for the full interaction spec.** In short: cards are dumb triggers (UID + label); every card is a tap (no presence detection); a card points at a Scene, an Interruption, or a Random Table, editable between them in the management UI; cards are stateless. The mana/tarot distinction is configuration, not code — mana cards happen to map to Scenes and tarot cards to Interruptions, but either could be either.
 
 ### 3.3 Audio & Soundscapes
 - Rich background soundscapes tied to the embedded TV visuals.
@@ -231,9 +231,100 @@ The important consequence: **most of this can be built and tested on the laptop 
 - **One app vs. services:** **one process**, supervised by systemd, with fault isolation *inside* it (see §5.2). Microservices would add process management, IPC, and debugging pain to solve a problem that per-subsystem error handling already solves. One wrinkle to mitigate: if the controller wedges, the panel and its diagnostics go with it — hence the TV status screen (§5.1).
 - **How actions are represented:** action registry in code, event→action mapping in config data.
 
-**Still open:**
-- How the web panel talks to the controller (same process serving both vs. separate API calls).
-- Exact config schema — `warlocktable.csv`'s `name, bytearray, pattern, sound` is a reasonable starting shape.
+### 4.3 Interaction Model
+
+**A card is a trigger and nothing else.** A tag is a UID plus a human **label** describing the physical object ("The Devil", "blue postcard"). The system does not care what the object is — tarot card, playing card, postcard, stopwatch. Only the tag matters, and the behaviour lives entirely in what the tag is *mapped to*.
+
+**Every card is a tap.** Physical presence detection was considered and **deliberately rejected** — leaving a card on the reader to hold a state gets confusing, and it conflicts with last-input-wins precedence. So: scan → fire → done. No removal events, no "card still sitting on the reader at boot", and the NFC layer stays dumb (read, debounce, emit). One reader, one card at a time.
+
+**A card points at one of three target types:**
+
+| Target | Behaviour | Currently used by |
+|---|---|---|
+| **Scene** | A state. Persists until something replaces it. | The five mana/environment cards |
+| **Interruption** | Plays *over* the current scene, then reverts to it. | The tarot cards |
+| **Random table** | Picks one of the above at random, rolled fresh each tap. | Wheel of Fortune, and anything else wanted |
+
+Any card can point at any type, and it is **editable between them** in the management UI. Nothing about "tarot vs mana" is baked into the software — that is just how they happen to be configured today.
+
+**Precedence: last input wins, flat.** A panel press or a new card supersedes whatever is running, including mid-interruption. No ranking between input sources.
+
+**Stateless.** Same card, same behaviour, every time — random tables roll fresh but remember nothing. *(Variants that would need memory — "never repeat the last result", deck-style "each outcome once until exhausted" — are deliberately out for now, but are the obvious future refinement.)*
+
+**Idle state:** breathing table lights, no background audio. This is the resting state, and what comes up on power-on (§5.1's visible-liveness signal).
+
+**Transitions:**
+- **Lights: hard cut.** Pixelblaze's fade/transition options appear to live in its sequencer/playlist mode rather than in direct `setActivePattern` API calls — *worth verifying on the device.* Building on the assumption of hard cuts; asking the Pixelblaze creator whether the API could support a fade, and treating it as a bonus if it arrives.
+- **Audio: 1–2 second crossfade** between soundscapes.
+- **Ducking:** the soundscape ducks under interruptions and voice lines where possible.
+- All durations **tunable in the management interface**, not hardcoded.
+
+**No timeline engine.** "Sequences" are content, not structure: a Pixelblaze pattern is already an animation, and an audio file is already a timeline. An interruption is simply *play this audio, set these lights, revert when it finishes*. A real step-scheduler would only be needed for **beat-coordinated** moments (lights flashing exactly on the thunder at 0:04) — deliberately out of scope, as it is a large jump in both build and authoring complexity for a modest gain.
+
+### 4.4 Data Model
+
+```
+Card
+  uid           NFC bytes
+  label         human name of the physical object
+  target        → Scene | Interruption | RandomTable
+
+Scene           (a state — persists until replaced)
+  name
+  lights        Pixelblaze pattern
+  soundscape    looping audio bed
+  background    TV visual
+  transition    crossfade / duck timings
+
+Interruption    (plays over the current scene, then reverts)
+  name
+  audio         one-shot
+  lights        optional override
+  background    optional override
+
+RandomTable
+  name
+  entries[]     list of targets; one picked at random per tap
+
+Zone            6 total — one at each end, two along each side
+  id, colour, LED range (from the pixel map)
+
+Player
+  name          entered on the web page
+  zone          claimed by picking the colour they are sitting at
+```
+
+**Format: JSON.** The management UI writes this file, so it must round-trip cleanly by machine — which rules out hand-commented YAML, since a program rewriting it destroys every comment and reshuffles ordering. SQLite only if the relationships get tangled enough to earn it.
+
+**Location: outside the git repo** (e.g. `/var/lib/warlocktable/`). Code is versioned in git and the Pi consumes it; card data is *owned* by the Pi and edited through the panel. Keeping data in the repo would put the Pi out of sync with GitHub on every card edit and break `pull.ff only` (§5.3). **Consequence:** card data has no incidental backup the way repo contents do, so export/backup is a required feature rather than a nicety.
+
+### 4.5 Management System
+
+The panel is not just a remote control — **it is the authoring tool.** This is a first-class requirement, not a later addition, because "actions as data" only pays off if something can edit that data.
+
+Required capabilities:
+- **View** every registered tag, its label, and what it maps to
+- **Register** unknown tags — scanning an unrecognised card surfaces it as *unassigned*, ready to name and map. This replaces V1's `print('not a registered card!')` into a terminal nobody is reading
+- **Edit** a card's target, including switching between scene / interruption / random table
+- **Upload audio** through the panel and use it immediately in scenes and interruptions
+- **Create and edit** scenes, interruptions, and random tables
+- **Tune** transition and ducking durations
+- **Fix seat claims** — reassign a player who picked the wrong colour, or resolve two people claiming the same one
+- **Export / back up** the whole configuration
+
+**Referential integrity: block with a list.** Deleting a sound that three cards use is refused, naming those three. The failure this exists to prevent is discovering a broken reference mid-session.
+
+**The action registry must be self-describing.** For the UI to render editing forms it has to ask the controller what actions exist, what parameters they take, and which values are valid — with **live** lists where possible (patterns fetched from the Pixelblaze, sounds from the audio library). This makes it impossible to assign a pattern that does not exist, eliminating a whole class of "why isn't this card working".
+
+**Two API surfaces, kept separate:**
+- **Action API** — "do this now." Fires scenes, plays sounds. Instant, stateless.
+- **Management API** — "change what things do." CRUD, validated, persisted.
+
+**Access.** The operator panel is unrestricted. Player pages are a **separate, restricted surface** — name entry, seat claim, dice, break requests, receiving whispers — not the operator panel with buttons hidden, since hiding a control in a web page does not actually prevent anything. Players cannot fire scenes. Possibly later: letting players trigger sound effects and dice rolls.
+
+**Seat claiming.** Players enter a name on the web page and pick **the colour of the lights they are sitting at**, which maps name → zone. This uses the table itself as the seat-identification mechanism and is self-calibrating. It implies a **seat-claim display mode** where the six zones show distinct colours — also useful for debugging zone layout.
+
+**Resolved from §4.2:** the config schema is defined above; the web panel and controller share one process (§4) but expose the two API surfaces separately.
 
 ---
 
@@ -365,7 +456,7 @@ Stand up the core software on the Pi once hardware is trusted.
 - ~~Pi 4 OS + version~~ → **ANSWERED: Raspberry Pi OS Bullseye (Debian 11), aarch64/64-bit.**
 - ~~What software stack for the immersive layer?~~ → **DECIDED: Python.** (See §4.)
 - ~~One central app, or independent services on a message bus?~~ → **DECIDED: one process**, systemd-supervised, fault-isolated internally. (See §4.)
-- What's the "unit" of an experience — is it card-driven, scene-driven, time-driven, or a mix?
+- ~~What's the "unit" of an experience?~~ → **ANSWERED: the Scene**, with Interruptions layering over it and Random Tables selecting between them. Card-driven and panel-driven both resolve to the same targets. (See §4.3.)
 - How much should be authored/hand-designed vs. generative?
 - Physical constraints: LED counts, speaker placement, mic placement, table layout.
 
