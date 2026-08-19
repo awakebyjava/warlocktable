@@ -1,0 +1,127 @@
+{
+  "_comment": "Worked example for laptop development (plan doc 4.2/4.4). The Pi's REAL config lives outside the git repo, edited through the management panel — this file is a starting point to copy, not the production data. UIDs below are the actual card inventory, carried over from the V1 bytearrays in TarotWizard.py.",
+
+  "zones": [
+    { "id": 1, "colour": "red" },
+    { "id": 2, "colour": "orange" },
+    { "id": 3, "colour": "yellow" },
+    { "id": 4, "colour": "green" },
+    { "id": 5, "colour": "blue" },
+    { "id": 6, "colour": "purple" }
+  ],
+
+  "scenes": {
+    "idle": {
+      "lights": "breathing",
+      "soundscape": null,
+      "transition": { "crossfade_s": 1.5, "duck": false }
+    },
+    "forest": {
+      "lights": "GreenCard",
+      "soundscape": "forest",
+      "background": "forest.png",
+      "transition": { "crossfade_s": 2.0, "duck": false }
+    },
+    "plains": {
+      "lights": "WhiteCard",
+      "soundscape": "plains",
+      "background": "plains.png",
+      "transition": { "crossfade_s": 2.0, "duck": false }
+    },
+    "swamp": {
+      "lights": "BlackCard",
+      "soundscape": "swamp",
+      "background": "swamp.png",
+      "transition": { "crossfade_s": 2.0, "duck": false }
+    },
+    "island": {
+      "lights": "BlueCard",
+      "soundscape": "island",
+      "background": "island.png",
+      "transition": { "crossfade_s": 2.0, "duck": false }
+    },
+    "mountain": {
+      "lights": "RedCard",
+      "soundscape": "mountain",
+      "background": "mountain.png",
+      "transition": { "crossfade_s": 2.0, "duck": false }
+    },
+    "test1": {
+      "lights": "blink fade",
+      "soundscape": "outre",
+      "transition": { "crossfade_s": 1.0, "duck": false }
+    },
+    "test2": {
+      "lights": "fireflies",
+      "soundscape": "cigarette",
+      "transition": { "crossfade_s": 1.0, "duck": false }
+    }
+  },
+
+  "interruptions": {
+    "magician_reveal": {
+      "audio": "crowley2",
+      "lights": "green ripple reflections",
+      "duck": true
+    },
+    "ace_of_pentacles_reveal": {
+      "audio": "peromyscus",
+      "lights": "glitch bands",
+      "duck": true
+    },
+    "the_devil_reveal": {
+      "audio": "javan4",
+      "lights": "sparkfire",
+      "duck": true
+    },
+    "death_reveal": {
+      "audio": "september4",
+      "lights": "opposites",
+      "duck": true
+    },
+    "fortune_windfall": {
+      "audio": "audley",
+      "lights": "spin cycle",
+      "duck": true
+    },
+    "fortune_reversal": {
+      "audio": "september4",
+      "lights": "opposites",
+      "duck": true
+    },
+    "fortune_mystery": {
+      "audio": "peromyscus",
+      "lights": "glitch bands",
+      "duck": true
+    }
+  },
+
+  "random_tables": {
+    "wheel_outcomes": {
+      "entries": [
+        { "type": "interruption", "name": "fortune_windfall" },
+        { "type": "interruption", "name": "fortune_reversal" },
+        { "type": "interruption", "name": "fortune_mystery" }
+      ]
+    }
+  },
+
+  "cards": {
+    "04:3A:37:1A:CF:4F:81": { "label": "test1", "target": { "type": "scene", "name": "test1" } },
+    "04:F0:30:1A:CF:4F:80": { "label": "test2", "target": { "type": "scene", "name": "test2" } },
+
+    "04:39:65:9A:66:70:81": { "label": "Forest",  "target": { "type": "scene", "name": "forest" } },
+    "04:39:63:9A:66:70:81": { "label": "Plains",  "target": { "type": "scene", "name": "plains" } },
+    "04:39:62:9A:66:70:81": { "label": "Swamp",   "target": { "type": "scene", "name": "swamp" } },
+    "04:39:61:9A:66:70:81": { "label": "Island",  "target": { "type": "scene", "name": "island" } },
+    "04:39:64:9A:66:70:81": { "label": "Mountain","target": { "type": "scene", "name": "mountain" } },
+
+    "04:39:69:9A:66:70:81": { "label": "The Magician (tarot)", "target": { "type": "interruption", "name": "magician_reveal" } },
+    "04:39:68:9A:66:70:81": { "label": "Ace of Pentacles (tarot)", "target": { "type": "interruption", "name": "ace_of_pentacles_reveal" } },
+    "04:39:67:9A:66:70:81": { "label": "The Devil (tarot)", "target": { "type": "interruption", "name": "the_devil_reveal" } },
+    "04:39:6A:9A:66:70:81": { "label": "Death (tarot)", "target": { "type": "interruption", "name": "death_reveal" } },
+    "04:39:66:9A:66:70:81": { "label": "Wheel of Fortune (tarot)", "target": { "type": "random_table", "name": "wheel_outcomes" } }
+  },
+
+  "players": []
+}

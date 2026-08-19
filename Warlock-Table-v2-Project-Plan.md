@@ -326,6 +326,62 @@ Required capabilities:
 
 **Resolved from §4.2:** the config schema is defined above; the web panel and controller share one process (§4) but expose the two API surfaces separately.
 
+### 4.6 Fake-Hardware Skeleton (built)
+
+The §4.2 milestone — "the entire logic of the table works, on a laptop, with no hardware" — is done. Lives in `warlock/`:
+
+```
+warlock/
+  config.py       Config, Scene, Interruption, RandomTable, Card, Zone, Player
+                  + load_config() with eager referential-integrity checking
+  registry.py     the self-describing action registry (§4.5)
+  controller.py   the Controller — every action from the vocabulary below,
+                  precedence handling, timed interruption reverts
+  eventlog.py     append-only JSON-Lines event log (§ open question 8)
+  devices/        base.py = the abstract interfaces; fake.py = print-only
+                  stand-ins. A real driver later implements the same
+                  interface — nothing above the device layer changes.
+  cli.py          the fake-NFC-tap prompt
+run_table.py      entry point — `python run_table.py`
+data/
+  config.example.json   worked example, built from the real card inventory
+                         (§4.4 — the Pi's live config lives outside the repo;
+                         this file is a starting point, not production data)
+```
+
+No dependencies beyond the Python standard library.
+
+**The action vocabulary (§4.2 step 1), as implemented:**
+
+Targets — what a card or panel button points at:
+```
+apply_scene(scene)              enter a persisting state
+play_interruption(interruption) layer over current, revert when done
+roll_table(table)               pick at random, dispatch to the result
+```
+Primitives — what Scenes/Interruptions are built from, and what the panel drives directly:
+```
+set_lights(pattern)   set_soundscape(track)   set_background(image)
+play_effect(sound)    speak_line(line)        set_brightness(level)
+```
+System:
+```
+go_idle()   handoff_display(target)   whisper(player, text)
+```
+The seat-claim colour display needed no new action — it's just a Scene, which is the data model doing its job (variety absorbed as config, not new code).
+
+**Verified working**, tested over SSH against the Pi's Python 3.9 (the laptop currently has no Python installed at all — see the note below):
+- A tapped card fires the right target; an unregistered card is reported, not silently ignored (V1's old failure mode)
+- An interruption auto-reverts to the prior scene once its audio finishes
+- A new action pre-empts a still-pending revert with no stray leftover state (the "last input wins" rule, proven, not just claimed)
+- Random-table rolls vary tap to tap and stay stateless
+- A dangling config reference is rejected at load with a specific error, not discovered mid-session
+- `actions` command shows the registry describing itself, including live choice-lists pulled from the fake devices
+
+**Known gap:** the laptop has no working Python interpreter — only the Microsoft Store alias placeholder, which errors on invocation. Worth fixing (a real install, e.g. via `winget install Python.Python.3.12` or python.org) before real device drivers are written here, since at that point testing everything via the Pi over SSH stops being convenient.
+
+**Not yet built:** the real device drivers (Pixelblaze/audio/NFC), the web panel and its two API surfaces, systemd deployment. These are §4.2 steps 4 onward, gated on Phase 1 hardware being trustworthy.
+
 ---
 
 ## 5. Reliability & Startup Behavior
@@ -406,9 +462,9 @@ Get the Pixelblaze lighting physically solid and verified before touching softwa
 Stand up the core software on the Pi once hardware is trusted.
 
 - [x] Decide overall software architecture — see §4 (layers, one process, config-driven actions)
-- [ ] **Write the action vocabulary down** (§4.2 step 1) — no hardware needed, do this first
-- [ ] Controller skeleton with all-fake devices, running on the laptop
-- [ ] Config file + event dispatch — **fake table fully working end to end on the laptop**
+- [x] **Write the action vocabulary down** (§4.2 step 1) — see §4.6
+- [x] Controller skeleton with all-fake devices, running on the laptop — `warlock/`, run with `python run_table.py` (see §4.6). Built 2026-08-18; tested on the Pi over SSH since the laptop currently has no Python installed (Store alias only) — that's a real gap worth fixing before writing real drivers.
+- [x] Config file + event dispatch — **fake table fully working end to end**, incl. verified: timed auto-revert from an interruption, a new scene correctly pre-empting a pending revert (precedence rule), referential-integrity rejection of a dangling reference, and stateless random-table rolls
 - [ ] Run as a systemd service on the Pi (`Restart=always`, starts with zero hardware present)
 - [ ] Swap in real Pixelblaze via discovery, not a hardcoded IP
 - [ ] Get the PN532 NFC reader reading reliably

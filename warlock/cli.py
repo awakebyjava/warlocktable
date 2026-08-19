@@ -1,0 +1,181 @@
+"""The fake-hardware CLI — plan doc section 4.2, step 2-3.
+
+This is the milestone described in the plan doc: type a card name, watch
+what the table *would* do, with zero hardware attached. Everything printed
+here is exactly what a real Pixelblaze/audio/display driver would be told
+to do — the fakes just print instead of calling a websocket.
+
+Run it with:  python run_table.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+
+from .config import ConfigError, load_config
+from .controller import Controller
+from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
+from .eventlog import EventLog
+from .registry import describe_actions
+
+BANNER = """\
+Warlock Table v2 — fake-hardware controller
+No Pi, no Pixelblaze, no NFC reader. Everything below is what the real
+devices would be told to do.  Type 'help' for commands, 'quit' to exit.
+"""
+
+HELP = """\
+  card <uid-or-label>   simulate an NFC tap (try: thedevil, forest, wheel)
+  cards                 list every registered card
+  scenes                list scenes
+  interruptions         list interruptions
+  tables                list random tables
+  scene <name>          apply a scene directly (panel-style)
+  interrupt <name>      play an interruption directly
+  roll <table>          roll a random table directly
+  idle                  go to idle
+  seat <name> <colour>  claim a seat (e.g.  seat Dave red)
+  actions               show the self-describing action registry
+  log [n]               show the last n events (default 20)
+  sleep <seconds>       wait — useful for watching a timed revert fire
+  help                  this message
+  quit                  exit
+"""
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Warlock Table fake controller")
+    parser.add_argument(
+        "--config",
+        default=os.path.join(os.path.dirname(__file__), "..", "data", "config.example.json"),
+        help="path to a config JSON file (default: data/config.example.json)",
+    )
+    parser.add_argument(
+        "--logfile",
+        default=os.path.join(os.path.dirname(__file__), "..", "data", "events.log"),
+        help="where to append the event log (JSON Lines). Pass '' to disable.",
+    )
+    args = parser.parse_args()
+
+    try:
+        config = load_config(args.config)
+    except (ConfigError, FileNotFoundError, KeyError) as exc:
+        # Section 5.2 says the controller must never refuse to start over a
+        # bad config in production — it should fall back to last-known-good.
+        # This CLI is a dev tool, not the production controller, so for now
+        # it just reports the problem clearly and exits.
+        print("Could not load config %r:\n  %s" % (args.config, exc), file=sys.stderr)
+        sys.exit(1)
+
+    log = EventLog(path=args.logfile or None, echo=True)
+    lights = FakeLightDevice(log)
+    audio = FakeAudioDevice(log)
+    display = FakeDisplayDevice(log)
+    controller = Controller(config, lights, audio, display, log)
+
+    print(BANNER)
+    controller.go_idle()
+
+    while True:
+        try:
+            line = input("\n> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        cmd = parts[0].lower()
+        rest = parts[1] if len(parts) > 1 else ""
+
+        try:
+            _dispatch_command(cmd, rest, controller, config)
+        except KeyError as exc:
+            print("  No such name: %s" % exc)
+        except Exception as exc:  # noqa: BLE001 — CLI-level catch-all is fine here
+            print("  Error: %s" % exc)
+
+        if cmd in ("quit", "exit"):
+            break
+
+
+def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> None:
+    if cmd in ("quit", "exit"):
+        return
+
+    if cmd == "help":
+        print(HELP)
+
+    elif cmd == "card":
+        if not controller.handle_card(rest):
+            print("  '%s' is not a registered card. (In the real panel, this "
+                  "would appear as 'unassigned — tap to name it'.)" % rest)
+
+    elif cmd == "cards":
+        for card in config.cards.values():
+            print("  %-22s %-20s -> %s:%s" % (card.uid, card.label,
+                                                card.target.kind, card.target.name))
+
+    elif cmd == "scenes":
+        for name in config.scenes:
+            print("  " + name)
+
+    elif cmd == "interruptions":
+        for name in config.interruptions:
+            print("  " + name)
+
+    elif cmd == "tables":
+        for name, t in config.random_tables.items():
+            entries = ", ".join("%s:%s" % (e.kind, e.name) for e in t.entries)
+            print("  %s -> [%s]" % (name, entries))
+
+    elif cmd == "scene":
+        controller.apply_scene(rest)
+
+    elif cmd == "interrupt":
+        controller.play_interruption(rest)
+
+    elif cmd == "roll":
+        controller.roll_table(rest)
+
+    elif cmd == "idle":
+        controller.go_idle()
+
+    elif cmd == "seat":
+        try:
+            name, colour = rest.split()
+        except ValueError:
+            print("  usage: seat <name> <colour>")
+            return
+        ok = controller.claim_seat(name, colour)
+        if not ok:
+            print("  could not claim that seat (bad colour, or already taken "
+                  "by someone else — see the log line above)")
+
+    elif cmd == "actions":
+        for spec in describe_actions(controller):
+            print("  %s(%s)" % (
+                spec["name"],
+                ", ".join(p["name"] for p in spec["params"]),
+            ))
+            for p in spec["params"]:
+                if p["choices"] is not None:
+                    print("      %s: %s" % (p["name"], ", ".join(p["choices"])))
+
+    elif cmd == "sleep":
+        import time
+        time.sleep(float(rest or 1))
+
+    elif cmd == "log":
+        n = int(rest) if rest.strip().isdigit() else 20
+        for event in controller.log.recent(n):
+            print("  " + EventLog._humanize(event))
+
+    else:
+        print("  unknown command %r — try 'help'" % cmd)
+
+
+if __name__ == "__main__":
+    main()

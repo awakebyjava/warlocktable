@@ -1,0 +1,210 @@
+"""Config loading — the data model from plan doc section 4.4, in code.
+
+This file is deliberately boring: it reads JSON and checks it makes sense.
+All the interesting behaviour lives in controller.py. Keeping the data
+model and the behaviour in separate files is what makes it possible to
+later swap "read from a JSON file" for "read from the management API"
+without touching how a Scene or Interruption actually gets played.
+
+IMPORTANT — where the real config lives:
+Section 4.4 decided the Pi's live config lives OUTSIDE the git repo, so
+editing a card from the panel never puts the Pi's clone out of sync with
+GitHub (and never trips the pull.ff=only guard we set on the Pi). The
+`data/config.example.json` shipped in this repo is a worked example for
+development on the laptop — a starting point to copy, not the real thing.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
+
+class ConfigError(Exception):
+    """Raised for a config file that doesn't make sense. Section 5.2 says
+    the controller must never refuse to start over a bad config — the
+    caller of load_config() is responsible for falling back to a
+    last-known-good file if this is raised (not yet wired up in this
+    skeleton; noted as a TODO in cli.py)."""
+
+
+@dataclass
+class Transition:
+    crossfade_s: float = 1.5   # audio crossfade duration — section 4.3
+    duck: bool = True          # does the soundscape duck under effects
+
+
+@dataclass
+class Scene:
+    name: str
+    lights: str
+    soundscape: Optional[str] = None
+    background: Optional[str] = None
+    transition: Transition = field(default_factory=Transition)
+
+
+@dataclass
+class Interruption:
+    name: str
+    audio: str
+    lights: Optional[str] = None       # None = leave current lights alone
+    background: Optional[str] = None
+    duck: bool = True
+
+
+@dataclass
+class Target:
+    """A reference to something a card, table entry, etc. points at.
+    kind is one of "scene" / "interruption" / "random_table"."""
+    kind: str
+    name: str
+
+
+@dataclass
+class RandomTable:
+    name: str
+    entries: List[Target]
+
+
+@dataclass
+class Card:
+    uid: str            # hex string, colon-separated — see cli.py for parsing
+    label: str           # what the physical object IS, not what it does
+    target: Target
+
+
+@dataclass
+class Zone:
+    id: int
+    colour: str
+
+
+@dataclass
+class Player:
+    name: str
+    zone_id: Optional[int] = None
+
+
+@dataclass
+class Config:
+    scenes: Dict[str, Scene]
+    interruptions: Dict[str, Interruption]
+    random_tables: Dict[str, RandomTable]
+    cards: Dict[str, Card]          # keyed by uid
+    zones: List[Zone]
+    players: List[Player] = field(default_factory=list)
+
+    def find_card(self, uid_or_label: str) -> Optional[Card]:
+        """Looks up by exact uid first, then case-insensitive label match —
+        convenient for the CLI where typing a full hex UID is annoying.
+        The final pass strips spaces/punctuation from both sides so e.g.
+        "thedevil" matches the label "The Devil (tarot)"."""
+        needle = uid_or_label.strip()
+        if needle in self.cards:
+            return self.cards[needle]
+        lowered = needle.lower()
+        for card in self.cards.values():
+            if card.label.lower() == lowered:
+                return card
+        for card in self.cards.values():
+            if lowered in card.label.lower():
+                return card
+        squashed = "".join(ch for ch in lowered if ch.isalnum())
+        for card in self.cards.values():
+            label_squashed = "".join(ch for ch in card.label.lower() if ch.isalnum())
+            if squashed and squashed in label_squashed:
+                return card
+        return None
+
+    def resolve(self, target: Target):
+        """Turns a Target reference into the actual Scene/Interruption/
+        RandomTable object it points at. Raises ConfigError if it points
+        at nothing — this is the referential-integrity check from
+        section 4.5, applied at read time."""
+        table = {
+            "scene": self.scenes,
+            "interruption": self.interruptions,
+            "random_table": self.random_tables,
+        }.get(target.kind)
+        if table is None:
+            raise ConfigError("unknown target kind %r" % target.kind)
+        if target.name not in table:
+            raise ConfigError(
+                "%s %r not found (referenced but does not exist)"
+                % (target.kind, target.name)
+            )
+        return table[target.name]
+
+
+def _target_from_dict(d: Dict[str, Any]) -> Target:
+    return Target(kind=d["type"], name=d["name"])
+
+
+def load_config(path: str) -> Config:
+    with open(path, "r", encoding="utf-8") as fh:
+        raw = json.load(fh)
+
+    scenes = {}
+    for name, s in raw.get("scenes", {}).items():
+        t = s.get("transition", {})
+        scenes[name] = Scene(
+            name=name,
+            lights=s["lights"],
+            soundscape=s.get("soundscape"),
+            background=s.get("background"),
+            transition=Transition(
+                crossfade_s=t.get("crossfade_s", 1.5),
+                duck=t.get("duck", True),
+            ),
+        )
+
+    interruptions = {}
+    for name, i in raw.get("interruptions", {}).items():
+        interruptions[name] = Interruption(
+            name=name,
+            audio=i["audio"],
+            lights=i.get("lights"),
+            background=i.get("background"),
+            duck=i.get("duck", True),
+        )
+
+    random_tables = {}
+    for name, r in raw.get("random_tables", {}).items():
+        random_tables[name] = RandomTable(
+            name=name,
+            entries=[_target_from_dict(e) for e in r["entries"]],
+        )
+
+    cards = {}
+    for uid, c in raw.get("cards", {}).items():
+        cards[uid] = Card(
+            uid=uid,
+            label=c["label"],
+            target=_target_from_dict(c["target"]),
+        )
+
+    zones = [Zone(id=z["id"], colour=z["colour"]) for z in raw.get("zones", [])]
+
+    players = [
+        Player(name=p["name"], zone_id=p.get("zone_id"))
+        for p in raw.get("players", [])
+    ]
+
+    config = Config(
+        scenes=scenes, interruptions=interruptions, random_tables=random_tables,
+        cards=cards, zones=zones, players=players,
+    )
+
+    _validate(config)
+    return config
+
+
+def _validate(config: Config) -> None:
+    """Referential integrity, checked eagerly at load time rather than
+    discovered mid-session (plan doc 4.5)."""
+    for card in config.cards.values():
+        config.resolve(card.target)   # raises ConfigError if dangling
+    for table in config.random_tables.values():
+        for entry in table.entries:
+            config.resolve(entry)

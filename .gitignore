@@ -17,6 +17,11 @@ env/
 *.mp3
 *.flac
 
+# Runtime output from the fake-hardware CLI (warlock/cli.py) — this is a log
+# of a dev session, not project data. data/config.example.json IS committed;
+# only the log is excluded.
+data/events.log
+
 # Editor / OS cruft
 .vscode/
 .DS_Store
