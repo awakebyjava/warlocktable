@@ -64,7 +64,14 @@ The big themes:
 - Soundscapes echoed/coordinated with the lighting.
 - Expanding overall audio capability and complexity.
 - **Audio routing:** Pi 4 can output HDMI + analog jack simultaneously if we want sound in multiple places.
-- **To expand:** where speakers physically live, how many independent audio zones, what the soundscape library looks like, how audio syncs with light scenes.
+
+**Where audio files live (important):**
+- **Audio is deliberately *not* in the git repo.** `.wav/.ogg/.mp3/.flac` are gitignored. Large binaries can't be diffed or compressed and every version is kept forever — the V1 audio alone was **1.08 GB**, which would have made every clone and every Pi pull drag.
+- **Master copies:** `C:\Users\jonre\Documents\warlocktable-audio\` on the laptop (`Ov/` and `MagicCards/`, as moved out of `Warlock Table V1/MagicTarot/`).
+- **Getting audio to the Pi:** `rsync` over the existing passwordless SSH — code goes via GitHub, media goes direct. Two different transport paths for two different kinds of asset.
+- Note the legacy V1 code expects these files at `/home/pi/Documents/MagicTarot/Ov/...`; v2 should read the audio path from config rather than hardcoding it.
+
+- **To expand:** where speakers physically live, how many independent audio zones, what the soundscape library looks like, how audio syncs with light scenes. Also: a proper backup for the audio masters, since they're no longer protected by being in git.
 
 ### 3.4 Voice / Live Audio Input
 - Two related but distinct ideas:

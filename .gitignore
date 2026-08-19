@@ -7,6 +7,16 @@ __pycache__/
 venv/
 env/
 
+# Audio assets — deliberately kept out of git.
+# Large binaries can't be diffed or compressed, and every version is stored
+# forever, so they bloat the repo permanently (this repo was ~1GB before).
+# Master copies live outside the repo; sync to the Pi with rsync over SSH.
+# If you ever genuinely need one tracked: git add -f <file>
+*.wav
+*.ogg
+*.mp3
+*.flac
+
 # Editor / OS cruft
 .vscode/
 .DS_Store
