@@ -14,6 +14,14 @@ import argparse
 import os
 import sys
 
+# Windows consoles default to a legacy codepage (cp1252/cp437) that can't
+# represent characters like the "·" this CLI prints, or names such as
+# "Outré" in the audio library — they come out as "�" instead. Forcing
+# UTF-8 here fixes it regardless of what codepage the terminal started in.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
 from .config import ConfigError, load_config
 from .controller import Controller
 from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
