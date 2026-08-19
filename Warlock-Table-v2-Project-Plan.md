@@ -105,7 +105,7 @@ The table is controlled through two deliberately separate surfaces:
 **Implementation notes:**
 - Serve as a **PWA** so it "Add to Home Screen"s on the iPad as a full-screen, app-like icon.
 - Lightweight Python server (**FastAPI** or **Flask**) fits well if the rest of the stack is Python.
-- **v1 scope decision:** buttons/shortcuts that *fire actions* (no live status readback yet — that's a later enhancement).
+- **v1 scope decision (revised):** buttons/shortcuts that *fire actions*, **plus a subsystem status strip** — Lights / Sound / NFC / Network, green-or-red. Status readback was originally deferred to "later," but it's what turns *"it's broken and I don't know why"* into *"oh, the Pixelblaze lost power."* Cheap to build, and it's the difference between trusting the table and not. Full live state readback (current pattern, current track, volume levels) is still a later enhancement — this is just health, not detail. See §5.
 - **To expand:** exact button list, layout, whether any controls need live state later.
 
 **Player phones as second screens (subtask):**
@@ -170,7 +170,7 @@ Two complementary options; not mutually exclusive.
 
 ## 4. Architecture
 
-*(Early thinking — this is the part we're actively working out.)*
+*(Core shape is now decided — see §4.1/§4.2. Details still open at the end of the section.)*
 
 **Central Controller pattern (recommended).** Build one "controller" service on the Pi that *owns all the actions* — play soundscape X, set light scene Y, switch background Z, hand off to Apple TV, etc. Every input then just calls into that same layer:
 
@@ -187,15 +187,106 @@ Why this matters:
 - Adding **voice** later is just a third input feeding the same controller.
 - Actions are defined once, in one place, and become the vocabulary for the whole table.
 
-**Open architectural questions:**
-- Language/stack for the controller (Python is the likely fit given NFC + GPIO + Pixelblaze client).
-- One monolithic app vs. small cooperating services (and if the latter, how they talk — HTTP, a message bus, etc.).
-- How actions are represented (a registry/config? code? data the card-management UI can edit?).
-- How the web panel talks to the controller (shared process vs. API calls).
+### 4.1 The layers
+
+The controller isn't one blob — it's a stack, where each layer knows as little as possible about the others (**separation of concerns**). Top to bottom:
+
+| Layer | What it is | Why it's separate |
+|---|---|---|
+| **Control surfaces** | iPad panel, player phones. **Clients** talking HTTP to the controller (**server**) via a **REST API**. | Any device on the LAN can drive the table without knowing how anything works. |
+| **Inputs / event sources** | NFC reader, panel, voice, dice. Each has one job: notice something and **emit an event** (`{"type":"card_scanned","uid":"04:39:67"}`). | An input never touches the lights. Adding voice later is just a new event source — the rest of the system doesn't change. |
+| **Controller** | One long-running **service** (**daemon**) with an **event loop**, routing events to actions. | Single place where "what happens when" is decided. |
+| **Config** | Event → action mapping in YAML/JSON. **Declarative** — describes *what*, not *how*. | New cards are data edits, not code edits. This is the fix for the V0/V1 `elif` chains. |
+| **Actions** | The table's vocabulary: `set_light_scene`, `play_soundscape`, `speak_line`, `switch_background`. Held in an **action registry** (name → function). | Defined once, reused by every input. A card and a panel button fire the *same* action. |
+| **Drivers / adapters** | Thin wrappers over each device — `lights.set_scene("combat")` internally calling `pb.setActivePattern("RedCard")`. | Presents a **stable interface** over a changeable implementation. Swap a device, and only this layer changes. |
+
+**Why this ordering matters:** the V1 `TarotWizard.py` fused all six layers into one file — the NFC loop directly knew Pixelblaze pattern names *and* absolute audio paths. That's **tight coupling**, and it's precisely why adding a card meant copy-pasting Python.
+
+### 4.2 Build order (fakes first)
+
+The important consequence: **most of this can be built and tested on the laptop with no working hardware**, using **fakes** (a.k.a. stubs/mocks) — stand-in implementations satisfying the same interface. A fake `set_light_scene("combat")` just prints `LIGHTS → combat`.
+
+0. Prove the Git-bridge loop (laptop → GitHub → Pi → runs).
+1. **Write the action vocabulary down.** ~5–8 actions. A conversation, not code — these names become the project's shared language.
+2. Controller skeleton, everything faked. Runs on the laptop.
+3. Config file + event dispatch. Feed it a fake card scan, watch fake lights change. **At this point the entire logic of the table works, on a laptop, with no hardware.**
+4. Swap *one* fake for real (lights first, once Phase 1 is done). Nothing else changes — that's the payoff. *If swapping in real hardware requires editing the controller, the layering is wrong.*
+5. Swap in real NFC.
+6. Add the web panel — nearly free, since the actions already exist.
+7. Everything after is one of two moves: **a new input emitting events**, or **a new action in the vocabulary.**
+
+**Risk to watch:** this is more structure than the project strictly needs on day one, and there's a real failure mode where the layers get built beautifully and nothing ever runs. Mitigation is step 3 — get to "fake table fully working" fast, then make it real. Don't build all six layers before anything works.
+
+**Resolved architectural questions:**
+- **Language/stack:** Python (NFC + GPIO + Pixelblaze client all fit).
+- **One app vs. services:** **one process**, supervised by systemd, with fault isolation *inside* it (see §5.2). Microservices would add process management, IPC, and debugging pain to solve a problem that per-subsystem error handling already solves. One wrinkle to mitigate: if the controller wedges, the panel and its diagnostics go with it — hence the TV status screen (§5.1).
+- **How actions are represented:** action registry in code, event→action mapping in config data.
+
+**Still open:**
+- How the web panel talks to the controller (same process serving both vs. separate API calls).
+- Exact config schema — `warlocktable.csv`'s `name, bytearray, pattern, sound` is a reasonable starting shape.
 
 ---
 
-## 5. Roadmap
+## 5. Reliability & Startup Behavior
+
+*Scope note: this is a hobby build, not a commercial appliance, and a certain amount of fiddliness is fine and expected. The specific thing worth engineering properly is **boot-up** — power the table on, pick up the iPad, and have it work without opening a terminal. Everything in this section serves that one goal; anything beyond it is explicitly out of scope (§5.5).*
+
+### 5.1 Target startup sequence
+
+1. **One switch** (smart plug or switched strip inside the table) powers Pi, Pixelblaze, LED supply, TV, and amp together.
+2. Pi boots; systemd starts the controller with `Restart=always`. It comes up healthy **even though nothing else is ready yet**.
+3. Pixelblaze associates with Wi-Fi; the controller's background retry loop finds it.
+4. **LEDs come up to a default ambient scene on their own** — visible confirmation the table is alive, without having to go ask it.
+5. TV shows a default background — or, if something is unhealthy, **a status screen naming what's wrong**. The TV is already there and already driven by the Pi, so this is a nearly free diagnostic surface, and it means you often don't need the iPad to know something's broken.
+6. iPad → home-screen icon → panel loads, status strip all green.
+
+Ready in about a minute, with no interaction required.
+
+### 5.2 Core principles
+
+- **The controller must start with zero hardware present.** Not "fail gracefully" — actually boot, serve the panel, and retry each device in the background until it appears. **Power-on order must never matter.**
+- **Fault isolation.** Lights down ≠ sound down ≠ panel down. Every device call is wrapped so a failure marks *that* subsystem unhealthy and everything else carries on.
+- **Discover, don't hardcode.** Devices announce themselves; the controller finds them.
+- **The table reports its own status** — status strip on the panel (§3.7), status screen on the TV.
+- **Never refuse to start.** Bad config → load last-known-good and surface the error on the panel.
+- **No cloud call on the critical path.** Govee/dddice are cloud-dependent; lights, sound, and NFC must not care whether the internet is up.
+
+### 5.3 Known failure modes to design against
+
+| Failure | Why it happens | Mitigation |
+|---|---|---|
+| **Pixelblaze address drift** | DHCP lease expires or router reboots; hardcoded IP goes stale. *This already happened:* V0 hardcodes `10.1.10.165`, V1 hardcodes `10.10.0.171/`. | Use `PixelblazeEnumerator` discovery — **already present in the old code but ignored in favour of a hardcoded string.** Plus DHCP reservations for Pi + Pixelblaze, and mDNS (`warlocktable.local`) so the iPad never needs an IP either. |
+| **Boot race** | Pi boots faster than Wi-Fi associates or the Pixelblaze powers up. Old code does `pb = Pixelblaze(ip)` at module level with no error handling — one raise and the table is dark forever. | Controller starts regardless; background retry per device; `Restart=always`. |
+| **Audio device roulette** | If the TV is off at boot, HDMI audio may not enumerate and the default output silently changes. | Pin the audio device explicitly in config. Never rely on "default." |
+| **HDMI handshake** | Boot with the TV off → bad resolution or no output when it wakes. | Force hotplug in `/boot/config.txt` (verify the right setting for Bullseye). |
+| **SD card corruption** | The #1 killer of long-running Pi projects; usually caused by yanking power. | Physical GPIO shutdown button → `shutdown -h now`; keep a known-good SD image on the shelf so recovery is ~20 min. Booting from USB SSD instead is a genuine upgrade the Pi 4 supports. |
+| **Config typo bricks the table** | YAML edit the afternoon before a session. | Validate at startup; fall back to last-known-good; show the error on the panel. |
+| **Game-day deploy** | The Git bridge makes it trivially easy to `git pull` an hour before people arrive and break everything. | Run a **tagged known-good version** on the Pi, not raw `main`, so rollback is one command. Test on the laptop first — the fakes (§4.2) make this possible. |
+| **Unknown card scanned** | Old code printed `not a registered card!` to a terminal nobody is reading. | Surface it on the panel; ideally offer to register it right there. |
+
+### 5.4 "Table Check" — pre-session self-test
+
+One button on the panel that runs through:
+- ping / discover the Pixelblaze, flash a test pattern
+- play a one-second test tone on each audio output
+- read the PN532 firmware version
+- validate the config file
+
+...and reports pass/fail per line. Run it ten minutes before people arrive. **This is the highest-value reliability feature in the whole build** — it's the difference between finding a problem with time to fix it and finding it with an audience.
+
+### 5.5 Explicitly out of scope
+
+Real techniques, but they're for appliances you can't physically reach — this one is furniture in the house:
+- Read-only root filesystem / overlayfs
+- Pi running its own Wi-Fi access point so the table doesn't inherit the house router's reliability
+- Restoring exact scene state after a crash-restart
+
+Revisit only if a specific problem actually shows up.
+
+---
+
+## 6. Roadmap
 
 ### Phase 1 — Hardware Foundation *(CURRENT)*
 Get the Pixelblaze lighting physically solid and verified before touching software.
@@ -213,11 +304,24 @@ Get the Pixelblaze lighting physically solid and verified before touching softwa
 ### Phase 2 — Software Foundation
 Stand up the core software on the Pi once hardware is trusted.
 
-- [ ] Decide overall software architecture (what runs on the Pi, how subsystems talk to each other)
+- [x] Decide overall software architecture — see §4 (layers, one process, config-driven actions)
+- [ ] **Write the action vocabulary down** (§4.2 step 1) — no hardware needed, do this first
+- [ ] Controller skeleton with all-fake devices, running on the laptop
+- [ ] Config file + event dispatch — **fake table fully working end to end on the laptop**
+- [ ] Run as a systemd service on the Pi (`Restart=always`, starts with zero hardware present)
+- [ ] Swap in real Pixelblaze via discovery, not a hardcoded IP
 - [ ] Get the PN532 NFC reader reading reliably
-- [ ] Basic audio output working (HDMI/analog as needed)
+- [ ] Basic audio output working (HDMI/analog as needed) — pin the device explicitly
 - [ ] Basic screen visuals on the embedded TV
-- [ ] A way for one input (e.g., an NFC card) to trigger one output (e.g., a light scene) — the first end-to-end interaction
+- [ ] A way for one input (e.g., an NFC card) to trigger one output (e.g., a light scene) — the first end-to-end interaction **on real hardware**
+
+**Reliability work (per §5) — fold in alongside the above, not after:**
+- [ ] Subsystem status strip on the panel + status screen on the TV
+- [ ] Config validation with last-known-good fallback
+- [ ] DHCP reservations + mDNS name so the iPad icon never breaks
+- [ ] "Table Check" self-test button (§5.4)
+- [ ] Physical GPIO shutdown button + a known-good SD image on the shelf
+- [ ] Tag known-good releases; run tags on the Pi, not raw `main`
 
 ### Phase 3+ — Feature Build-Out
 - [ ] Operator web control panel (Pixelblaze/audio/background shortcuts, Apple TV hand-off)
@@ -244,19 +348,19 @@ Stand up the core software on the Pi once hardware is trusted.
 
 ---
 
-## 6. Open Questions To Work Through Together
+## 7. Open Questions To Work Through Together
 
 - ~~Project / table name & branding~~ → **DECIDED: the project is called "Warlock Table."** (Visual branding still TBD, but the name is locked.)
 
-- Pi 4 OS + version (desktop vs. Lite, Bookworm vs. Bullseye)? Affects audio, NFC, and app choices.
-- What software stack do you want the immersive layer written in (Python? something else)?
-- How should subsystems be coordinated — one central app, or independent services talking over a message bus?
+- ~~Pi 4 OS + version~~ → **ANSWERED: Raspberry Pi OS Bullseye (Debian 11), aarch64/64-bit.**
+- ~~What software stack for the immersive layer?~~ → **DECIDED: Python.** (See §4.)
+- ~~One central app, or independent services on a message bus?~~ → **DECIDED: one process**, systemd-supervised, fault-isolated internally. (See §4.)
 - What's the "unit" of an experience — is it card-driven, scene-driven, time-driven, or a mix?
 - How much should be authored/hand-designed vs. generative?
 - Physical constraints: LED counts, speaker placement, mic placement, table layout.
 
 ---
 
-## 7. Notes / Scratchpad
+## 8. Notes / Scratchpad
 
 *(Running notes as we refine — add freely.)*
