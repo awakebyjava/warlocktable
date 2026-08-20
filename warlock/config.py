@@ -21,6 +21,27 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
+def normalise_uid(value: str) -> str:
+    """Canonical form of an NFC UID for comparison: hex digits only, upper.
+
+    "04:39:65:9A:66:70:81", "04 39 65 9a 66 70 81" and "0439659a667081" all
+    reduce to the same thing. Returns "" if the input isn't plausibly a UID,
+    so label lookups don't get mangled into false matches.
+    """
+    stripped = value.strip().replace(":", "").replace("-", "").replace(" ", "")
+    if not stripped:
+        return ""
+    upper = stripped.upper()
+    if any(c not in "0123456789ABCDEF" for c in upper):
+        return ""     # contains letters like 'thedevil' — it's a label
+    return upper
+
+
+def format_uid(raw: bytes) -> str:
+    """Bytes from the reader -> the canonical display form used in config."""
+    return ":".join("%02X" % b for b in raw)
+
+
 class ConfigError(Exception):
     """Raised for a config file that doesn't make sense. Section 5.2 says
     the controller must never refuse to start over a bad config — the
@@ -112,6 +133,16 @@ class Config:
         needle = uid_or_label.strip()
         if needle in self.cards:
             return self.cards[needle]
+
+        # UID match ignoring format. The reader emits "04:39:65:9A:66:70:81",
+        # but a UID typed into the management UI could easily arrive lowercase,
+        # space-separated, or run together. Comparing canonical forms means a
+        # real card tap can't silently fail to match over punctuation.
+        needle_uid = normalise_uid(needle)
+        if needle_uid:
+            for uid, card in self.cards.items():
+                if normalise_uid(uid) == needle_uid:
+                    return card
         lowered = needle.lower()
         for card in self.cards.values():
             if card.label.lower() == lowered:

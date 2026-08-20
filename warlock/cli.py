@@ -93,6 +93,12 @@ def main() -> None:
         help="address hint for the Pixelblaze. Optional — if it is wrong or "
              "omitted, the device is found by UDP discovery instead.",
     )
+    parser.add_argument(
+        "--nfc",
+        action="store_true",
+        help="read real cards from the PN532 instead of only simulated taps. "
+             "Pi only — needs SPI and RPi.GPIO. The 'card' command still works.",
+    )
     args = parser.parse_args()
 
     try:
@@ -136,6 +142,26 @@ def main() -> None:
             print("REAL LIGHTS: not connected yet (%s)" % (status["error"] or "will retry"))
             print("             the table will keep running; lights retry in background.")
 
+    reader = None
+    if args.nfc:
+        from .inputs.nfc import NFCReader
+
+        def on_card(uid: str) -> None:
+            # Exactly what the CLI's 'card' command calls. A physical tap and
+            # a typed command are the same event by the time they arrive here —
+            # that identity is the whole point of the architecture (plan doc 4).
+            if not controller.handle_card(uid):
+                print("\n  UNREGISTERED CARD: %s" % uid)
+                print("  (the panel will offer to register this — plan doc 4.5)")
+                print("> ", end="", flush=True)
+
+        reader = NFCReader(log, on_card)
+        reader.start()
+        # Hang the status off the controller so the 'status' command can show
+        # it without the CLI having to thread the reader through every call.
+        controller._nfc_status = reader.status
+        print("NFC: reader starting — tap a card on the reader at any time.")
+
     controller.go_idle()
 
     while True:
@@ -159,6 +185,10 @@ def main() -> None:
 
         if cmd in ("quit", "exit"):
             break
+
+    if reader is not None:
+        # Stop polling and release GPIO, or the next run finds the pins busy.
+        reader.stop()
 
 
 def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> None:
@@ -238,6 +268,14 @@ def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> No
         print("  scene:", st["scene"])
         for subsystem, ok in st["subsystems"].items():
             print("  %-9s %s" % (subsystem + ":", "ok" if ok else "UNHEALTHY"))
+        nfc_status = getattr(controller, "_nfc_status", None)
+        if callable(nfc_status):
+            info = nfc_status()
+            print("  nfc reader:")
+            for key in ("healthy", "firmware", "taps", "last_uid", "error"):
+                if info.get(key) is not None:
+                    print("     %-20s %s" % (key, info[key]))
+
         device_status = getattr(controller.lights, "status", None)
         if callable(device_status):
             info = device_status()
