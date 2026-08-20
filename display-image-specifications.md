@@ -1,164 +1,225 @@
-# Warlock Table — Display Image Specifications
+# Warlock Table — Display Image Specification
 
-*Specs for generating static backgrounds, battle maps, and animated content for the table's embedded TV. Measured from the actual panel on 2026-08-20, not assumed.*
+*Everything needed to generate static backgrounds, battle maps, and animated content for the table's embedded TV. Self-contained — no other document required.*
+
+*Measured from the actual panel, 2026-08-20.*
 
 ---
 
-## 1. The panel
+## 1. What this is for
+
+A television is embedded face-up in a tabletop RPG gaming table. It displays background artwork tied to the game's current mood — a forest, a swamp, a burning hellscape — and sometimes battle maps that physical miniatures stand on.
+
+Two things about this make it different from designing for an ordinary TV, and both change what "good" looks like:
+
+1. **Players sit 2–3 feet away and look down at it.** Detail that would be invisible on a wall-mounted TV is clearly visible here.
+2. **It is a light source in a dim room.** The screen faces upward into everyone's faces for hours at a stretch.
+
+The table also has **764 addressable LEDs around its perimeter**, lit in the current scene's colour at the same time the image is showing.
+
+---
+
+## 2. THE SPEC — generate everything at 3840 × 2160
+
+**Output must be exactly 3840 × 2160 pixels. No borders, no padding, no letterboxing.**
+
+| Setting | Value |
+|---|---|
+| **Resolution** | **3840 × 2160** (exactly) |
+| Aspect ratio | 16:9 (1.7778 : 1) |
+| Colour space | sRGB |
+| Bit depth | 8-bit |
+| Static format | PNG (or JPEG quality 90+ for purely photographic work) |
+| Video format | MP4, H.264 High profile, yuv420p |
+| Video frame rate | 24–30 fps |
+
+### Do NOT use 4096 × 2160
+
+The TV advertises `4096×2160` as supported, and it is tempting because it is bigger. **It is the wrong shape.**
+
+- The physical panel measures **1209 mm × 680 mm** = **1.7779 : 1** = 16:9
+- `3840 × 2160` = 1.7778 : 1 → **matches exactly**
+- `4096 × 2160` = 1.8963 : 1 → DCI 4K, 17:9 → **does not match**
+
+Feeding the panel 4096-wide content means every image is letterboxed or horizontally stretched. Circles become ovals. Battle map grids stop being square, which makes miniatures sit wrong.
+
+### Why 4K rather than 1440p or 1080p
+
+On a 55" living-room TV, 4K is marginal. At table distance the maths changes completely:
+
+| Resolution | Pixels per inch on this panel |
+|---|---|
+| 3840 × 2160 | **80.7 px/inch** |
+| 2560 × 1440 | 53.8 px/inch |
+| 1920 × 1080 | 40.3 px/inch |
+
+At roughly 30 inches, the eye resolves detail far finer than 40 px/inch — **1080p pixels are individually visible** at this distance. 4K is a real, noticeable improvement here in a way it is not on a wall.
+
+**The one exception:** this panel is limited to **30 Hz at any 4K mode** (60 Hz exists only at 2560×1440 and below). For slow ambient motion — drifting fog, flickering firelight, rippling water — 24–30 fps looks excellent, because slow movement does not need a high frame rate. Only if a specific animation has *fast* motion should it be rendered at **2560 × 1440 @ 60 fps** instead. Everything else: 3840 × 2160.
+
+---
+
+## 3. The most important guidance: make it DARK
+
+**This is the instruction most likely to be skipped and most likely to ruin the result.**
+
+Image generators default to bright, punchy, saturated, high-contrast output. That is exactly wrong for this table. The screen points **upward** in a **dim room** during a session that runs for hours.
+
+A bright image is a lamp shining into everyone's faces. It destroys night vision, washes out the LED lighting, and is genuinely unpleasant to sit around.
+
+**Ask for, explicitly:**
+- **Dark, low-key, moody.** Firelit, moonlit, dusk, overcast, deep shade.
+- **Large areas kept in the lower third of the brightness range.**
+- **Desaturated / muted colour.** The 764 perimeter LEDs supply the room's colour; the screen supplies *texture and depth*. A vivid screen fights the lighting instead of completing it.
+- Bright highlights only as **small accents** — a campfire, a shaft of light, glinting water. Never as fields.
+
+**Avoid entirely:**
+- Large white or near-white areas. On a 55" upward-facing panel this is blinding.
+- Strong colour casts that *oppose* the scene's LED colour (a warm orange image under green forest lighting reads as a mistake, not a choice).
+- Hard flat gradients — they band visibly on TV panels.
+- Fine, high-contrast repeating detail — it shimmers and moirés.
+- Baked-in text, unless it is meant to be read.
+
+A useful mental test: *would you be happy with this image on a lamp pointed at your face for four hours?*
+
+---
+
+## 4. Battle maps — the grid must be exact
+
+If **physical miniatures** stand on the map, the on-screen grid has to match their bases, or nothing lines up.
+
+The panel is 1209 mm × 680 mm = 47.598" × 26.772". At 3840 × 2160 that gives:
+
+**80.68 pixels per inch** — and pixels are square (verified identical horizontally and vertically).
+
+| Thing | Physical size | Pixels |
+|---|---|---|
+| Standard grid square (5 ft, medium base) | 1 inch | **80.68 px** |
+| Large creature (2×2) | 2 inches | 161.4 px |
+| Gargantuan (4×4) | 4 inches | 322.7 px |
+| Full screen width | 47.598 inches | **≈ 47 squares** |
+| Full screen height | 26.772 inches | **≈ 26 squares** |
+
+So a full-screen map at true 1-inch scale is about a **47 × 26 grid** — roughly 235 × 130 feet of game space.
+
+**Two practical rules:**
+
+1. **Compute grid positions as `round(i × 80.68)`, not by stepping a fixed 81 px.** Rounding to 81 accumulates about half a square of drift across the full width, which is visible and will annoy anyone placing minis.
+
+2. **Draw the grid programmatically, not with the AI.** Generate the *artwork* with the model, then overlay the grid afterwards in code or an image editor. Image models are unreliable at producing evenly spaced, accurate grids, and a drifting grid is worse than no grid when miniatures have to sit on it.
+
+Keep grid lines **thin and subtle** — 1–2 px at 20–30% opacity. At table distance a heavy grid dominates the artwork underneath.
+
+*(If miniatures are not being used, ignore this whole section and treat any grid as decorative.)*
+
+---
+
+## 5. Safe area — keep important content inside 3456 × 1944
+
+Televisions frequently **overscan**, cropping a few percent off every edge. This panel has not been tested for it yet, so assume it happens.
+
+- **Safe box: 3456 × 1944, centred.** That is 192 px in from left and right, 108 px from top and bottom (5% margin).
+- Keep anything that must not be cut inside it: map edges, focal subjects, any text.
+- **Let backgrounds bleed to the full 3840 × 2160.** Losing a little atmospheric edge is invisible; losing part of a map is not.
+
+---
+
+## 6. File formats in detail
+
+**Static images**
+- **PNG** — use for illustration, flat colour, anything with crisp lines, and *always* for anything with a grid. Lossless, so no compression mush on edges. Expect 5–15 MB at this size.
+- **JPEG, quality 90 or higher** — acceptable for purely photographic or painterly images, and much smaller. **Never for grids** — JPEG artifacts cluster on exactly the thin high-contrast lines a grid is made of.
+
+**Animated content**
+- **MP4 / H.264 High profile / yuv420p.** This is what the Raspberry Pi decodes in hardware. H.265 is *not* reliably hardware-accelerated on a Pi 4 for playback.
+- **Never animated GIF** — no hardware decode, poor colour, enormous files.
+- **Loop seamlessly.** First and last frame should match. A visible jump every 20 seconds is very distracting in peripheral vision.
+- Bitrate 15–25 Mbps at 4K30. Higher mostly wastes storage and read bandwidth.
+
+---
+
+## 7. How to actually generate these with an AI model
+
+Most image models cannot output 3840 × 2160 directly — they typically cap around 1024–2048 px on the long edge. The workflow that works:
+
+1. **Generate at the model's maximum in a 16:9 aspect.** Whatever 16:9 option it offers (1920×1080, 1344×768, 1792×1024). **Getting the aspect right at generation time matters far more than the pixel count** — you can add pixels later, you cannot fix a wrong shape.
+2. **Upscale to exactly 3840 × 2160**, ideally with a model-based upscaler.
+3. **Verify the final file is exactly 3840 × 2160.** Not 3840×2159, not 3838×2160. Exact.
+4. **For battle maps:** generate the artwork only, then overlay the grid programmatically at 80.68 px pitch (see §4).
+
+### A prompt template to adapt
+
+> A dark, low-key, desaturated [SUBJECT] scene, viewed from directly overhead.
+> Moody and atmospheric, lit only by [firelight / moonlight / bioluminescence].
+> Muted, restrained colour palette. Deep shadows. No bright or white areas.
+> Rich surface texture and fine detail. No text, no characters, no UI elements.
+> Wide 16:9 landscape composition, evenly balanced with no single dominant
+> focal point. Painterly, cinematic.
+
+Notes on why that is shaped the way it is:
+- **"viewed from directly overhead"** — for battle maps and most table backgrounds, a top-down view reads correctly on a horizontal screen. A landscape shot with a horizon looks odd lying flat.
+- **"no single dominant focal point"** — people sit on all sides. A composition with an obvious subject in one place looks wrong to everyone not sitting at that side.
+- **"no text, no characters"** — text has an orientation and will be upside down for half the table. Characters imply a viewing direction.
+- Repeat the **dark / desaturated** instruction more than once. Models drift bright.
+
+---
+
+## 8. Composition — sit-around-a-table considerations
+
+Because people sit on **all four sides**:
+
+- **Prefer orientation-neutral compositions.** Textures, top-down terrain, abstract atmospherics, symmetrical layouts — these read correctly from any seat.
+- **Avoid anything with an obvious "up"** unless the content genuinely needs it: horizons, skies, standing figures, text.
+- **Avoid a strong single focal point**, which privileges one seat over the others. Even, ambient compositions work better.
+
+**One open decision, not yet made:** whether battle maps and any text-bearing content should be oriented to the GM's seat, or kept orientation-neutral. This does not block generating atmospheric backgrounds, but it should be settled before commissioning a lot of map artwork.
+
+---
+
+## 9. Quick reference card
+
+```
+RESOLUTION       3840 x 2160  exactly
+                 (NOT 4096 x 2160 - that is 17:9 and will distort)
+ASPECT           16:9
+COLOUR           sRGB, 8-bit
+
+PIXEL DENSITY    80.68 px per inch
+GRID SQUARE      80.68 px  = 1 inch = 5 ft = one medium base
+FULL SCREEN      ~47 x 26 grid squares (~235 x 130 ft)
+GRID MATH        position = round(i * 80.68)   -- do NOT step by 81
+
+SAFE AREA        3456 x 1944 centred (5% margin all round)
+                 backgrounds may bleed to full frame
+
+STATIC FORMAT    PNG   (JPEG q90+ only for photographic, never for grids)
+VIDEO FORMAT     MP4 / H.264 High / yuv420p
+VIDEO FPS        24-30 at 4K  (panel is 30 Hz max at 4K)
+                 60 fps only if rendered at 2560 x 1440 instead
+VIDEO BITRATE    15-25 Mbps
+
+STYLE            DARK. Low-key. Desaturated. Muted.
+                 No white or near-white fields.
+                 Top-down, orientation-neutral, no dominant focal point.
+                 No text. No baked-in characters.
+                 The screen supplies texture; the LEDs supply colour.
+```
+
+---
+
+## 10. Panel reference data
+
+For anyone recalculating any of the above:
 
 | | |
 |---|---|
-| Display | TCL HDTV, embedded in the table |
-| Physical size | **1209 mm × 680 mm** (47.6" × 26.8"), ≈ **54.6" diagonal** |
-| Physical aspect | **1.778 : 1 → exactly 16:9** |
-| Connection | Pi 4 HDMI1 (second port), currently running 1920×1080 @ 60 Hz |
-
----
-
-## 2. Target resolution — **3840 × 2160**, not 4096 × 2160
-
-**Generate everything at 3840 × 2160 (UHD 4K, 16:9).**
-
-The panel advertises `4096×2160` as a supported mode, but **do not use it.** That is DCI 4K, which is 17:9 (1.896:1). The physical panel is 16:9. Feeding it 4096-wide content means every image is either letterboxed or horizontally stretched — circles become ovals, and on a battle map the grid stops being square.
-
-| Mode | Aspect | Verdict |
-|---|---|---|
-| 4096 × 2160 | 1.896 (17:9) | ✗ Does not match the panel |
-| **3840 × 2160** | **1.778 (16:9)** | ✓ **Use this** |
-| 2560 × 1440 | 1.778 (16:9) | ✓ Correct aspect, good fallback for animation |
-| 1920 × 1080 | 1.778 (16:9) | ✓ Correct aspect, current mode |
-
-### Why 4K genuinely matters here
-
-On a living-room TV, 4K on a 55" panel is marginal. **This is a table you sit 2–3 feet from**, which changes the maths completely:
-
-- At 3840 wide → **80.7 pixels per inch**
-- At 1920 wide → 40.3 pixels per inch
-
-At roughly 30 inches viewing distance, the eye resolves detail finer than 40 px/inch easily — 1080p pixels are *visible* at table range. 4K is a real, noticeable upgrade for this use case in a way it isn't on a wall.
-
----
-
-## 3. Pixel density — critical for battle maps
-
-**80.7 pixels per inch** at 3840 × 2160. Pixels are square (verified: 80.68 px/in horizontally and vertically).
-
-If physical miniatures will stand on the map, the grid **must** match their bases:
-
-| Thing | Physical | Pixels at 3840×2160 |
-|---|---|---|
-| Standard grid square (5 ft / medium base) | 1 inch | **≈ 81 px** |
-| Large creature (2×2) | 2 inches | ≈ 161 px |
-| Full screen width | 47.6 inches | **≈ 47 squares** |
-| Full screen height | 26.8 inches | **≈ 26 squares** |
-
-**So: a full-screen battle map at 1-inch scale is roughly a 47 × 26 grid** — about 235 × 130 feet of game space.
-
-Practical guidance:
-- Draw grid lines on an **80.7 px pitch**. Rounding to 81 px accumulates about half a square of drift across the full width, so if precision matters, compute positions as `x = round(i * 80.68)` rather than stepping by a fixed 81.
-- Keep grid lines **thin and low-contrast** (1–2 px, 20–30% opacity). At table distance a heavy grid dominates the art.
-- If minis are *not* being used, ignore all of this and treat the grid as decorative.
-
----
-
-## 4. Safe area
-
-TVs frequently overscan, cropping a few percent of the edges — and this panel has not been tested for it yet.
-
-- Keep anything that must not be cut (text, key subjects, map edges) inside a **5% margin**: a safe box of **3456 × 1944**, centred, i.e. 192 px in from each side and 108 px from top and bottom.
-- Let backgrounds and textures **bleed to the full 3840 × 2160**. Losing a little atmospheric edge is invisible; losing part of a map is not.
-
----
-
-## 5. Brightness, contrast, and colour — the table-specific part
-
-This is the guidance most likely to be missed, and the most likely to make images fail in the room.
-
-**Make them dark.** The table sits in a dim room during play. A bright image is a lamp shining up into everyone's faces — it kills night vision, washes out the LED lighting, and is genuinely unpleasant to sit around for hours.
-
-- Target an **overall dark, low-key image**. Think firelit, moonlit, dusk.
-- Keep large flat areas in the **lower third of the brightness range**. Bright highlights are fine as *accents*, not as fields.
-- **Avoid large white or near-white areas entirely.** A white background at 55" pointing upward is blinding.
-- Reserve high contrast for small focal points.
-
-**Colour and the LEDs.** The table's 764 perimeter LEDs will be lit in the scene's colour at the same time. Images should *complement* that, not fight it:
-- For a scene whose lighting is strongly coloured (the green forest card, the red mountain card), the image can lean the same way — the effect is cohesive.
-- Avoid images with a strong *opposing* colour cast, which reads as a mistake rather than a choice.
-- **Desaturated images work better than vivid ones**, because the LEDs supply the colour and the screen supplies the texture.
-
-**Avoid:** hard flat gradients (they band badly on TV panels), fine high-contrast repeating detail (shimmers/moirés), and anything with baked-in text unless it's meant to be read.
-
----
-
-## 6. File formats
-
-**Static images**
-- **PNG** for illustration, flat colour, or anything with crisp lines (including grids). Lossless — no compression mush on edges.
-- **JPEG (quality 90+)** is acceptable for purely photographic/painterly images and is much smaller. Do not use it for anything with a grid.
-- Exactly **3840 × 2160**, sRGB, 8-bit.
-- Expect ~5–15 MB per PNG at this size.
-
-**Animated content**
-- **MP4, H.264 (High profile), yuv420p** — this is what the Pi decodes in hardware. H.265 is *not* reliably hardware-accelerated on the Pi 4 for playback in all players.
-- **Do not use animated GIF.** No hardware decode, terrible colour, huge files.
-- Loop seamlessly (first and last frame should match) — a visible jump every 20 seconds is very noticeable in peripheral vision.
-
----
-
-## 7. Animation: pick your resolution deliberately
-
-There is a real constraint here.
-
-**This TV maxes out at 30 Hz for any 4K mode** (both 3840 and 4096 report 30.00 as their highest). 60 Hz is only available at 2560×1440 and below.
-
-| Option | Pros | Cons |
-|---|---|---|
-| **3840×2160 @ 30 fps** | Maximum detail; ideal for slow ambient motion | 30 Hz; Pi 4 decode is near its limit |
-| **2560×1440 @ 60 fps** | Smooth motion, still 16:9, comfortable for the Pi | Softer than native 4K |
-| **1920×1080 @ 60 fps** | Easiest on the Pi, very smooth | Visibly soft at table distance |
-
-**Recommendation:** for *ambient* motion — drifting fog, flickering firelight, slow water — **3840×2160 @ 24 or 30 fps** looks excellent, because slow movement doesn't need a high frame rate. For anything with fast motion, drop to **2560×1440 @ 60**.
-
-Keep bitrate moderate (15–25 Mbps at 4K30). Higher mostly wastes SD-card space and read bandwidth.
-
----
-
-## 8. Practical note for generating these with an AI model
-
-Most image models cannot output 3840 × 2160 directly — they typically top out around 1024–2048 px on the long edge.
-
-The workflow that works:
-1. **Generate at the model's maximum in a 16:9 aspect** (e.g. 1920×1080, 1344×768, or whatever 16:9 option it offers). Getting the *aspect* right at generation time matters far more than the pixel count.
-2. **Upscale to exactly 3840 × 2160** afterwards, with a model-based upscaler if available.
-3. For **battle maps specifically**, consider generating the *artwork* with AI and then **drawing the grid programmatically on top** at the exact 80.68 px pitch. AI models are unreliable at producing accurate, evenly-spaced grids, and an inaccurate grid is worse than none when minis have to sit on it.
-
-Ask for dark, low-key, desaturated compositions explicitly — models default to bright, punchy, high-contrast images, which is the opposite of what this table wants.
-
----
-
-## 9. Pi-side items still to sort (not blocking image creation)
-
-- **Switch the display to 3840 × 2160.** Currently at 1920×1080. Needs a mode change and probably `hdmi_group`/`hdmi_mode` updates in `/boot/config.txt`.
-- **GPU memory is 76 MB**, which is low for 4K. Likely wants raising (`gpu_mem=128` or more) before 4K video playback is smooth.
-- **Overscan check** — confirm whether the panel crops edges, which would validate or relax the 5% safe area above.
-- **Choose the viewer.** Static images need a fullscreen viewer with no window decoration; video needs a hardware-accelerated player. `omxplayer` is deprecated on Bullseye, so this is likely `mpv` or VLC.
-- **Orientation is undecided.** People sit around a table on all sides. A landscape image has a "right way up" — is it oriented to the GM's seat, or should content be orientation-neutral? This matters most for battle maps and anything containing text.
-
----
-
-## 10. Quick reference
-
-```
-Resolution:      3840 x 2160   (NOT 4096 x 2160 - wrong aspect)
-Aspect:          16:9
-Pixel density:   80.7 px per inch
-Grid square:     80.68 px  (1 inch / 5 ft)
-Full-screen grid: ~47 x 26 squares
-Safe area:       3456 x 1944 centred (5% margin)
-Colour:          sRGB, 8-bit
-Static format:   PNG (JPEG q90+ for photographic only)
-Video format:    MP4 / H.264 High / yuv420p
-Video framerate: 24-30 fps at 4K (panel is 30 Hz max at 4K)
-                 60 fps only at 2560x1440 or below
-Style:           dark, low-key, desaturated - it lights the room
-```
+| Display | TCL HDTV, embedded face-up in the table |
+| Physical size | 1209 mm × 680 mm (47.598" × 26.772") |
+| Diagonal | ≈ 1387 mm ≈ 54.6" |
+| Physical aspect | 1.7779 : 1 (16:9) |
+| Connection | Raspberry Pi 4, HDMI1 (second port) |
+| Max 4K modes | 4096×2160 @ 30 Hz, 3840×2160 @ 30 Hz |
+| Highest 60 Hz mode | 2560 × 1440 @ 60 Hz |
+| Viewing distance | ~2–3 feet, looking down |
+| Ambient light | Dim to dark during play |
+| Also in the room | 764 addressable RGBW LEDs around the table perimeter, lit in the scene's colour |
