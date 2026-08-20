@@ -12,8 +12,12 @@
 // Do not "tidy" segStart - it is verified physical ground truth.
 
 // ===== Warlock Table perimeter path builder =====
-skipStart = 8
-skipEnd   = 8
+// skip = 0 here: the ring corner skip is for CHASE patterns only (see
+// reference doc section 4). This is an ambient wash, so every pixel is
+// lit - a dark quarter on each ring would just read as broken LEDs.
+// pathLen is therefore 764, not the chase-path 700.
+skipStart = 0
+skipEnd   = 0
 RING = 60
 
 // Segments in TRUE physical loop order (verified on-table):
@@ -52,7 +56,7 @@ breathSpeed = 0.12   // smaller = slower. ~8s cycle.
 travel      = 0.18   // phase offset around the loop, so the swell drifts
                      // rather than pulsing as one flat block
 
-export var pathLenWatch   // visible in the Vars Watch panel; should read 700
+export var pathLenWatch   // Vars Watch panel; reads 764 here (no ring skip)
 
 export function beforeRender(delta) {
   pathLenWatch = pathLen
@@ -62,7 +66,8 @@ export function beforeRender(delta) {
 export function render(index) {
   p = pathPos[index]
   if (p < 0) {
-    // Skipped ring pixels (the inside-corner arc) stay dark.
+    // With skip = 0 nothing should land here, but guard anyway so the
+    // pattern stays correct if someone sets a skip later.
     rgb(0, 0, 0)
     return
   }

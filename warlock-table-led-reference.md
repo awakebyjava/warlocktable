@@ -94,7 +94,19 @@ A limit is still required: at 100% the worst case (~61 A) would exceed the 40 A 
 
 ---
 
-## 4. Ring corner skip
+## 4. Ring corner skip — CHASE PATTERNS ONLY
+
+**This is not a global rule.** The skip exists so a *travelling dot* doesn't crawl through the awkward quarter-arc facing into the table. For patterns that aren't chases — ambient washes, breathing, full-field colour, anything static — **light the whole ring**: set `skipStart = 0` and `skipEnd = 0`.
+
+Rule of thumb:
+
+| Pattern kind | Skip | Why |
+|---|---|---|
+| Chase / comet / travelling dot | `8 / 8` | Keeps motion off the hidden inside corner; path length 700 |
+| Ambient, breathing, washes, static colour | `0 / 0` | A dark quarter on each ring reads as broken LEDs; path length 764 |
+
+The path-builder block below is unchanged either way — only the two constants differ.
+
 
 Each ring has a quarter-arc that faces **into** the table (toward the screen) and looks awkward/hidden. Patterns skip **8 LEDs at each end** of every ring (16 dead LEDs per ring), which lands the dark gap cleanly on the inside corner. The gap is one continuous arc at the ring's seam (end-of-ring meets start-of-ring), because the ring's wiring starts at the inside corner.
 
@@ -125,7 +137,9 @@ A 2D pixel map is installed on the **Mapper** tab so that `render2D(index, x, y)
 
 ## 7. Reusable path-building block
 
-**Every perimeter pattern starts with this exact block.** It builds `pathPos[]` (maps each physical pixel index to its position along the loop, or −1 if skipped/unused) and `pathLen` (the number of lit pixels, = 700). Only the `render()` logic below it changes from pattern to pattern.
+**Every perimeter pattern starts with this exact block.** It builds `pathPos[]` (maps each physical pixel index to its position along the loop, or −1 if skipped/unused) and `pathLen` (the number of lit pixels). Only the `render()` logic below it changes from pattern to pattern.
+
+Set `skipStart`/`skipEnd` per §4: **`8/8` for chases** (`pathLen` = 700), **`0/0` for everything else** (`pathLen` = 764). The block below shows the chase values.
 
 ```javascript
 // ===== Warlock Table perimeter path builder =====
