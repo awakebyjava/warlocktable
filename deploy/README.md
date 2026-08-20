@@ -72,23 +72,95 @@ Add `--pixelblaze-ip <addr>` only to skip discovery with a known-good hint.
 
 ---
 
-## Current status: development mode, not a real install
+## Everyday workflow
 
-Everything above runs the controller **out of the git working tree**, which is
-fine for development and wrong for the finished table. See plan doc §5.5 for
-the target layout: code installed to `/opt/warlocktable`, mutable state in
-`/var/lib/warlocktable`, and a systemd unit — with the repo as *source* rather
-than runtime.
+There are now **two copies of the code**, and keeping them straight is the whole
+trick:
 
-Still to build, in this order (§5.5 explains why the order matters):
+| | Where | What it is |
+|---|---|---|
+| **Source** | `~/Documents/warlocktable` | The git repo. Where you develop and test. |
+| **Running** | `/opt/warlocktable` | What systemd actually runs. Replaced by `install.sh`. |
+| **Data** | `/var/lib/warlocktable` | Config, audio, backups. **Never** touched by install. |
 
-1. **Headless mode.** `run_table.py` is an interactive REPL reading stdin; a
-   service needs a mode that runs the controller and waits on events with no
-   console attached.
-2. **`deploy/install.sh`.** Builds the venv (with the ARM workaround above),
-   copies code to `/opt/warlocktable`, *seeds* `/var/lib/warlocktable/config.json`
-   only if absent, records `VERSION`, installs the unit, restarts the service.
-3. **The systemd unit itself.** `Restart=always`, `After=network-online.target`,
-   starting with zero hardware present (§5.1/§5.2).
+### To change something on the table
 
-Until then the Pi must be started by hand and will not survive a reboot.
+```bash
+./deploy/update.sh
+```
+
+Fetches, shows the incoming commits, asks for confirmation, then pulls,
+installs and restarts. `--check` shows what is pending without deploying;
+`--yes` skips the prompt.
+
+The review step is deliberate: `install.sh` never pulls on its own (plan doc
+5.5), so nothing reaches the table that you have not seen.
+
+### To develop and test without touching the service
+
+The repo still runs directly — this is the fast loop, no install needed:
+
+```bash
+sudo systemctl stop warlocktable      # only if using --nfc; see below
+python3 run_table.py --config /var/lib/warlocktable/config.json         --real-lights --real-audio --nfc
+```
+
+Point `--config` at the live file to test against real data, or leave it off
+to use the repo's `data/config.example.json` as a scratch copy.
+
+When it works, `./deploy/update.sh` makes it the table's behaviour.
+
+### The two gotchas
+
+**Only one program can own the NFC reader.** The service and an interactive
+CLI cannot both hold the PN532's SPI bus and GPIO reset pin. The loser reports
+`Failed to detect the PN532`, which looks like dead hardware rather than a
+second copy of the program. Stop the service first. (The CLI warns about this
+now, but the warning is easy to scroll past.)
+
+**Config does not come from git any more.** `/var/lib/warlocktable/config.json`
+was seeded once at install and is now Pi-owned — that is what lets the panel
+edit it without desyncing the repo (plan doc 4.4). Editing
+`data/config.example.json` in the repo will **not** reach the table.
+
+To see how they have diverged:
+
+```bash
+diff /var/lib/warlocktable/config.json data/config.example.json
+```
+
+To adopt the repo version wholesale (this **discards** live edits):
+
+```bash
+sudo cp /var/lib/warlocktable/config.json /var/lib/warlocktable/backups/config-$(date +%F).json
+sudo cp data/config.example.json /var/lib/warlocktable/config.json
+sudo systemctl restart warlocktable
+```
+
+### Rolling back
+
+`install.sh` deploys whatever is checked out, so rollback is a checkout:
+
+```bash
+git checkout <tag-or-sha>
+sudo ./deploy/install.sh
+```
+
+`/opt/warlocktable/VERSION` records what is actually deployed.
+
+---
+
+## Useful commands
+
+```bash
+systemctl status warlocktable          # is it up?
+journalctl -u warlocktable -f          # live logs
+journalctl -u warlocktable -n 50       # recent logs
+sudo systemctl restart warlocktable
+sudo systemctl stop warlocktable        # before interactive --nfc work
+cat /opt/warlocktable/VERSION           # what build is deployed
+cat /etc/default/warlocktable           # the flags it runs with
+```
+
+Flags live in `/etc/default/warlocktable` and survive reinstalls; the unit
+file itself is overwritten on every install, so do not edit it.
