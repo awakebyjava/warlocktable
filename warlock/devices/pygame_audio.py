@@ -231,7 +231,8 @@ class PygameAudio(AudioDevice):
             self.log.record("audio.soundscape", track=track,
                             crossfade_s=crossfade_s, from_=was, real=True)
 
-    def play_effect(self, track: str, duck: bool) -> float:
+    def play_effect(self, track: str, duck: bool,
+                    max_duration: Optional[float] = None) -> float:
         mixer = self._require()
         path = self._resolve(track)
         try:
@@ -244,15 +245,28 @@ class PygameAudio(AudioDevice):
             # Everything busy. Better to interrupt the oldest effect than to
             # silently drop a voice line the table was supposed to say.
             channel = mixer.Channel(self.BED_CHANNELS)
-        channel.play(sound)
 
-        duration = float(sound.get_length())
+        full = float(sound.get_length())
+        duration = full
+
+        if max_duration is not None and max_duration < full:
+            # Cut it short with a fade rather than a hard stop, so a long
+            # music track can serve as a short dramatic beat without the
+            # audio being chopped off mid-waveform.
+            duration = max_duration
+            fade_ms = min(1000, int(max_duration * 1000 * 0.25))
+            channel.play(sound, maxtime=int(max_duration * 1000),
+                         fade_ms=0)
+            channel.fadeout(int(max_duration * 1000))
+        else:
+            channel.play(sound)
 
         if duck:
             self._duck(duration)
 
         self.log.record("audio.effect", track=track, duck=duck,
                         duration_s=round(duration, 2),
+                        full_length_s=(round(full, 2) if duration != full else None),
                         ducking=self.soundscape if duck else None, real=True)
         return duration
 

@@ -72,6 +72,15 @@ class Interruption:
     lights: Optional[str] = None       # None = leave current lights alone
     background: Optional[str] = None
     duck: bool = True
+    # How long the interruption holds, in seconds. None = as long as the
+    # audio file runs.
+    #
+    # This exists because the V1 audio library is full-length music tracks,
+    # not short stings — javan4 is 118s. Letting an arbitrary file length
+    # decide the dramatic beat means a two-minute "interruption", which is
+    # really a scene. Setting this fades the effect out at the given time
+    # and reverts then.
+    duration_s: Optional[float] = None
 
 
 @dataclass
@@ -224,6 +233,8 @@ def load_config(path: str) -> Config:
             lights=i.get("lights"),
             background=i.get("background"),
             duck=i.get("duck", True),
+            duration_s=(float(i["duration_s"]) if i.get("duration_s") is not None
+                        else None),
         )
 
     random_tables = {}

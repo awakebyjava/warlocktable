@@ -64,10 +64,16 @@ class AudioDevice(ABC):
         """track=None means stop with a fade-out. Looping bed, channel 1."""
 
     @abstractmethod
-    def play_effect(self, track: str, duck: bool) -> float:
-        """One-shot, channel 2, layered over the soundscape. Returns the
-        track's duration in seconds so the controller knows when to revert
-        (plan doc 4.3 — interruptions revert when their audio finishes)."""
+    def play_effect(self, track: str, duck: bool,
+                    max_duration: Optional[float] = None) -> float:
+        """One-shot, layered over the soundscape. Returns how long it will
+        actually sound for, so the controller knows when to revert (plan doc
+        4.3 — interruptions revert when their audio finishes).
+
+        max_duration cuts the effect short with a fade. The V1 audio library
+        is full-length music, not stings — javan4 runs 118s — so without a
+        cap an "interruption" can outlast the scene it interrupts.
+        """
 
     @abstractmethod
     def available_tracks(self) -> List[str]:

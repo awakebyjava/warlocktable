@@ -67,8 +67,11 @@ class FakeAudioDevice(AudioDevice):
                              crossfade_s=crossfade_s, from_=self.soundscape)
         self.soundscape = track
 
-    def play_effect(self, track: str, duck: bool) -> float:
+    def play_effect(self, track: str, duck: bool,
+                     max_duration: Optional[float] = None) -> float:
         duration = FAKE_TRACKS.get(track, 3.0)
+        if max_duration is not None and max_duration < duration:
+            duration = max_duration
         self.log.record("audio.effect", track=track, duck=duck,
                          duration_s=duration,
                          ducking=self.soundscape if duck else None)

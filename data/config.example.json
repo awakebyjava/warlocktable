@@ -74,36 +74,43 @@
   "interruptions": {
     "magician_reveal": {
       "audio": "crowley2",
+      "duration_s": 12.0,
       "lights": "green ripple reflections",
       "duck": true
     },
     "ace_of_pentacles_reveal": {
       "audio": "peromyscus",
+      "duration_s": 12.0,
       "lights": "glitch bands",
       "duck": true
     },
     "the_devil_reveal": {
       "audio": "javan4",
+      "duration_s": 12.0,
       "lights": "sparkfire",
       "duck": true
     },
     "death_reveal": {
       "audio": "september4",
+      "duration_s": 12.0,
       "lights": "opposites",
       "duck": true
     },
     "fortune_windfall": {
       "audio": "audley",
+      "duration_s": 12.0,
       "lights": "spin cycle",
       "duck": true
     },
     "fortune_reversal": {
       "audio": "september4",
+      "duration_s": 12.0,
       "lights": "opposites",
       "duck": true
     },
     "fortune_mystery": {
       "audio": "peromyscus",
+      "duration_s": 12.0,
       "lights": "glitch bands",
       "duck": true
     }

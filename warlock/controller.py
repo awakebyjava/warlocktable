@@ -139,7 +139,8 @@ class Controller:
         duration = 0.0
         try:
             duration = self.audio.play_effect(interruption.audio,
-                                               duck=interruption.duck)
+                                               duck=interruption.duck,
+                                               max_duration=interruption.duration_s)
             self.subsystem_ok["audio"] = True
         except UnknownAssetError as exc:
             self.log.record("action.missing_asset", subsystem="audio", error=str(exc))
