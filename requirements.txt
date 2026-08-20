@@ -1,0 +1,8 @@
+# Warlock Table v2 — Python dependencies
+#
+# Laptop (dev):  pip install -r requirements.txt
+# Raspberry Pi:  see deploy/README.md — do NOT use this file directly there,
+#                because pixelblaze-client pulls in mini-racer, which has no
+#                ARM wheel and tries to build V8 from source.
+
+pixelblaze-client>=1.1.8
