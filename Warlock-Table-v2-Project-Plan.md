@@ -463,6 +463,16 @@ The repo is the **source**; the Pi runs an **installed copy**.
 
 **Ordering note:** do the install layout *before* the systemd unit — the unit encodes the paths, so writing it against the repo path means writing it twice.
 
+**Decisions made 2026-08-20:**
+- **Service user: `pi`** for now — it already has the GPIO/SPI group membership the PN532 needs, and this is a single-purpose home appliance, not a multi-tenant box. But the install script must take the user as a **parameter, not a hardcoded value**: the account may be renamed or its credentials changed later, and multiple users are a plausible eventual want.
+- **The install script does NOT pull.** You run `git checkout <tag>` yourself; install deploys whatever is checked out. A script that pulls for you is convenient right up until it deploys something you hadn't reviewed.
+
+**Not needed yet — deliberately deferred.** Running from the repo is fine while nothing writes config and nothing needs to survive a reboot. Two things end that:
+1. **The panel becoming able to edit cards.** Config then becomes data the Pi owns, and cannot live in the repo (§4.4) — a `git pull` would fight the edits.
+2. **The first real session at the table.** Hand-starting over SSH is fine for development, not with people waiting.
+
+Note the FHS paths above are a *convention*, not a requirement. `/home/pi/warlocktable-app` + `/home/pi/warlocktable-data` would give the same benefits. What actually matters is the **separation** — code in one place, data in another, deployment replacing only the first. The standard paths just mean systemd, logrotate, and backup tooling agree with you without configuration.
+
 ### 5.6 Explicitly out of scope
 
 Real techniques, but they're for appliances you can't physically reach — this one is furniture in the house:
