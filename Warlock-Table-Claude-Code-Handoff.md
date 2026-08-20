@@ -45,12 +45,21 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Actions/scenes as data, not code** (config-driven), so new cards/behaviors are added by editing config, and a future card-management UI can edit that same data.
 - **Language/stack: Python** (fits NFC + GPIO + Pixelblaze client). Web panel via FastAPI or Flask, served as a PWA for the iPad. The one non-Python island is the Overseer Studio plugin (HTML/JS, required by their SDK).
 
-## Where we are right now / suggested next steps
+## Where we are right now
 
-- Repo is set up and syncing via GitHub. Prior code is being sorted into version folders.
-- **Hardware Phase 1 is in progress:** the user is rebuilding the light signal distribution board (bad solder joints; suspected ground-wire fault on the Pixelblaze Output Expander). Software should assume the lighting hardware may not be fully verified yet.
-- **Good first software milestone:** prove the Git-bridge loop end to end with something tiny — e.g., a small Python script (written on the laptop, pushed, pulled on the Pi, run on the Pi) that connects to the Pixelblaze via `pixelblaze-client` and changes one color. Once that loop works, every feature after is a repeat of it.
-- From there, begin standing up the controller skeleton per the plan doc (Phase 2: software foundation).
+*(Updated 2026-08-20. The project plan doc is the detailed source of truth — this is the summary.)*
+
+- **Phase 1 (hardware) is COMPLETE.** The light distribution board is rebuilt and all 764 pixels across 8 expander channels are verified physically. `warlock-table-led-reference.md` is the ground truth for the layout, the corrected `segStart` ordering, the pixel map, and the power budget. **Read it before writing any Pixelblaze pattern.**
+- **Phase 2 (software foundation) is current**, and the core loop works end to end on real hardware: **a physical NFC card tap drives the real table.** Controller runs on the Pi, finds the Pixelblaze by discovery, and the laptop is not in the path.
+- **Real:** lights (Pixelblaze) and card input (PN532). **Still fake:** audio and display.
+- **Not built:** the web panel and management UI, headless mode, and the `install.sh`/systemd deployment. The controller currently runs from the git working tree and must be started by hand — fine for development, not for a real session (see plan doc §5.5).
+
+**Environment notes that will save you time:**
+- The laptop has Python 3.12 (installed 2026-08-20). Windows' Store alias can shadow it in an already-open terminal — open a fresh one.
+- The Pi needs a special install route for `pixelblaze-client`: `mini-racer` has no ARM wheel. See `deploy/README.md`.
+- Pixelblaze is at 10.10.0.171 ("Warlock's Table"), the Pi at 10.10.0.24. Prefer discovery over hardcoding either — the Pixelblaze IP has already drifted once.
+
+**Suggested next steps:** the audio driver (the last fake with real design content in it — two channels, crossfade, ducking), then deployment so the table survives a power cycle.
 
 ## Working-style reminders
 

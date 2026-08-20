@@ -326,30 +326,46 @@ Required capabilities:
 
 **Resolved from §4.2:** the config schema is defined above; the web panel and controller share one process (§4) but expose the two API surfaces separately.
 
-### 4.6 Fake-Hardware Skeleton (built)
+### 4.6 The controller as built
 
-The §4.2 milestone — "the entire logic of the table works, on a laptop, with no hardware" — is done. Lives in `warlock/`:
+The §4.2 milestone — "the entire logic of the table works with no hardware" — is done, and since then the first two fakes have been replaced with real hardware. Lives in `warlock/`:
 
 ```
 warlock/
   config.py       Config, Scene, Interruption, RandomTable, Card, Zone, Player
                   + load_config() with eager referential-integrity checking
+                  + normalise_uid()/format_uid() so a UID matches regardless
+                    of case or separators
   registry.py     the self-describing action registry (§4.5)
-  controller.py   the Controller — every action from the vocabulary below,
-                  precedence handling, timed interruption reverts
+  controller.py   the Controller — every action in the vocabulary below,
+                  precedence handling, timed interruption reverts, and
+                  per-subsystem fault isolation via _try() (§5.2)
   eventlog.py     append-only JSON-Lines event log (§ open question 8)
-  devices/        base.py = the abstract interfaces; fake.py = print-only
-                  stand-ins. A real driver later implements the same
-                  interface — nothing above the device layer changes.
-  cli.py          the fake-NFC-tap prompt
-run_table.py      entry point — `python run_table.py`
+  devices/        things the controller CALLS
+                    base.py               abstract interfaces + DeviceError,
+                                          UnknownAssetError
+                    fake.py               print-only stand-ins
+                    pixelblaze_lights.py  REAL — discovery, read-back
+                                          verification, health reporting
+  inputs/         things that CALL the controller
+                    nfc.py                REAL — PN532 over SPI, tap
+                                          semantics, background retry
+  vendor/         third-party code, kept close to upstream (see its README)
+                    pn532/                Waveshare/Adafruit PN532 lib (MIT)
+  cli.py          the interactive prompt
+run_table.py      entry point
+patterns/         Pixelblaze patterns kept in-repo so the device is not the
+                  only copy (breathing.js = the idle scene)
+deploy/           Pi install notes + the py_mini_racer stub (see its README)
 data/
-  config.example.json   worked example, built from the real card inventory
-                         (§4.4 — the Pi's live config lives outside the repo;
-                         this file is a starting point, not production data)
+  config.example.json   worked example built from the real card inventory
+                        (§4.4 — the Pi's live config belongs outside the
+                        repo; this is a starting point, not production data)
 ```
 
-No dependencies beyond the Python standard library.
+**Dependencies:** `pixelblaze-client` (see `requirements.txt`). The Pi needs a
+special install route — `mini-racer` has no ARM wheel — documented in
+`deploy/README.md`. Everything else is standard library.
 
 **The action vocabulary (§4.2 step 1), as implemented:**
 
@@ -370,17 +386,39 @@ go_idle()   handoff_display(target)   whisper(player, text)
 ```
 The seat-claim colour display needed no new action — it's just a Scene, which is the data model doing its job (variety absorbed as config, not new code).
 
-**Verified working**, tested over SSH against the Pi's Python 3.9 (the laptop currently has no Python installed at all — see the note below):
-- A tapped card fires the right target; an unregistered card is reported, not silently ignored (V1's old failure mode)
+**How to run:**
+```
+python run_table.py                          all fakes, any machine
+python run_table.py --real-lights            drives the real Pixelblaze
+python run_table.py --real-lights --nfc      + real card taps (Pi only)
+```
+
+**What is real vs. fake, as of 2026-08-20:**
+
+| Subsystem | State |
+|---|---|
+| Lights | **Real** — Pixelblaze found by discovery, pattern writes verified by read-back |
+| NFC input | **Real** — PN532 over SPI, physical taps drive the table |
+| Audio | Fake — logs what it would play |
+| Display / TV | Fake — logs what it would show |
+
+**Verified on hardware:**
+- A physical card tap fires the right target; an unregistered card is reported with its UID, not silently ignored (V1's failure mode)
 - An interruption auto-reverts to the prior scene once its audio finishes
-- A new action pre-empts a still-pending revert with no stray leftover state (the "last input wins" rule, proven, not just claimed)
+- A new action pre-empts a still-pending revert (the "last input wins" rule, proven rather than claimed) — from both a typed command and a real tap
+- Tap-not-presence semantics: a card left on the reader fires once, and re-fires only after being lifted and replaced
 - Random-table rolls vary tap to tap and stay stateless
-- A dangling config reference is rejected at load with a specific error, not discovered mid-session
-- `actions` command shows the registry describing itself, including live choice-lists pulled from the fake devices
+- A dangling config reference is rejected at load, not discovered mid-session
+- The controller starts with the Pixelblaze powered off, marks lights unhealthy, and keeps running — confirmed against genuinely absent hardware
+- The Pi survives a reboot and the controller reconnects on its own
 
-**Known gap:** the laptop has no working Python interpreter — only the Microsoft Store alias placeholder, which errors on invocation. Worth fixing (a real install, e.g. via `winget install Python.Python.3.12` or python.org) before real device drivers are written here, since at that point testing everything via the Pi over SSH stops being convenient.
+**Two bugs that only surfaced once real devices were attached**, both worth remembering because fakes cannot catch them:
+1. The controller had *no* error handling — fakes never fail, so a single missing pattern name crashed the whole table.
+2. `go_idle()` hardcoded a pattern name instead of reading the idle scene from config — the exact anti-pattern the design exists to prevent, surviving because the fake accepted any string.
 
-**Not yet built:** the real device drivers (Pixelblaze/audio/NFC), the web panel and its two API surfaces, systemd deployment. These are §4.2 steps 4 onward, gated on Phase 1 hardware being trustworthy.
+*Fakes validate your logic. They do not validate your assumptions about the world.*
+
+**Not yet built:** the audio and display drivers, the web panel and its two API surfaces, the management UI, headless mode, and the `install.sh`/systemd deployment (§5.5).
 
 ---
 
