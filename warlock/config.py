@@ -125,6 +125,23 @@ class Config:
     # lighting forever, with nothing scheduled to bring it back.
     fallback_interruption_s: float = 5.0
 
+    # Where to look for audio files. Tracks are referenced by bare name in
+    # scenes/interruptions ("forest"); these directories are searched to
+    # resolve a name to a file. Config-driven per plan doc 3.3 — V1 hardcoded
+    # /home/pi/Documents/MagicTarot/... in every single card branch.
+    audio_paths: List[str] = field(default_factory=list)
+
+    # ALSA device for audio output, e.g. "hw:0,0" for the 3.5mm jack.
+    # Pinned explicitly rather than trusting the default: plan doc 5.3 —
+    # if the TV is off at boot, HDMI may not enumerate and the default
+    # silently moves. None = let SDL choose (fine on the laptop).
+    audio_device: Optional[str] = None
+
+    # How far the soundscape drops under a one-shot effect or voice line
+    # (0.0-1.0), and how long the dip/restore ramp takes. Tunable per 4.3.
+    duck_level: float = 0.3
+    duck_ramp_s: float = 0.25
+
     def find_card(self, uid_or_label: str) -> Optional[Card]:
         """Looks up by exact uid first, then case-insensitive label match —
         convenient for the CLI where typing a full hex UID is annoying.
@@ -237,6 +254,10 @@ def load_config(path: str) -> Config:
         idle_scene_name=raw.get("settings", {}).get("idle_scene", "idle"),
         fallback_interruption_s=float(
             raw.get("settings", {}).get("fallback_interruption_s", 5.0)),
+        audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
+        audio_device=raw.get("settings", {}).get("audio_device"),
+        duck_level=float(raw.get("settings", {}).get("duck_level", 0.3)),
+        duck_ramp_s=float(raw.get("settings", {}).get("duck_ramp_s", 0.25)),
     )
 
     _validate(config)

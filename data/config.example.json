@@ -1,6 +1,19 @@
 {
   "_comment": "Worked example for laptop development (plan doc 4.2/4.4). The Pi's REAL config lives outside the git repo, edited through the management panel — this file is a starting point to copy, not the production data. UIDs below are the actual card inventory, carried over from the V1 bytearrays in TarotWizard.py.",
 
+  "settings": {
+    "_comment": "audio_paths is searched to turn a bare track name like 'forest' into a file. Config-driven per plan doc 3.3 — V1 hardcoded these paths into every card branch. audio_device pins the ALSA output so it can't move when the TV is off at boot (5.3); 'hw:0,0' is the Pi's 3.5mm jack, null lets SDL choose.",
+    "audio_paths": [
+      "~/Documents/MagicTarot/Ov",
+      "~/Documents/MagicTarot/MagicCards"
+    ],
+    "audio_device": null,
+    "duck_level": 0.3,
+    "duck_ramp_s": 0.25,
+    "idle_scene": "idle",
+    "fallback_interruption_s": 5.0
+  },
+
   "zones": [
     { "id": 1, "colour": "red" },
     { "id": 2, "colour": "orange" },

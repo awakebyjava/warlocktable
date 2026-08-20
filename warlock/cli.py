@@ -99,6 +99,12 @@ def main() -> None:
         help="read real cards from the PN532 instead of only simulated taps. "
              "Pi only — needs SPI and RPi.GPIO. The 'card' command still works.",
     )
+    parser.add_argument(
+        "--real-audio",
+        action="store_true",
+        help="play actual sound through pygame instead of logging what it "
+             "would play. Audio paths come from settings.audio_paths in config.",
+    )
     args = parser.parse_args()
 
     try:
@@ -126,7 +132,29 @@ def main() -> None:
     else:
         lights = FakeLightDevice(log)
 
-    audio = FakeAudioDevice(log)
+    if args.real_audio:
+        from .devices.pygame_audio import PygameAudio
+        audio = PygameAudio(
+            log,
+            search_paths=config.audio_paths,
+            device=config.audio_device,
+            duck_level=config.duck_level,
+            duck_ramp_s=config.duck_ramp_s,
+        )
+        if not audio.start():
+            # Same rule as the lights: a missing device degrades that
+            # subsystem, it does not stop the table (plan doc 5.2).
+            print("REAL AUDIO: unavailable (%s)" % audio.status()["error"])
+            print("            the table keeps running without sound.")
+        else:
+            st = audio.status()
+            print("REAL AUDIO: %d tracks, device %s" % (st["tracks"], st["device"]))
+            if st["tracks"] == 0:
+                print("            WARNING: no audio files found. Check")
+                print("            settings.audio_paths in your config.")
+    else:
+        audio = FakeAudioDevice(log)
+
     display = FakeDisplayDevice(log)
     controller = Controller(config, lights, audio, display, log)
 
@@ -194,6 +222,9 @@ def main() -> None:
     if reader is not None:
         # Stop polling and release GPIO, or the next run finds the pins busy.
         reader.stop()
+    closer = getattr(audio, "close", None)
+    if callable(closer):
+        closer()   # release the sound device, cancel any pending unduck timer
 
 
 def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> None:
@@ -278,6 +309,14 @@ def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> No
             info = nfc_status()
             print("  nfc reader:")
             for key in ("healthy", "firmware", "taps", "last_uid", "error"):
+                if info.get(key) is not None:
+                    print("     %-20s %s" % (key, info[key]))
+
+        audio_status = getattr(controller.audio, "status", None)
+        if callable(audio_status):
+            info = audio_status()
+            print("  audio device:")
+            for key in ("healthy", "device", "tracks", "soundscape", "error"):
                 if info.get(key) is not None:
                     print("     %-20s %s" % (key, info[key]))
 
