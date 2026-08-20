@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Warlock Table</title>
+
+<!-- PWA: iOS needs these specifically; it only partly honours the manifest. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Warlock Table">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#1a1026">
+
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <h1>Warlock&nbsp;Table</h1>
+  <!-- The status strip. Section 3.7 originally deferred this; it was moved
+       into v1 because it is what turns "it's broken and I don't know why"
+       into "the Pixelblaze lost power". -->
+  <div id="strip" class="strip">
+    <span class="chip" data-sys="lights">lights</span>
+    <span class="chip" data-sys="audio">audio</span>
+    <span class="chip" data-sys="nfc">nfc</span>
+    <span class="chip" data-sys="display">display</span>
+  </div>
+  <div id="scene-now" class="scene-now">&nbsp;</div>
+</header>
+
+<main>
+  <section>
+    <h2>Scenes</h2>
+    <div id="scenes" class="grid"></div>
+  </section>
+
+  <section>
+    <h2>Interruptions</h2>
+    <div id="interruptions" class="grid"></div>
+  </section>
+
+  <section id="tables-section">
+    <h2>Random Tables</h2>
+    <div id="tables" class="grid"></div>
+  </section>
+
+  <section>
+    <h2>Brightness</h2>
+    <div class="bright-row">
+      <input type="range" id="bright" min="0" max="100" value="100" step="5">
+      <span id="bright-val">100%</span>
+    </div>
+    <p class="note">Scales within the device's power-budget ceiling. It cannot
+       exceed it &mdash; see the LED reference.</p>
+  </section>
+
+  <section>
+    <h2>Cards <span class="muted" id="card-count"></span></h2>
+    <div id="cards" class="cards"></div>
+  </section>
+</main>
+
+<div class="idle-bar">
+  <button id="idle" class="idle-btn">Return to Idle</button>
+</div>
+
+<footer>
+  <span id="version" class="muted"></span>
+  <span id="err" class="err"></span>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

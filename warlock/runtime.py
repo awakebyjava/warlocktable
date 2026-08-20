@@ -84,6 +84,14 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         "--real-audio", action="store_true",
         help="play actual sound instead of logging what would play",
     )
+    parser.add_argument(
+        "--web", action="store_true",
+        help="serve the operator panel (iPad PWA) on the LAN",
+    )
+    parser.add_argument(
+        "--web-port", type=int, default=8080,
+        help="port for the operator panel (default 8080)",
+    )
 
 
 # ---------------------------------------------------------------- config
@@ -146,13 +154,15 @@ class Runtime:
     """Everything built and running, with one place to shut it all down."""
 
     def __init__(self, controller: Controller, log: EventLog,
-                 audio, lights, reader=None, config_source: str = ""):
+                 audio, lights, reader=None, config_source: str = "",
+                 web=None):
         self.controller = controller
         self.log = log
         self.audio = audio
         self.lights = lights
         self.reader = reader
         self.config_source = config_source
+        self.web = web
 
     def shutdown(self) -> None:
         """Release hardware. Safe to call more than once.
@@ -175,6 +185,11 @@ class Runtime:
             except Exception as exc:   # noqa: BLE001
                 print("  shutdown: %s failed: %s: %s"
                       % (label, type(exc).__name__, exc), flush=True)
+
+        if self.web is not None:
+            web = self.web
+            self.web = None
+            _timed("web panel", web.stop)
 
         if self.reader is not None:
             reader = self.reader
@@ -234,4 +249,14 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
         reader.start()
         controller._nfc_status = reader.status
 
-    return Runtime(controller, log, audio, lights, reader, source)
+    rt = Runtime(controller, log, audio, lights, reader, source)
+
+    if getattr(args, "web", False):
+        from .web.server import WebPanel
+        panel = WebPanel(controller, rt, log, port=getattr(args, "web_port", 8080))
+        # A panel that fails to bind must not stop the table responding to
+        # cards (5.2) - start() reports rather than raising.
+        if panel.start():
+            rt.web = panel
+
+    return rt

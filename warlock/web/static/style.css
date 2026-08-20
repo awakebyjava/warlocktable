@@ -1,0 +1,166 @@
+/* Warlock Table operator panel.
+ *
+ * Dark on purpose, and for the same reason the TV artwork is dark: this is
+ * used at a dim table for hours. A bright iPad held over the table is the
+ * same glare problem as a bright screen embedded in it.
+ *
+ * Touch targets are deliberately large - this gets used mid-session, in low
+ * light, often without looking directly at it.
+ */
+
+:root {
+  --bg:        #120c1b;
+  --panel:     #1c1329;
+  --panel-2:   #251a36;
+  --edge:      #362548;
+  --text:      #e8e0f4;
+  --muted:     #9a8bb2;
+  --accent:    #a06cf0;
+  --accent-dk: #6f42b5;
+  --ok:        #4ec97a;
+  --bad:       #e2564d;
+  --warn:      #d9a13a;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Standalone PWA on iPad sits under the status bar without this. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+header {
+  position: sticky; top: 0; z-index: 10;
+  background: linear-gradient(180deg, var(--panel) 0%, rgba(28,19,41,0.96) 100%);
+  border-bottom: 1px solid var(--edge);
+  padding: 12px 16px 10px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 19px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+h2 {
+  margin: 22px 0 10px;
+  font-size: 13px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.10em;
+  color: var(--muted);
+}
+
+/* ---- status strip ---- */
+
+.strip { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.chip {
+  font-size: 12px; font-weight: 600;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--edge);
+  letter-spacing: 0.04em;
+}
+.chip.ok      { color: var(--ok);   border-color: rgba(78,201,122,0.45); }
+.chip.bad     { color: var(--bad);  border-color: rgba(226,86,77,0.55);
+                background: rgba(226,86,77,0.12); }
+.chip.absent  { opacity: 0.4; }
+
+.scene-now { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.scene-now b { color: var(--text); font-weight: 600; }
+
+/* ---- layout ---- */
+
+main { padding: 0 16px 120px; max-width: 900px; margin: 0 auto; }
+section { margin-bottom: 4px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+/* ---- buttons ---- */
+
+button {
+  font: inherit; color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  padding: 18px 12px;          /* generous - fat-finger friendly */
+  min-height: 62px;
+  cursor: pointer;
+  transition: transform 0.06s ease, background 0.15s ease, border-color 0.15s ease;
+  text-align: center;
+  word-break: break-word;
+}
+button:active { transform: scale(0.97); background: var(--accent-dk); }
+button.active {
+  background: var(--accent-dk);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+button.busy { opacity: 0.55; }
+
+.kind {
+  display: block; font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px;
+}
+
+/* ---- idle bar: always reachable, never scrolls away ---- */
+
+.idle-bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, var(--bg) 60%, rgba(18,12,27,0));
+}
+.idle-btn {
+  width: 100%; max-width: 900px; margin: 0 auto; display: block;
+  background: var(--panel); border-color: var(--accent-dk);
+  font-weight: 600; letter-spacing: 0.03em;
+}
+
+/* ---- brightness ---- */
+
+.bright-row { display: flex; align-items: center; gap: 14px; }
+input[type=range] {
+  flex: 1; height: 40px; accent-color: var(--accent); background: transparent;
+}
+#bright-val { min-width: 52px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- cards (read-only for now: 4.5 staging step 1) ---- */
+
+.cards { display: flex; flex-direction: column; gap: 6px; }
+.card-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid var(--edge);
+  border-radius: 10px; padding: 10px 12px; font-size: 14px;
+}
+.card-row .uid {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px; color: var(--muted);
+}
+.card-row .target { color: var(--accent); font-size: 13px; text-align: right; }
+
+/* ---- misc ---- */
+
+.note  { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.muted { color: var(--muted); font-weight: 400; }
+.err   { color: var(--bad); font-size: 12px; }
+
+footer {
+  padding: 0 16px 96px;
+  max-width: 900px; margin: 0 auto;
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: 11px;
+}
+
+/* Offline / unreachable: make it unmistakable rather than silently stale. */
+body.offline header { background: rgba(226,86,77,0.18); }
+body.offline .chip  { opacity: 0.35; }
