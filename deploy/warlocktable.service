@@ -1,0 +1,40 @@
+[Unit]
+Description=Warlock Table controller
+Documentation=https://github.com/awakebyjava/warlocktable
+# The Pixelblaze is reached over wifi, so wait for a usable network. The
+# controller starts fine without it either way (plan doc 5.2) - this just
+# avoids a pointless first round of retries on every boot.
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=/opt/warlocktable
+
+# Flags live in /etc/default/warlocktable so they can be changed without
+# editing this unit (which install.sh overwrites).
+EnvironmentFile=-/etc/default/warlocktable
+ExecStart=/opt/warlocktable/venv/bin/python /opt/warlocktable/run_service.py $WARLOCK_ARGS
+
+# Plan doc 5.2: the table coming back on its own is the whole point.
+Restart=always
+RestartSec=5
+
+# Give the controller time to release GPIO and the sound device. A hard
+# kill leaves the PN532's pins claimed and the next start fails.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=warlocktable
+
+# The service needs its data directory, GPIO, SPI and audio. It does not
+# need to write anywhere else.
+ReadWritePaths=/var/lib/warlocktable
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
