@@ -1,0 +1,25 @@
+# Line-ending rules.
+#
+# The laptop is Windows and the Pi is Linux, so git normally converts to
+# CRLF on checkout. That is fine for text, and BREAKS executables: a shell
+# script with CRLF fails on Linux with the famously unhelpful
+#     bad interpreter: /usr/bin/env bash^M
+# and a systemd unit with CRLF is silently mis-parsed.
+#
+# Force LF for anything Linux executes directly.
+
+*.sh        text eol=lf
+*.service   text eol=lf
+*.bash      text eol=lf
+
+# Pixelblaze patterns get pasted into a web editor; keep them stable too.
+*.js        text eol=lf
+
+# Audio and images must never be touched.
+*.wav       binary
+*.ogg       binary
+*.mp3       binary
+*.flac      binary
+*.png       binary
+*.jpg       binary
+*.mp4       binary
