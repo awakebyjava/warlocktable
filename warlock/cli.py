@@ -156,11 +156,16 @@ def main() -> None:
                 print("> ", end="", flush=True)
 
         reader = NFCReader(log, on_card)
-        reader.start()
+        ok = reader.start()
         # Hang the status off the controller so the 'status' command can show
         # it without the CLI having to thread the reader through every call.
         controller._nfc_status = reader.status
-        print("NFC: reader starting — tap a card on the reader at any time.")
+        if ok:
+            print("NFC: reader ready (firmware %s) — tap a card any time."
+                  % reader.status().get("firmware"))
+        else:
+            print("NFC: reader not available (%s)" % (reader.status().get("error") or "retrying"))
+            print("     the table keeps running; the reader retries in background.")
 
     controller.go_idle()
 

@@ -62,15 +62,28 @@ class NFCReader:
 
     # ------------------------------------------------------------- lifecycle
 
-    def start(self) -> None:
-        """Begin polling. Returns immediately; never raises if the reader is
-        missing (5.2 — the controller must start with zero hardware present)."""
+    def start(self) -> bool:
+        """Begin polling. Never raises if the reader is missing (5.2 — the
+        controller must start with zero hardware present).
+
+        The first connection is attempted synchronously so that status() is
+        honest immediately. Doing it on the thread meant startup reported
+        "healthy: False" purely because the thread hadn't got there yet —
+        indistinguishable from a genuinely broken reader. SPI init is fast,
+        so this costs nothing; a failure still just schedules a retry.
+
+        Returns True if the reader is live.
+        """
         if self._thread is not None:
-            return
+            return self.healthy
+        self._last_attempt = time.monotonic()
+        self._connect()
+
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, name="nfc-reader",
                                         daemon=True)
         self._thread.start()
+        return self.healthy
 
     def stop(self, timeout: float = 3.0) -> None:
         self._stop.set()
@@ -96,6 +109,17 @@ class NFCReader:
             # Imported lazily: these only exist on the Pi (RPi.GPIO, spidev),
             # so importing at module scope would break the laptop's fake mode.
             from ..vendor.pn532 import PN532_SPI
+
+            # The library calls GPIO.setup() on pins that may still be
+            # configured from a previous run, which emits "channel is already
+            # in use" warnings. We manage cleanup ourselves in stop(), and the
+            # re-setup is harmless, so silence the noise rather than let it
+            # look like a fault.
+            try:
+                import RPi.GPIO as GPIO
+                GPIO.setwarnings(False)
+            except Exception:
+                pass
 
             pn = PN532_SPI(cs=self.cs, reset=self.reset, debug=False)
             _ic, ver, rev, _support = pn.get_firmware_version()
