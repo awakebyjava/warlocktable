@@ -22,6 +22,17 @@ class DeviceError(Exception):
     """
 
 
+class UnknownAssetError(DeviceError):
+    """The device is fine; what was asked for doesn't exist.
+
+    Deliberately distinct from a device fault. Asking for a pattern or track
+    that isn't there is a *config* problem (plan doc 4.5, referential
+    integrity) — it must not mark the subsystem unhealthy or trigger a
+    reconnect. Found the hard way: a bogus pattern name was taking the whole
+    lighting subsystem offline for 10 seconds.
+    """
+
+
 class LightDevice(ABC):
     @abstractmethod
     def set_pattern(self, name: str) -> None:
