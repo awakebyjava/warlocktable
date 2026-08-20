@@ -386,7 +386,7 @@ The seat-claim colour display needed no new action — it's just a Scene, which 
 
 ## 5. Reliability & Startup Behavior
 
-*Scope note: this is a hobby build, not a commercial appliance, and a certain amount of fiddliness is fine and expected. The specific thing worth engineering properly is **boot-up** — power the table on, pick up the iPad, and have it work without opening a terminal. Everything in this section serves that one goal; anything beyond it is explicitly out of scope (§5.5).*
+*Scope note: this is a hobby build, not a commercial appliance, and a certain amount of fiddliness is fine and expected. The specific thing worth engineering properly is **boot-up** — power the table on, pick up the iPad, and have it work without opening a terminal. Everything in this section serves that one goal; anything beyond it is explicitly out of scope (§5.6).*
 
 ### 5.1 Target startup sequence
 
@@ -432,7 +432,38 @@ One button on the panel that runs through:
 
 ...and reports pass/fail per line. Run it ten minutes before people arrive. **This is the highest-value reliability feature in the whole build** — it's the difference between finding a problem with time to fix it and finding it with an audience.
 
-### 5.5 Explicitly out of scope
+### 5.5 Deployment layout — the repo is source, not runtime
+
+**The Pi must not run the service out of a live git working tree.** A `git pull` would change code under a running process, a dirty tree or merge conflict would break startup, and "what version is running?" would have no answer beyond "whatever `main` was."
+
+The repo is the **source**; the Pi runs an **installed copy**.
+
+```
+/opt/warlocktable/          code — replaced wholesale by install
+    warlock/  run_table.py  patterns/
+    venv/                   deps, incl. the ARM mini-racer workaround
+    VERSION                 git describe output, recorded at install time
+
+/var/lib/warlocktable/      state — install NEVER touches this
+    config.json             live card/scene data (the panel edits this)
+    device-state.json       last-known Pixelblaze address
+    audio/                  rsync target for media
+    backups/                config exports
+
+/etc/systemd/system/warlocktable.service
+```
+
+**Rules:**
+- **Install never overwrites `/var/lib/warlocktable/`.** Config is *seeded* on first install and thereafter belongs to the Pi. This is what makes §4.4 work — panel edits can't put the Pi out of sync with GitHub, because the panel edits data that git has never heard of.
+- **Deploy is `git checkout <tag> && sudo deploy/install.sh`.** Rollback is the same command with an older tag, which is how §5.3's "run a tagged known-good version, not raw `main`" becomes real.
+- **`VERSION` records what is actually installed**, so the panel's status can report it and "which build is on the table?" has an answer.
+- The service runs as a user with GPIO/SPI access (the PN532 needs it).
+
+**Prerequisite this exposes:** `run_table.py` is an interactive REPL reading stdin. A systemd service needs a **headless mode** that runs the controller and waits on events without a console. That doesn't exist yet, and the unit file can't be written meaningfully until it does.
+
+**Ordering note:** do the install layout *before* the systemd unit — the unit encodes the paths, so writing it against the repo path means writing it twice.
+
+### 5.6 Explicitly out of scope
 
 Real techniques, but they're for appliances you can't physically reach — this one is furniture in the house:
 - Read-only root filesystem / overlayfs
@@ -465,6 +496,9 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] **Write the action vocabulary down** (§4.2 step 1) — see §4.6
 - [x] Controller skeleton with all-fake devices, running on the laptop — `warlock/`, run with `python run_table.py` (see §4.6). Built 2026-08-18. Python 3.12 since installed on the laptop, so development no longer round-trips through the Pi.
 - [x] Config file + event dispatch — **fake table fully working end to end**, incl. verified: timed auto-revert from an interruption, a new scene correctly pre-empting a pending revert (precedence rule), referential-integrity rejection of a dangling reference, and stateless random-table rolls
+- [x] Run the controller on the Pi at all — done 2026-08-20, drives the Pixelblaze over wifi. Required upgrading pixelblaze-client 0.9.6 -> 1.1.8 and stubbing mini-racer (no ARM wheel); see `deploy/README.md`
+- [ ] Headless mode for `run_table.py` (currently an interactive REPL; a service can't use it)
+- [ ] `deploy/install.sh` — install to `/opt/warlocktable`, state in `/var/lib/warlocktable` (see §5.5)
 - [ ] Run as a systemd service on the Pi (`Restart=always`, starts with zero hardware present)
 - [x] Swap in real Pixelblaze via discovery, not a hardcoded IP — done; `--real-lights` drives the table, discovery recovers from a wrong/absent address hint
 - [ ] Get the PN532 NFC reader reading reliably

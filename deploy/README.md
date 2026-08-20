@@ -72,10 +72,23 @@ Add `--pixelblaze-ip <addr>` only to skip discovery with a known-good hint.
 
 ---
 
-## Not done yet
+## Current status: development mode, not a real install
 
-- **systemd service** so the controller starts on boot with `Restart=always`
-  (plan doc §5.1/§5.2). Today it must be started by hand.
-- **Config lives in the repo.** Per §4.4 the Pi's real config belongs *outside*
-  the repo (e.g. `/var/lib/warlocktable/`) so editing a card through the panel
-  does not put the Pi out of sync with GitHub. Still using the in-repo example.
+Everything above runs the controller **out of the git working tree**, which is
+fine for development and wrong for the finished table. See plan doc §5.5 for
+the target layout: code installed to `/opt/warlocktable`, mutable state in
+`/var/lib/warlocktable`, and a systemd unit — with the repo as *source* rather
+than runtime.
+
+Still to build, in this order (§5.5 explains why the order matters):
+
+1. **Headless mode.** `run_table.py` is an interactive REPL reading stdin; a
+   service needs a mode that runs the controller and waits on events with no
+   console attached.
+2. **`deploy/install.sh`.** Builds the venv (with the ARM workaround above),
+   copies code to `/opt/warlocktable`, *seeds* `/var/lib/warlocktable/config.json`
+   only if absent, records `VERSION`, installs the unit, restarts the service.
+3. **The systemd unit itself.** `Restart=always`, `After=network-online.target`,
+   starting with zero hardware present (§5.1/§5.2).
+
+Until then the Pi must be started by hand and will not survive a reboot.
