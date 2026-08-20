@@ -68,27 +68,27 @@ Do not "fix" this array to look more logical — it is correct as-is and matches
 
 ## 3b. POWER BUDGET — read before touching brightness
 
-**The Pixelblaze brightness limit is a hardware safety constraint, not a preference. Do not raise it to make the table brighter.**
-
 | | |
 |---|---|
 | Strips | 764 × SK6812 RGBW |
-| Draw at full white | ~60–80 mA/LED → **~46 A ≈ 229 W** |
-| Power supply | **40 W @ 5 V = 8 A** |
-| Supply as a fraction of full draw | **~17%** |
-| Safe brightness limit | **≤ 15%** (10 gives useful headroom) |
+| Draw at full white | ~60 mA/LED (RGB) to ~80 mA (all four channels) → **~46–61 A** |
+| Power supply | **40 A @ 5 V = 200 W** |
+| **Brightness ceiling (set 2026-08-20)** | **50%**, persisted to flash |
+| Draw at that ceiling | **~23–31 A = 57–76% of supply** |
 
-At a limit of **10**, worst-case draw is about 4.6 A / 23 W — comfortably inside budget. At **40** it would be roughly 18 A / 92 W, i.e. **2.3× the supply**. That browns out at best; sustained, it's a fire risk, not just a reset.
+**50% is the deliberate ceiling**, chosen to sit inside the usual 80% continuous-load derating rule with real headroom. Slider is at 1.0, so effective output is a true 50%.
 
-**Consequence: the table is legitimately dim, and that is correct.** If a pattern looks like "nothing is happening," check `status` in the CLI before assuming the software is broken — everything can be healthy and correct while the table is at ~2% output.
+A limit is still required: at 100% the worst case (~61 A) would exceed the 40 A supply. Do not raise the ceiling above 50% on the current supply without redoing this arithmetic.
 
-**The limit is the safety mechanism — patterns are not.** The brightness limit scales *all* output, so worst-case draw stays within budget no matter what a pattern does. A pattern cannot exceed it by lighting everything at full white. That means:
+**The limit is the safety mechanism — patterns are not.** It scales *all* output, so no pattern can exceed it by lighting everything at full white. Therefore:
 
 - **Pattern brightness values are an aesthetic choice, not a safety one.** `breathing`'s `maxV = 0.34` is about how a resting table should look, not about protecting the supply.
-- Actual draw still varies *within* the cap: the Pac-Man chase lights ~4 dots out of 700 and draws near nothing, while a full-field wash sits at the ceiling. That matters for heat and headroom, not for safety.
+- Draw still varies *within* the cap: the Pac-Man chase lights ~4 dots out of 700 and draws near nothing, while a full-field wash sits at the ceiling. That affects heat and headroom, not safety.
 - **Never treat a dim pattern as a substitute for the limit.** If the limit is wrong, every pattern is unsafe.
 
-To get more visible light *without* touching the limit: raise the runtime slider (`bright 1.0` doubles output from the current 0.52 while staying capped), or raise the pattern's own value range. Both remain inside the power budget.
+**Voltage drop / power injection.** At tens of amps across 764 pixels, the far end of a long run will dim and colour-shift even with ample supply capacity — 5 V systems are unforgiving about this. If the ends of the 203-pixel edges look yellowish or dim compared to the near ends, that is voltage drop, not a pattern bug, and the fix is injecting power at additional points along the run rather than raising brightness.
+
+**Future: a second supply.** The plan is to add another supply and split the load. When that happens, split by *channel group* (e.g. rings on one, edges on the other), tie all grounds together, and do **not** join the 5 V rails of the two supplies.
 
 **To actually get a brighter table**, the fix is a bigger supply, not a higher limit. Full brightness on 764 RGBW pixels wants something in the 200 W+ / 40 A class, plus power injection at multiple points along the runs so the far end isn't starved.
 

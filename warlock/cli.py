@@ -28,12 +28,12 @@ from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
 from .eventlog import EventLog
 from .registry import describe_actions
 
-# Hardware safety limit, not a preference. 764 SK6812 RGBW pixels draw
-# roughly 46A (~229W) at full white; the table's supply is 40W (8A). That
-# puts the safe average ceiling near 15%, so anything above this is treated
-# as a fault to warn about. See the power budget section of
-# warlock-table-led-reference.md before changing it.
-POWER_SAFE_LIMIT_PCT = 15
+# Power-budget ceiling, deliberately chosen — see the power budget section
+# of warlock-table-led-reference.md. 764 SK6812 RGBW pixels draw ~46-61A at
+# full white; the supply is 40A (200W) at 5V. A 50% ceiling lands at ~23-31A,
+# inside the 80% continuous-load derating rule. Raising this above 50 on the
+# current supply requires redoing that arithmetic first.
+POWER_SAFE_LIMIT_PCT = 50
 
 BANNER_FAKE = """\
 Warlock Table v2 — fake-hardware controller
@@ -248,21 +248,18 @@ def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> No
                     print("     %-20s %s" % (key, info[key]))
             limit = info.get("brightness_limit_pct")
             if limit is not None and limit > POWER_SAFE_LIMIT_PCT:
-                # This is a hardware-safety check, not a preference. See the
-                # power budget section of warlock-table-led-reference.md.
-                print("     *** BRIGHTNESS LIMIT %s%% EXCEEDS THE POWER BUDGET ***" % limit)
-                print("         764 SK6812 RGBW at full white draw ~46A (~229W).")
-                print("         The supply is 40W (8A), so the safe ceiling is")
-                print("         about %s%%. Lower it in the Pixelblaze UI." % POWER_SAFE_LIMIT_PCT)
+                # Power-budget check. 40A supply; see the reference doc.
+                print("     *** BRIGHTNESS LIMIT %s%% IS ABOVE THE AGREED %s%% CEILING ***"
+                      % (limit, POWER_SAFE_LIMIT_PCT))
+                print("         764 SK6812 RGBW draw ~46-61A at full white against")
+                print("         a 40A supply. Re-check the power budget before")
+                print("         leaving it here.")
             eff = info.get("effective_pct")
-            if eff is not None and eff < 6:
-                # The table looking dead is EXPECTED at this power budget.
-                # Say so, rather than suggesting a change that would exceed it.
-                print("     note: effective brightness ~%s%% — dim by design." % eff)
-                print("           The limit is a power-supply constraint, not a")
-                print("           setting to raise. Use 'bright <0-1>' to adjust")
-                print("           the slider within it, or brighten the pattern's")
-                print("           own value range (lighting fewer pixels costs less).")
+            if eff is not None and eff < 10:
+                print("     note: effective brightness is only ~%s%%." % eff)
+                print("           Ceiling is %s%%; raise the slider with"
+                      % (limit if limit is not None else "?"))
+                print("           'bright 1.0' to use the full budget.")
 
     elif cmd == "bright":
         try:
