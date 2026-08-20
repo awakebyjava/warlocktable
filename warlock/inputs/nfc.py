@@ -65,7 +65,13 @@ class NFCReader:
 
     # ------------------------------------------------------------- lifecycle
 
-    def start(self, wait_s: float = 2.0) -> bool:
+    # Long enough to cover the vendored driver's own ~3s of reset/wakeup
+    # sleeps, so the common case reports honestly; short enough that a dead
+    # reader doesn't noticeably delay a usable prompt. Measured: a healthy
+    # PN532 connects in a little over 3s.
+    START_WAIT_S = 4.5
+
+    def start(self, wait_s: Optional[float] = None) -> bool:
         """Begin polling. Never raises, and never blocks startup on hardware.
 
         Connection happens on the polling thread; start() then waits up to
@@ -91,7 +97,7 @@ class NFCReader:
         self._thread = threading.Thread(target=self._run, name="nfc-reader",
                                         daemon=True)
         self._thread.start()
-        self._first_attempt.wait(wait_s)
+        self._first_attempt.wait(self.START_WAIT_S if wait_s is None else wait_s)
         return self.healthy
 
     def stop(self, timeout: float = 3.0) -> None:
