@@ -158,7 +158,17 @@ def main() -> None:
     display = FakeDisplayDevice(log)
     controller = Controller(config, lights, audio, display, log)
 
-    print(BANNER_REAL if args.real_lights else BANNER_FAKE)
+    real = [n for n, on in (("lights", args.real_lights),
+                             ("audio", args.real_audio),
+                             ("NFC input", args.nfc)) if on]
+    if real:
+        print("Warlock Table v2 — REAL: %s" % ", ".join(real))
+        fake = [n for n in ("lights", "audio", "display") if n not in real]
+        if fake:
+            print("                 fake: %s" % ", ".join(fake))
+        print("Actions below will change the physical table. 'help' for commands.\n")
+    else:
+        print(BANNER_FAKE)
     if args.real_lights:
         # Deliberately does not abort if the Pixelblaze is missing — section
         # 5.2: the controller must start with zero hardware present.
