@@ -486,20 +486,25 @@ Revisit only if a specific problem actually shows up.
 
 ## 6. Roadmap
 
-### Phase 1 — Hardware Foundation *(CURRENT)*
+### Phase 1 — Hardware Foundation *(COMPLETE — 2026-08-20)*
 Get the Pixelblaze lighting physically solid and verified before touching software.
 
-- [ ] Rebuild the **light signal distribution board**
-  - [ ] Correct the many channels coming off the Output Expander
-  - [ ] Fix the **ground wire connection** (suspected root cause of the current fault)
-  - [ ] Redesign the distribution layout for reliability
-- [ ] Reflow suspect solder joints across the boards
-- [ ] Power-on test: confirm expander status LED behaves (powered + receiving data + drawing)
-- [ ] **Verify the lighting system works as-is** end to end
+- [x] Rebuild the **light signal distribution board**
+  - [x] Correct the many channels coming off the Output Expander
+  - [x] Fix the **ground wire connection** (suspected root cause of the fault)
+  - [x] Redesign the distribution layout for reliability
+- [x] Reflow suspect solder joints across the boards
+- [x] Power-on test: confirm expander status LED behaves
+- [x] **Verify the lighting system works as-is** end to end
 
-**Exit criteria:** Pixelblaze reliably drives all intended LED channels through the rebuilt board, with a clean ground and solid joints.
+**Exit criteria met.** 764 pixels across 8 expander channels, all verified
+*physically on the table* rather than assumed — see
+`warlock-table-led-reference.md`, which records the channel map, the corrected
+`segStart` ordering, the pixel map, and the debugging lessons. The device
+reports the same configuration the doc describes, renders at ~47 FPS, and a
+working Pac-Man chase pattern runs across the full perimeter loop.
 
-### Phase 2 — Software Foundation
+### Phase 2 — Software Foundation *(CURRENT)*
 Stand up the core software on the Pi once hardware is trusted.
 
 - [x] Decide overall software architecture — see §4 (layers, one process, config-driven actions)
@@ -511,7 +516,7 @@ Stand up the core software on the Pi once hardware is trusted.
 - [ ] `deploy/install.sh` — install to `/opt/warlocktable`, state in `/var/lib/warlocktable` (see §5.5)
 - [ ] Run as a systemd service on the Pi (`Restart=always`, starts with zero hardware present)
 - [x] Swap in real Pixelblaze via discovery, not a hardcoded IP — done; `--real-lights` drives the table, discovery recovers from a wrong/absent address hint
-- [ ] Get the PN532 NFC reader reading reliably
+- [x] Get the PN532 NFC reader reading reliably — done 2026-08-20. Physical card taps drive the real table (`--nfc`). Tap-not-presence semantics verified: a card left on the reader fires once, and re-fires only after being lifted and replaced.
 - [ ] Basic audio output working (HDMI/analog as needed) — pin the device explicitly
 - [ ] Basic screen visuals on the embedded TV
 - [x] A way for one input (e.g., an NFC card) to trigger one output (e.g., a light scene) — the first end-to-end interaction **on real hardware**. Done 2026-08-20: a simulated card tap drives the physical table (`card forest` → GreenCard, `card thedevil` → sparkfire then timed revert). Input is still the CLI rather than the PN532, but the whole chain below it is real.
