@@ -550,7 +550,8 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] Controller skeleton with all-fake devices, running on the laptop — `warlock/`, run with `python run_table.py` (see §4.6). Built 2026-08-18. Python 3.12 since installed on the laptop, so development no longer round-trips through the Pi.
 - [x] Config file + event dispatch — **fake table fully working end to end**, incl. verified: timed auto-revert from an interruption, a new scene correctly pre-empting a pending revert (precedence rule), referential-integrity rejection of a dangling reference, and stateless random-table rolls
 - [x] Run the controller on the Pi at all — done 2026-08-20, drives the Pixelblaze over wifi. Required upgrading pixelblaze-client 0.9.6 -> 1.1.8 and stubbing mini-racer (no ARM wheel); see `deploy/README.md`
-- [ ] Headless mode for `run_table.py` (currently an interactive REPL; a service can't use it)
+- [x] Headless mode — done 2026-08-20. `run_service.py` (`warlock/service.py`): no stdin, SIGTERM/SIGINT shut down cleanly so GPIO is released, nothing fatal. Shares device construction with the CLI via `warlock/runtime.py`. Verified on the Pi with all three subsystems real.
+- [x] Config resilience (§5.2 "never refuse to start") — falls back requested → `.last-good` (written on every clean load) → minimal built-in that still defines an idle scene, so the lights come up even with nothing usable on disk. All three levels verified.
 - [ ] `deploy/install.sh` — install to `/opt/warlocktable`, state in `/var/lib/warlocktable` (see §5.5)
 - [ ] Run as a systemd service on the Pi (`Restart=always`, starts with zero hardware present)
 - [x] Swap in real Pixelblaze via discovery, not a hardcoded IP — done; `--real-lights` drives the table, discovery recovers from a wrong/absent address hint
