@@ -21,8 +21,10 @@ Three behaviours here come straight out of the reliability spec (section 5):
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import socket
 import time
 from typing import Dict, List, Optional
 
@@ -37,6 +39,26 @@ except ImportError:  # pragma: no cover
 class PixelblazeLights(LightDevice):
     # Don't hammer a dead device on every action; back off between attempts.
     RECONNECT_INTERVAL_S = 10.0
+
+    # Hard bound on any socket operation to the Pixelblaze.
+    #
+    # This is load-bearing. pixelblaze-client calls
+    # websocket.create_connection() with NO connect timeout, so against an
+    # unresponsive device the TCP connect blocks for the OS default —
+    # minutes. Worse, on a failed send the library silently reconnects
+    # ("try reopening"), so even a call on an established connection can
+    # end up blocked in that same timeout-less connect.
+    #
+    # The consequence was not a slow light change: it froze the whole
+    # controller. The main thread sat in a C call, so SIGTERM could not be
+    # serviced, systemd's stop timed out, and the process was SIGKILLed —
+    # which left websockets un-closed, wedged the Pixelblaze's connection
+    # slots, and made the next start hang harder. A genuine cascade from
+    # one missing timeout.
+    #
+    # Bounding it turns "the whole table hangs" into "lights are unhealthy
+    # for a few seconds", which is what 5.2 promises.
+    SOCKET_TIMEOUT_S = 6.0
     # Pattern lists change rarely (only when you author one), so cache them.
     PATTERN_CACHE_TTL_S = 60.0
 
@@ -58,6 +80,47 @@ class PixelblazeLights(LightDevice):
         self.current_pattern: Optional[str] = None
         self.healthy = False
         self.last_error: Optional[str] = None
+
+    @contextlib.contextmanager
+    def _bounded(self):
+        """Bound every socket operation inside this block.
+
+        TWO levers are needed, which is not obvious and cost a debugging
+        round to find:
+
+        * `socket.setdefaulttimeout` — catches plain socket work.
+        * `websocket.setdefaulttimeout` — websocket-client keeps its OWN
+          module-level default and passes *that* into
+          socket.create_connection. Setting only the socket module's default
+          does nothing: measured, a connect to a blackholed address still
+          took 43 seconds.
+
+        Both are process-global, which is blunt, but they are the only levers
+        that reach inside the library. The window is short, and the other
+        subsystems (audio, NFC over SPI) do not use sockets, so the blast
+        radius is small.
+        """
+        previous_sock = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(self.SOCKET_TIMEOUT_S)
+
+        previous_ws = None
+        ws_module = None
+        try:
+            import websocket as ws_module  # noqa: F811
+            previous_ws = ws_module.getdefaulttimeout()
+            ws_module.setdefaulttimeout(self.SOCKET_TIMEOUT_S)
+        except Exception:
+            ws_module = None
+
+        try:
+            yield
+        finally:
+            socket.setdefaulttimeout(previous_sock)
+            if ws_module is not None:
+                try:
+                    ws_module.setdefaulttimeout(previous_ws)
+                except Exception:
+                    pass
 
     # ---------------------------------------------------------------- health
 
@@ -93,8 +156,9 @@ class PixelblazeLights(LightDevice):
         }
         if self._pb is not None and self.healthy:
             try:
-                slider = self._pb.getBrightnessSlider()
-                limit = self._pb.getBrightnessLimit()
+                with self._bounded():
+                    slider = self._pb.getBrightnessSlider()
+                    limit = self._pb.getBrightnessLimit()
                 info["brightness_slider"] = slider
                 info["brightness_limit_pct"] = limit
                 info["effective_pct"] = round(slider * limit, 1)
@@ -163,8 +227,9 @@ class PixelblazeLights(LightDevice):
         # Only pay for discovery if the known address didn't pan out.
         for address in candidates:
             try:
-                pb = _pixelblaze.Pixelblaze(address)
-                pb.getPatternList()          # prove it actually answers
+                with self._bounded():
+                    pb = _pixelblaze.Pixelblaze(address)
+                    pb.getPatternList()      # prove it actually answers
                 self._adopt(pb, address)
                 return
             except Exception as exc:
@@ -173,8 +238,9 @@ class PixelblazeLights(LightDevice):
         discovered = self._discover()
         if discovered and discovered not in candidates:
             try:
-                pb = _pixelblaze.Pixelblaze(discovered)
-                pb.getPatternList()
+                with self._bounded():
+                    pb = _pixelblaze.Pixelblaze(discovered)
+                    pb.getPatternList()
                 self.log.record("lights.address_changed",
                                 old=self.address, new=discovered)
                 self._adopt(pb, discovered)
@@ -246,7 +312,8 @@ class PixelblazeLights(LightDevice):
                 % (name, self.address, len(known)))
 
         try:
-            pb.setActivePatternByName(name)
+            with self._bounded():
+                pb.setActivePatternByName(name)
         except Exception as exc:
             self._drop(exc)
             raise DeviceError("set_pattern(%r) failed: %s" % (name, exc))
@@ -258,7 +325,8 @@ class PixelblazeLights(LightDevice):
         # exists to prevent. Costs one extra round-trip (~10ms on the LAN).
         confirmed = None
         try:
-            active_id = pb.getActivePattern()
+            with self._bounded():
+                active_id = pb.getActivePattern()
             confirmed = self._patterns_by_id().get(active_id)
         except Exception:
             pass   # verification is best-effort; don't fail the action over it
@@ -287,7 +355,8 @@ class PixelblazeLights(LightDevice):
             # setBrightnessSlider is the runtime dimmer (0.0-1.0). Deliberately
             # NOT setBrightnessLimit, which is the persisted hardware ceiling
             # (currently 40) and is a power/thermal setting, not a scene control.
-            pb.setBrightnessSlider(level)
+            with self._bounded():
+                pb.setBrightnessSlider(level)
         except Exception as exc:
             self._drop(exc)
             raise DeviceError("set_brightness(%s) failed: %s" % (level, exc))
@@ -301,7 +370,8 @@ class PixelblazeLights(LightDevice):
 
         pb = self._ensure()
         try:
-            listing = pb.getPatternList()      # {id: name}
+            with self._bounded():
+                listing = pb.getPatternList()  # {id: name}
         except Exception as exc:
             self._drop(exc)
             raise DeviceError("available_patterns failed: %s" % exc)
