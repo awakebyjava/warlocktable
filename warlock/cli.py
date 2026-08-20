@@ -202,8 +202,12 @@ def main() -> None:
             print("NFC: reader ready (firmware %s) — tap a card any time."
                   % reader.status().get("firmware"))
         else:
-            print("NFC: reader not available (%s)" % (reader.status().get("error") or "retrying"))
-            print("     the table keeps running; the reader retries in background.")
+            # Not necessarily broken — driver reset/wakeup alone takes ~3s,
+            # so "not yet" is the common case. Don't call it a failure.
+            err = reader.status().get("error")
+            print("NFC: still connecting%s" % ((" — last error: %s" % err) if err else "..."))
+            print("     the prompt is usable now; taps will start working when")
+            print("     the reader comes up. Check with 'status'.")
 
     controller.go_idle()
 

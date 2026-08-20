@@ -52,6 +52,9 @@ class NFCReader:
         self._pn532 = None
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
+        # Set once the thread has finished its first connect attempt, so
+        # start() can report honestly without blocking on hardware.
+        self._first_attempt = threading.Event()
         self._last_attempt = 0.0
 
         self.healthy = False
@@ -62,27 +65,33 @@ class NFCReader:
 
     # ------------------------------------------------------------- lifecycle
 
-    def start(self) -> bool:
-        """Begin polling. Never raises if the reader is missing (5.2 — the
-        controller must start with zero hardware present).
+    def start(self, wait_s: float = 2.0) -> bool:
+        """Begin polling. Never raises, and never blocks startup on hardware.
 
-        The first connection is attempted synchronously so that status() is
-        honest immediately. Doing it on the thread meant startup reported
-        "healthy: False" purely because the thread hadn't got there yet —
-        indistinguishable from a genuinely broken reader. SPI init is fast,
-        so this costs nothing; a failure still just schedules a retry.
+        Connection happens on the polling thread; start() then waits up to
+        wait_s for that first attempt to finish, purely so status() can be
+        honest when the reader is present and quick.
 
-        Returns True if the reader is live.
+        This is deliberately NOT a synchronous connect. An earlier version
+        called _connect() inline to get an honest status line, and that froze
+        startup: the vendored driver sleeps ~3s during reset/wakeup before it
+        even talks to the chip, and _wait_ready retries on top. The program
+        never reached its input prompt, which looks exactly like a crashed
+        terminal. Hardware must never be on the critical path to a usable
+        program (plan doc 5.2).
+
+        Returns True if the reader came up within wait_s; False means "not
+        yet" — which may still become True shortly, so callers should say
+        "connecting" rather than "failed".
         """
         if self._thread is not None:
             return self.healthy
-        self._last_attempt = time.monotonic()
-        self._connect()
-
+        self._first_attempt.clear()
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, name="nfc-reader",
                                         daemon=True)
         self._thread.start()
+        self._first_attempt.wait(wait_s)
         return self.healthy
 
     def stop(self, timeout: float = 3.0) -> None:
@@ -150,7 +159,10 @@ class NFCReader:
                     self._stop.wait(1.0)
                     continue
                 self._last_attempt = now
-                if not self._connect():
+                connected = self._connect()
+                # Unblock start()'s bounded wait whether or not it worked.
+                self._first_attempt.set()
+                if not connected:
                     continue
 
             try:
