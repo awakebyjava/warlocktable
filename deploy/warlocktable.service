@@ -31,9 +31,11 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=warlocktable
 
-# The service needs its data directory, GPIO, SPI and audio. It does not
-# need to write anywhere else.
-ReadWritePaths=/var/lib/warlocktable
+# Deliberately NOT using ReadWritePaths/ProtectSystem here. ReadWritePaths
+# sets up a mount namespace, and with no ProtectSystem to go with it that
+# buys no protection while adding a layer that can hide writes. The service
+# needs GPIO, SPI and audio device access anyway, which heavy sandboxing
+# fights. Revisit as a set if hardening is ever wanted, not piecemeal.
 NoNewPrivileges=true
 
 [Install]

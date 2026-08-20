@@ -155,20 +155,39 @@ class Runtime:
         self.config_source = config_source
 
     def shutdown(self) -> None:
-        """Release hardware. Safe to call more than once."""
-        if self.reader is not None:
+        """Release hardware. Safe to call more than once.
+
+        Each step is timed and reported, so when shutdown is slow the journal
+        names the culprit instead of leaving it a guess. This was added after
+        shutdown hung past systemd's stop timeout with real devices attached
+        and the process had to be SIGKILLed.
+        """
+        import time as _time
+
+        def _timed(label, fn):
+            t0 = _time.monotonic()
             try:
-                self.reader.stop()
-            except Exception:
-                pass
+                fn()
+                took = _time.monotonic() - t0
+                # Only mention the quick ones in passing; flag slow ones.
+                if took > 1.0:
+                    print("  shutdown: %s took %.1fs" % (label, took), flush=True)
+            except Exception as exc:   # noqa: BLE001
+                print("  shutdown: %s failed: %s: %s"
+                      % (label, type(exc).__name__, exc), flush=True)
+
+        if self.reader is not None:
+            reader = self.reader
             self.reader = None
-        for dev in (self.audio, self.lights):
-            closer = getattr(dev, "close", None)
-            if callable(closer):
-                try:
-                    closer()
-                except Exception:
-                    pass
+            _timed("nfc reader", reader.stop)
+
+        closer = getattr(self.audio, "close", None)
+        if callable(closer):
+            _timed("audio", closer)
+
+        closer = getattr(self.lights, "close", None)
+        if callable(closer):
+            _timed("lights", closer)
 
 
 def build(args, log: EventLog, on_card=None) -> Runtime:

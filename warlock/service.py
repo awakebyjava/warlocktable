@@ -20,6 +20,7 @@ Output goes to stdout, which systemd captures into the journal:
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import sys
 import threading
@@ -97,11 +98,53 @@ def main(argv=None) -> int:
                     last_report = now
                     _report_status(rt)
     finally:
-        print("service: stopping", flush=True)
-        rt.shutdown()
-        print("service: stopped", flush=True)
+        _shutdown_with_deadline(rt, deadline_s=8.0)
 
     return 0
+
+
+def _shutdown_with_deadline(rt: runtime.Runtime, deadline_s: float) -> None:
+    """Release hardware, but never let shutdown outlast systemd's patience.
+
+    Learned the hard way: with real devices attached this hung past
+    TimeoutStopSec and systemd SIGKILLed the process — which is precisely
+    what clean shutdown exists to avoid, since a hard kill leaves the
+    PN532's GPIO pins claimed for the next start.
+
+    Third-party teardown can block for reasons we do not control
+    (pygame.mixer.quit() with a stuck SDL audio thread, a wedged SPI bus
+    mid-transfer). So: attempt it on a thread, give it a bounded window,
+    then exit anyway. We are terminating regardless — a mostly-clean exit
+    now beats a SIGKILL later.
+    """
+    print("service: stopping", flush=True)
+    started = time.monotonic()
+    done = threading.Event()
+
+    def _run_shutdown():
+        try:
+            rt.shutdown()
+        except Exception as exc:   # noqa: BLE001
+            print("service: shutdown error (continuing): %s: %s"
+                  % (type(exc).__name__, exc), flush=True)
+        finally:
+            done.set()
+
+    t = threading.Thread(target=_run_shutdown, name="shutdown", daemon=True)
+    t.start()
+
+    if done.wait(deadline_s):
+        print("service: stopped cleanly in %.1fs" % (time.monotonic() - started),
+              flush=True)
+    else:
+        print("service: shutdown exceeded %.0fs — forcing exit "
+              "(a device driver is not releasing)" % deadline_s, flush=True)
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # os._exit skips interpreter cleanup, which is the point: whatever is
+    # stuck would block a normal exit too.
+    os._exit(0)
 
 
 def _report_status(rt: runtime.Runtime) -> None:
