@@ -76,13 +76,31 @@ class PixelblazeLights(LightDevice):
             return False
 
     def status(self) -> dict:
-        """Feeds the panel's status strip and the TV status screen (5.1)."""
-        return {
+        """Feeds the panel's status strip and the TV status screen (5.1).
+
+        Includes effective brightness because a correctly-running table can
+        still be invisible: the device's brightness *limit* and the runtime
+        *slider* multiply, and a pattern's own value range multiplies again
+        on top. A limit of 10 with a slider of 0.52 renders even a
+        full-brightness pattern at ~5%, which reads as "nothing happened"
+        while every log line says success.
+        """
+        info = {
             "healthy": self.healthy,
             "address": self.address,
             "pattern": self.current_pattern,
             "error": self.last_error,
         }
+        if self._pb is not None and self.healthy:
+            try:
+                slider = self._pb.getBrightnessSlider()
+                limit = self._pb.getBrightnessLimit()
+                info["brightness_slider"] = slider
+                info["brightness_limit_pct"] = limit
+                info["effective_pct"] = round(slider * limit, 1)
+            except Exception:
+                pass
+        return info
 
     # ------------------------------------------------------------ connection
 
@@ -232,8 +250,35 @@ class PixelblazeLights(LightDevice):
         except Exception as exc:
             self._drop(exc)
             raise DeviceError("set_pattern(%r) failed: %s" % (name, exc))
-        self.current_pattern = name
-        self.log.record("lights.set_pattern", pattern=name, real=True)
+
+        # Read back rather than assuming the write landed. Previously this
+        # logged real=True purely because nothing raised, which meant a
+        # silently-ignored write looked identical to a successful one in the
+        # log — exactly the "how would I know it's broken?" problem section 5
+        # exists to prevent. Costs one extra round-trip (~10ms on the LAN).
+        confirmed = None
+        try:
+            active_id = pb.getActivePattern()
+            confirmed = self._patterns_by_id().get(active_id)
+        except Exception:
+            pass   # verification is best-effort; don't fail the action over it
+
+        self.current_pattern = confirmed or name
+        if confirmed is not None and confirmed != name:
+            self.log.record("lights.set_pattern_unconfirmed",
+                            asked=name, device_reports=confirmed)
+        else:
+            self.log.record("lights.set_pattern", pattern=name,
+                            confirmed=confirmed is not None)
+
+    def _patterns_by_id(self) -> Dict[str, str]:
+        """id -> name, from the same cache available_patterns() populates."""
+        if not self._patterns:
+            try:
+                self.available_patterns()
+            except DeviceError:
+                return {}
+        return {pid: name for name, pid in self._patterns.items()}
 
     def set_brightness(self, level: float) -> None:
         level = max(0.0, min(1.0, float(level)))

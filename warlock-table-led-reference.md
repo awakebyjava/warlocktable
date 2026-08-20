@@ -66,6 +66,34 @@ Do not "fix" this array to look more logical — it is correct as-is and matches
 
 ---
 
+## 3b. POWER BUDGET — read before touching brightness
+
+**The Pixelblaze brightness limit is a hardware safety constraint, not a preference. Do not raise it to make the table brighter.**
+
+| | |
+|---|---|
+| Strips | 764 × SK6812 RGBW |
+| Draw at full white | ~60–80 mA/LED → **~46 A ≈ 229 W** |
+| Power supply | **40 W @ 5 V = 8 A** |
+| Supply as a fraction of full draw | **~17%** |
+| Safe brightness limit | **≤ 15%** (10 gives useful headroom) |
+
+At a limit of **10**, worst-case draw is about 4.6 A / 23 W — comfortably inside budget. At **40** it would be roughly 18 A / 92 W, i.e. **2.3× the supply**. That browns out at best; sustained, it's a fire risk, not just a reset.
+
+**Consequence: the table is legitimately dim, and that is correct.** If a pattern looks like "nothing is happening," check `status` in the CLI before assuming the software is broken — everything can be healthy and correct while the table is at ~2% output.
+
+**The limit is the safety mechanism — patterns are not.** The brightness limit scales *all* output, so worst-case draw stays within budget no matter what a pattern does. A pattern cannot exceed it by lighting everything at full white. That means:
+
+- **Pattern brightness values are an aesthetic choice, not a safety one.** `breathing`'s `maxV = 0.34` is about how a resting table should look, not about protecting the supply.
+- Actual draw still varies *within* the cap: the Pac-Man chase lights ~4 dots out of 700 and draws near nothing, while a full-field wash sits at the ceiling. That matters for heat and headroom, not for safety.
+- **Never treat a dim pattern as a substitute for the limit.** If the limit is wrong, every pattern is unsafe.
+
+To get more visible light *without* touching the limit: raise the runtime slider (`bright 1.0` doubles output from the current 0.52 while staying capped), or raise the pattern's own value range. Both remain inside the power budget.
+
+**To actually get a brighter table**, the fix is a bigger supply, not a higher limit. Full brightness on 764 RGBW pixels wants something in the 200 W+ / 40 A class, plus power injection at multiple points along the runs so the far end isn't starved.
+
+---
+
 ## 4. Ring corner skip
 
 Each ring has a quarter-arc that faces **into** the table (toward the screen) and looks awkward/hidden. Patterns skip **8 LEDs at each end** of every ring (16 dead LEDs per ring), which lands the dark gap cleanly on the inside corner. The gap is one continuous arc at the ring's seam (end-of-ring meets start-of-ring), because the ring's wiring starts at the inside corner.

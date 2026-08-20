@@ -28,6 +28,13 @@ from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
 from .eventlog import EventLog
 from .registry import describe_actions
 
+# Hardware safety limit, not a preference. 764 SK6812 RGBW pixels draw
+# roughly 46A (~229W) at full white; the table's supply is 40W (8A). That
+# puts the safe average ceiling near 15%, so anything above this is treated
+# as a fault to warn about. See the power budget section of
+# warlock-table-led-reference.md before changing it.
+POWER_SAFE_LIMIT_PCT = 15
+
 BANNER_FAKE = """\
 Warlock Table v2 — fake-hardware controller
 No Pi, no Pixelblaze, no NFC reader. Everything below is what the real
@@ -52,6 +59,9 @@ HELP = """\
   idle                  go to idle
   seat <name> <colour>  claim a seat (e.g.  seat Dave red)
   actions               show the self-describing action registry
+  status                subsystem health + real brightness (start here if
+                        the table looks like it is doing nothing)
+  bright <0.0-1.0>      set the runtime brightness slider
   log [n]               show the last n events (default 20)
   sleep <seconds>       wait — useful for watching a timed revert fire
   help                  this message
@@ -222,6 +232,43 @@ def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> No
         n = int(rest) if rest.strip().isdigit() else 20
         for event in controller.log.recent(n):
             print("  " + EventLog._humanize(event))
+
+    elif cmd == "status":
+        st = controller.status()
+        print("  scene:", st["scene"])
+        for subsystem, ok in st["subsystems"].items():
+            print("  %-9s %s" % (subsystem + ":", "ok" if ok else "UNHEALTHY"))
+        device_status = getattr(controller.lights, "status", None)
+        if callable(device_status):
+            info = device_status()
+            print("  lights device:")
+            for key in ("address", "pattern", "brightness_slider",
+                         "brightness_limit_pct", "effective_pct", "error"):
+                if key in info and info[key] is not None:
+                    print("     %-20s %s" % (key, info[key]))
+            limit = info.get("brightness_limit_pct")
+            if limit is not None and limit > POWER_SAFE_LIMIT_PCT:
+                # This is a hardware-safety check, not a preference. See the
+                # power budget section of warlock-table-led-reference.md.
+                print("     *** BRIGHTNESS LIMIT %s%% EXCEEDS THE POWER BUDGET ***" % limit)
+                print("         764 SK6812 RGBW at full white draw ~46A (~229W).")
+                print("         The supply is 40W (8A), so the safe ceiling is")
+                print("         about %s%%. Lower it in the Pixelblaze UI." % POWER_SAFE_LIMIT_PCT)
+            eff = info.get("effective_pct")
+            if eff is not None and eff < 6:
+                # The table looking dead is EXPECTED at this power budget.
+                # Say so, rather than suggesting a change that would exceed it.
+                print("     note: effective brightness ~%s%% — dim by design." % eff)
+                print("           The limit is a power-supply constraint, not a")
+                print("           setting to raise. Use 'bright <0-1>' to adjust")
+                print("           the slider within it, or brighten the pattern's")
+                print("           own value range (lighting fewer pixels costs less).")
+
+    elif cmd == "bright":
+        try:
+            controller.set_brightness(float(rest))
+        except ValueError:
+            print("  usage: bright <0.0-1.0>")
 
     else:
         print("  unknown command %r — try 'help'" % cmd)
