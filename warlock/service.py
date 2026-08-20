@@ -63,7 +63,7 @@ def main(argv=None) -> int:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    log = EventLog(path=args.logfile or None, echo=True)
+    log = EventLog(path=runtime.resolve_logfile(args), echo=True)
     print("Warlock Table service starting", flush=True)
 
     try:

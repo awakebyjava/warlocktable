@@ -78,8 +78,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--logfile",
-        default=os.path.join(os.path.dirname(__file__), "..", "data", "events.log"),
-        help="where to append the event log (JSON Lines). Pass '' to disable.",
+        default=None,
+        help="where to append the event log (JSON Lines). Defaults to "
+             "events.log beside the config file. Pass '' to disable.",
     )
     parser.add_argument(
         "--real-lights",
@@ -117,7 +118,17 @@ def main() -> None:
         print("Could not load config %r:\n  %s" % (args.config, exc), file=sys.stderr)
         sys.exit(1)
 
-    log = EventLog(path=args.logfile or None, echo=True)
+    from .runtime import resolve_logfile, service_is_running
+    log = EventLog(path=resolve_logfile(args), echo=True)
+
+    if args.nfc and service_is_running():
+        # Both cannot own the PN532's SPI bus and GPIO reset pin. The loser
+        # reports "Failed to detect the PN532", which reads as broken
+        # hardware rather than a second copy of the program.
+        print("WARNING: the warlocktable service is running and already owns")
+        print("         the NFC reader. Taps here will likely fail to detect it.")
+        print("         Stop it first:  sudo systemctl stop warlocktable")
+        print()
 
     if args.real_lights:
         # Note this is constructed exactly like the fake and handed to the

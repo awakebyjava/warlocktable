@@ -22,6 +22,38 @@ from .eventlog import EventLog
 LAST_GOOD_SUFFIX = ".last-good"
 
 
+def resolve_logfile(args) -> Optional[str]:
+    """Where the event log goes.
+
+    Defaults to sitting beside the config rather than to a fixed path in the
+    source tree. Under the installed layout the code lives in /opt (replaced
+    on every deploy) and the data in /var/lib — writing logs into /opt would
+    both fail and be wrong, since they are data, not code.
+
+    Explicit '' disables the file log entirely.
+    """
+    if args.logfile is not None:
+        return args.logfile or None
+    return os.path.join(os.path.dirname(os.path.abspath(args.config)), "events.log")
+
+
+def service_is_running() -> bool:
+    """True if the systemd service appears to be up.
+
+    Used to warn before the interactive CLI fights the service for hardware:
+    both cannot own the PN532's SPI bus and GPIO reset pin at once, and the
+    loser reports 'Failed to detect the PN532' — which looks like broken
+    hardware rather than a second copy of the program.
+    """
+    try:
+        import subprocess
+        out = subprocess.run(["systemctl", "is-active", "warlocktable"],
+                             capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() == "active"
+    except Exception:
+        return False
+
+
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """Arguments shared by the interactive CLI and the service."""
     here = os.path.dirname(__file__)
@@ -32,8 +64,9 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--logfile",
-        default=os.path.join(here, "..", "data", "events.log"),
-        help="where to append the event log (JSON Lines). Pass '' to disable.",
+        default=None,
+        help="where to append the event log (JSON Lines). Defaults to "
+             "events.log beside the config file. Pass '' to disable.",
     )
     parser.add_argument(
         "--real-lights", action="store_true",
