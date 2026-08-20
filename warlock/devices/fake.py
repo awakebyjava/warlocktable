@@ -22,7 +22,7 @@ FAKE_PATTERNS = [
     "breathing", "KITT", "blink fade", "fireflies",
     "green ripple reflections", "glitch bands", "sparkfire",
     "spin cycle", "opposites",
-    "GreenCard", "WhiteCard", "BlackCard", "BlueCard", "RedCard",
+    "Forest", "Plains", "Swamp", "Island", "Mountain",
 ]
 
 # name -> fake duration in seconds. Real files will report real duration;

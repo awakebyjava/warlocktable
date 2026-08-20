@@ -107,13 +107,10 @@ Rule of thumb:
 
 The path-builder block below is unchanged either way — only the two constants differ.
 
+**What the skip actually does.** Each ring has a quarter-arc facing **into** the table (toward the screen) that is awkward and half-hidden. Skipping 8 LEDs at each end of a ring (16 per ring) lands the dark gap cleanly on that inside corner. Because the ring's wiring starts there, the gap is one continuous arc at the ring's seam rather than two separate stubs.
 
-Each ring has a quarter-arc that faces **into** the table (toward the screen) and looks awkward/hidden. Patterns skip **8 LEDs at each end** of every ring (16 dead LEDs per ring), which lands the dark gap cleanly on the inside corner. The gap is one continuous arc at the ring's seam (end-of-ring meets start-of-ring), because the ring's wiring starts at the inside corner.
-
-- `skipStart = 8`
-- `skipEnd = 8`
-
-This leaves **44 lit LEDs per ring**, so the "active" perimeter path length is **764 − (4 × 16) = 700 pixels**.
+- Chase patterns: `skipStart = 8`, `skipEnd = 8` → 44 lit per ring, **path length 700**
+- Everything else: `skipStart = 0`, `skipEnd = 0` → all 60 lit per ring, **path length 764**
 
 ---
 
@@ -259,8 +256,18 @@ Authored patterns live in `patterns/` so they survive a device reset — the Pix
 | File | Purpose |
 |---|---|
 | `patterns/breathing.js` | The idle / resting state (plan doc 4.3). Slow warm swell, never fully dark, so a breathing table doubles as the "controller is up" signal from 5.1. |
+| `patterns/forest.js` | Green mana / Forest scene. Deep canopy, dappled light from two incommensurate waves, plus slow blooming sun shafts. Device name **Forest**. |
+| `patterns/island.js` | Blue mana / Island scene. Two counter-travelling swells that interfere like real water; desaturated glint on the sharpest crests for foam. Device name **Island**. |
+| `patterns/mountain.js` | Red mana / Mountain scene. Two waves *multiplied* (not added) for narrow ember bands in dark rock, with short-lived cinder sparks. Device name **Mountain**. |
+| `patterns/plains.js` | White mana / Plains scene. Warm gold swells travelling one direction like wind over grass. Low saturation on purpose so the RGBW white channel carries it. Device name **Plains**. |
+| `patterns/swamp.js` | Black mana / Swamp scene, rendered as deep **violet** — see the note below. Slow breathing bog with green-teal will-o'-wisps. Device name **Swamp**. |
+| `patterns/legacy/*.js` | The five original `*Card` patterns and a misnamed `forest` KITT clone, archived from the device before deletion on 2026-08-20. Superseded — kept only so the device was never the sole copy. Not on the Pixelblaze any more. |
 
 Uploaded to the device programmatically via `pixelblaze-client`'s `savePattern()` — that is plan doc 3.8's "upload pattern via the panel" working, just driven from a script rather than a UI so far.
+
+**Why Swamp is purple.** Black mana has no honest LED colour: the pattern it replaced (`BlackCard`) was literally `hsv(h, s, 0)` — value zero — so tapping the Swamp card turned the table *off* and read as a fault, not a scene. Deep violet keeps the scene visible while staying the darkest and slowest of the five. The wisps are the one green in the pattern and are deliberately few, narrow and dim; widen them and Swamp starts reading as Forest.
+
+**All five are ambient washes, so they use `skipStart/skipEnd = 0`** per section 4 — `pathLen` is 764, not the chase-path 700. Each exports `pathLenWatch`, which is the cheapest way to confirm on the Vars Watch panel that a pattern is really executing (all five read 764 after upload).
 
 ---
 
@@ -271,6 +278,7 @@ Uploaded to the device programmatically via `pixelblaze-client`'s `savePattern()
 - **A dot "disappearing" on a ring** was actually just physical density (4 LEDs is a tiny smudge on a tight 44-LED ring) — widening `dotWidth` confirmed it was visible, not missing.
 - **Color changing at a boundary** turned out NOT to be color-order (a solid-color flood test proved every LED renders hue identically) — it was the path/order being wrong, so a ghost's color appeared to "change" when really the path jumped.
 - **Confirmed-working config is precious.** The `segStart` array and skip values are ground truth. Don't refactor them to look tidier.
+- **`pixelblaze-client` read-backs flake, and a flake looks exactly like a failure.** During the biome-pattern upload, `getPatternList()` returned `None` on a first connect and `getActivePattern()` reported the wrong id once immediately after a `setActivePatternByName()` — both correct on an immediate retry. Retry a read-back before believing it; the driver in `warlock/devices/pixelblaze_lights.py` already treats verification as best-effort for this reason.
 - **Watch variables to verify assumptions:** `export var` + the Vars Watch panel confirmed `pathLen == 700` and that `head` swept smoothly — which localized the bug to segment order, not motion or counting.
 
 ---

@@ -30,31 +30,31 @@
       "transition": { "crossfade_s": 1.5, "duck": false }
     },
     "forest": {
-      "lights": "GreenCard",
+      "lights": "Forest",
       "soundscape": "forest",
       "background": "forest.png",
       "transition": { "crossfade_s": 2.0, "duck": false }
     },
     "plains": {
-      "lights": "WhiteCard",
+      "lights": "Plains",
       "soundscape": "plains",
       "background": "plains.png",
       "transition": { "crossfade_s": 2.0, "duck": false }
     },
     "swamp": {
-      "lights": "BlackCard",
+      "lights": "Swamp",
       "soundscape": "swamp",
       "background": "swamp.png",
       "transition": { "crossfade_s": 2.0, "duck": false }
     },
     "island": {
-      "lights": "BlueCard",
+      "lights": "Island",
       "soundscape": "island",
       "background": "island.png",
       "transition": { "crossfade_s": 2.0, "duck": false }
     },
     "mountain": {
-      "lights": "RedCard",
+      "lights": "Mountain",
       "soundscape": "mountain",
       "background": "mountain.png",
       "transition": { "crossfade_s": 2.0, "duck": false }

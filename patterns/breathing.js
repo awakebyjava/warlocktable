@@ -48,10 +48,13 @@ for (s = 0; s < 8; s++) {
 // attention. Never reaches zero - a fully dark table looks broken, and
 // the whole point is showing the system is up.
 
-hue         = 0.08   // warm amber
-sat         = 0.55
-minV        = 0.06   // floor - always faintly lit
-maxV        = 0.34   // ceiling - gentle
+hue         = 0.78   // purple / violet
+sat         = 0.80   // high saturation keeps it a clean purple. On RGBW,
+                     // low saturation pulls in the white channel and the
+                     // colour washes out toward lavender-grey.
+minV        = 0.04   // floor - always faintly lit, never fully dark
+maxV        = 0.25   // ceiling - deliberately low; this runs for hours
+                     // between sessions and points up at the room
 breathSpeed = 0.12   // smaller = slower. ~8s cycle.
 travel      = 0.18   // phase offset around the loop, so the swell drifts
                      // rather than pulsing as one flat block
