@@ -250,14 +250,27 @@ class PygameAudio(AudioDevice):
         duration = full
 
         if max_duration is not None and max_duration < full:
-            # Cut it short with a fade rather than a hard stop, so a long
-            # music track can serve as a short dramatic beat without the
-            # audio being chopped off mid-waveform.
+            # Cut a long track short so it can serve as a dramatic beat.
+            #
+            # NOTE: pygame's fadeout(t) starts fading IMMEDIATELY over t ms.
+            # Calling fadeout(12000) here made the audio quieter for its whole
+            # 12 seconds rather than ending cleanly - a real bug, and audible
+            # as the sting seeming to evaporate. Instead: play at full volume
+            # with maxtime as a hard backstop, and schedule a SHORT fade near
+            # the end.
             duration = max_duration
-            fade_ms = min(1000, int(max_duration * 1000 * 0.25))
-            channel.play(sound, maxtime=int(max_duration * 1000),
-                         fade_ms=0)
-            channel.fadeout(int(max_duration * 1000))
+            fade_s = min(1.5, max_duration * 0.2)
+            channel.play(sound, maxtime=int(max_duration * 1000))
+
+            def _fade(ch=channel, ms=int(fade_s * 1000)):
+                try:
+                    ch.fadeout(ms)
+                except Exception:
+                    pass
+
+            t = threading.Timer(max(0.0, max_duration - fade_s), _fade)
+            t.daemon = True
+            t.start()
         else:
             channel.play(sound)
 
