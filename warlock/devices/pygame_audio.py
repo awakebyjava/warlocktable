@@ -70,6 +70,7 @@ class PygameAudio(AudioDevice):
         self._cache: Dict[str, object] = {}     # path -> Sound
         self._cache_order: List[str] = []
 
+        self._effect_timers: List[threading.Timer] = []
         self._bed_channels: List[object] = []
         self._bed_active = 0
         self._bed_volume = 1.0
@@ -271,6 +272,8 @@ class PygameAudio(AudioDevice):
             t = threading.Timer(max(0.0, max_duration - fade_s), _fade)
             t.daemon = True
             t.start()
+            with self._lock:
+                self._effect_timers.append(t)
         else:
             channel.play(sound)
 
@@ -305,6 +308,42 @@ class PygameAudio(AudioDevice):
             self._unduck_timer = threading.Timer(duration + self.duck_ramp_s, restore)
             self._unduck_timer.daemon = True
             self._unduck_timer.start()
+
+    def stop_effects(self, fade_ms: int = 200) -> None:
+        """Silence one-shots without touching the soundscape bed."""
+        if self._mixer is None:
+            return
+        with self._lock:
+            # Cancel scheduled end-fades first, or a timer from the effect we
+            # are stopping will fire later against a channel that has since
+            # been reused by a different sound.
+            for t in self._effect_timers:
+                t.cancel()
+            self._effect_timers = []
+
+            # Also drop any pending unduck: the bed must come back up now
+            # rather than at the cancelled effect's original end time.
+            if self._unduck_timer is not None:
+                self._unduck_timer.cancel()
+                self._unduck_timer = None
+
+            stopped = 0
+            for i in range(self.BED_CHANNELS, self.TOTAL_CHANNELS):
+                ch = self._mixer.Channel(i)
+                if ch.get_busy():
+                    ch.fadeout(fade_ms)   # brief fade, not a click
+                    stopped += 1
+
+            # Restore the bed immediately, since whatever we were ducking for
+            # is now gone.
+            try:
+                self._bed_channels[self._bed_active].set_volume(self._bed_volume)
+            except Exception:
+                pass
+
+        if stopped:
+            self.log.record("audio.effects_stopped", channels=stopped,
+                            fade_ms=fade_ms)
 
     def available_tracks(self) -> List[str]:
         return sorted(self._library.keys(), key=str.lower)

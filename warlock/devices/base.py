@@ -76,6 +76,16 @@ class AudioDevice(ABC):
         """
 
     @abstractmethod
+    def stop_effects(self, fade_ms: int = 200) -> None:
+        """Silence any playing one-shots, leaving the soundscape alone.
+
+        Called when something supersedes an interruption (plan doc 4.3, last
+        input wins). Without this the lights change instantly while the sting
+        plays on to its own schedule, so the table's response looks split in
+        two: picture first, sound catching up afterwards.
+        """
+
+    @abstractmethod
     def available_tracks(self) -> List[str]:
         ...
 

@@ -91,20 +91,31 @@ class Controller:
 
     # ---- internal: precedence ------------------------------------------
 
-    def _supersede(self) -> None:
+    def _supersede(self, stop_effects: bool = False) -> None:
         """Cancel anything that was scheduled to happen later. Called at
-        the top of every public action — see the module docstring."""
+        the top of every public action — see the module docstring.
+
+        stop_effects also silences any playing one-shot. That is deliberately
+        opt-in rather than automatic: changing the scene should cut a sting
+        short, but nudging the brightness should not. Without it the lights
+        change instantly while the sting plays on to its own schedule, so the
+        table answers in two halves — picture, then sound.
+        """
         with self._lock:
             if self._revert_timer is not None:
                 self._revert_timer.cancel()
                 self._revert_timer = None
+        if stop_effects:
+            self._try("audio", self.audio.stop_effects)
 
     # ---- targets: the three things a card/table entry can point at -----
 
     @action(ParamSpec("scene_name", "str", choices=lambda c: list(c.config.scenes)))
     def apply_scene(self, scene_name: str) -> None:
         """Enter a persisting state. Stays until something replaces it."""
-        self._supersede()
+        # stop_effects: a new scene cuts a playing sting short, so lights and
+        # sound change together rather than the audio trailing behind.
+        self._supersede(stop_effects=True)
         scene = self.config.scenes[scene_name]
         self.current_scene = scene
         self.log.record("scene.apply", name=scene_name)
@@ -121,7 +132,7 @@ class Controller:
     def play_interruption(self, interruption_name: str) -> None:
         """Layer over whatever is currently playing, then revert to it
         once the audio finishes (plan doc 4.3)."""
-        self._supersede()
+        self._supersede(stop_effects=True)
         interruption = self.config.interruptions[interruption_name]
         self.log.record("interruption.start", name=interruption_name,
                          reverts_to=self.current_scene.name if self.current_scene else None)
@@ -271,7 +282,7 @@ class Controller:
         name — the pattern was previously baked in here, which is exactly
         the anti-pattern the config-driven design exists to prevent.
         """
-        self._supersede()
+        self._supersede(stop_effects=True)
         self.log.record("go_idle")
 
         idle = self.config.scenes.get(self.config.idle_scene_name)

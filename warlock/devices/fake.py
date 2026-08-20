@@ -77,6 +77,9 @@ class FakeAudioDevice(AudioDevice):
                          ducking=self.soundscape if duck else None)
         return duration
 
+    def stop_effects(self, fade_ms: int = 200) -> None:
+        self.log.record("audio.effects_stopped", fade_ms=fade_ms)
+
     def available_tracks(self) -> List[str]:
         return list(FAKE_TRACKS.keys())
 
