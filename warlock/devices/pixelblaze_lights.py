@@ -61,6 +61,20 @@ class PixelblazeLights(LightDevice):
 
     # ---------------------------------------------------------------- health
 
+    def try_connect(self) -> bool:
+        """Attempt one connection now, without raising.
+
+        Connection is otherwise lazy, which keeps startup non-blocking (5.2)
+        but means status() reads "not connected" until the first action fires.
+        Startup calls this so it can report honestly, while a failure here
+        still isn't fatal — the background retry takes over.
+        """
+        try:
+            self._ensure()
+            return True
+        except DeviceError:
+            return False
+
     def status(self) -> dict:
         """Feeds the panel's status strip and the TV status screen (5.1)."""
         return {

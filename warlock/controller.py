@@ -19,7 +19,8 @@ import threading
 from typing import Optional
 
 from .config import Config, Interruption, Scene, Target
-from .devices.base import AudioDevice, DisplayDevice, LightDevice
+from .devices.base import (AudioDevice, DeviceError, DisplayDevice,
+                            LightDevice, UnknownAssetError)
 from .eventlog import EventLog
 from .registry import ParamSpec, action
 
@@ -36,6 +37,57 @@ class Controller:
         self.current_scene: Optional[Scene] = None
         self._revert_timer: Optional[threading.Timer] = None
         self._lock = threading.Lock()
+
+        # Per-subsystem health, for the panel status strip and the TV status
+        # screen (plan doc 5.1). A subsystem going unhealthy must never stop
+        # the others — see _try below.
+        self.subsystem_ok = {"lights": True, "audio": True, "display": True}
+
+    # ---- internal: fault isolation (plan doc 5.2) ------------------------
+
+    def _try(self, subsystem: str, fn, *args, **kwargs) -> bool:
+        """Call a device method, absorbing device failures.
+
+        Plan doc 5.2: "lights down != sound down != panel down". Every device
+        call goes through here so one failing device degrades that subsystem
+        only, and the table keeps running.
+
+        Two distinct failure kinds, deliberately handled differently:
+          - UnknownAssetError: the device is fine, the *config* asked for
+            something that doesn't exist. Health is untouched; this is a
+            content bug to fix in the management UI.
+          - DeviceError: the device itself is unreachable or broken. Mark the
+            subsystem unhealthy so the status strip can show it.
+
+        Returns True if the call succeeded.
+        """
+        try:
+            fn(*args, **kwargs)
+        except UnknownAssetError as exc:
+            self.log.record("action.missing_asset", subsystem=subsystem, error=str(exc))
+            return False
+        except DeviceError as exc:
+            if self.subsystem_ok.get(subsystem, True):
+                self.log.record("subsystem.unhealthy", subsystem=subsystem, error=str(exc))
+            self.subsystem_ok[subsystem] = False
+            return False
+        except Exception as exc:  # noqa: BLE001 - a driver bug must not kill the table
+            self.log.record("subsystem.error", subsystem=subsystem,
+                             error="%s: %s" % (type(exc).__name__, exc))
+            self.subsystem_ok[subsystem] = False
+            return False
+
+        if not self.subsystem_ok.get(subsystem, True):
+            self.log.record("subsystem.recovered", subsystem=subsystem)
+        self.subsystem_ok[subsystem] = True
+        return True
+
+    def status(self) -> dict:
+        """What the panel status strip and TV status screen render (5.1)."""
+        return {
+            "subsystems": dict(self.subsystem_ok),
+            "scene": self.current_scene.name if self.current_scene else None,
+        }
 
     # ---- internal: precedence ------------------------------------------
 
@@ -56,10 +108,13 @@ class Controller:
         scene = self.config.scenes[scene_name]
         self.current_scene = scene
         self.log.record("scene.apply", name=scene_name)
-        self.lights.set_pattern(scene.lights)
-        self.audio.play_soundscape(scene.soundscape, scene.transition.crossfade_s)
+        # Each subsystem is attempted independently: a dead Pixelblaze must
+        # not stop the soundscape from playing (plan doc 5.2).
+        self._try("lights", self.lights.set_pattern, scene.lights)
+        self._try("audio", self.audio.play_soundscape, scene.soundscape,
+                   scene.transition.crossfade_s)
         if scene.background:
-            self.display.set_background(scene.background)
+            self._try("display", self.display.set_background, scene.background)
 
     @action(ParamSpec("interruption_name", "str",
                        choices=lambda c: list(c.config.interruptions)))
@@ -72,10 +127,28 @@ class Controller:
                          reverts_to=self.current_scene.name if self.current_scene else None)
 
         if interruption.lights:
-            self.lights.set_pattern(interruption.lights)
+            self._try("lights", self.lights.set_pattern, interruption.lights)
         if interruption.background:
-            self.display.set_background(interruption.background)
-        duration = self.audio.play_effect(interruption.audio, duck=interruption.duck)
+            self._try("display", self.display.set_background, interruption.background)
+
+        # play_effect returns the duration we need for the revert timer, so
+        # it can't go through _try (which discards return values). Guard it
+        # directly, and still schedule a revert if audio failed — otherwise a
+        # broken audio device would strand the table in the interruption's
+        # lighting with nothing to bring it back.
+        duration = 0.0
+        try:
+            duration = self.audio.play_effect(interruption.audio,
+                                               duck=interruption.duck)
+            self.subsystem_ok["audio"] = True
+        except UnknownAssetError as exc:
+            self.log.record("action.missing_asset", subsystem="audio", error=str(exc))
+        except DeviceError as exc:
+            self.log.record("subsystem.unhealthy", subsystem="audio", error=str(exc))
+            self.subsystem_ok["audio"] = False
+
+        if not duration:
+            duration = self.config.fallback_interruption_s
 
         self._schedule_revert(interruption_name, duration)
 
@@ -88,11 +161,13 @@ class Controller:
             if scene_to_restore:
                 # Re-apply directly rather than calling apply_scene(), so
                 # we don't clear a timer another action may have set since.
-                self.lights.set_pattern(scene_to_restore.lights)
-                self.audio.play_soundscape(scene_to_restore.soundscape,
-                                            scene_to_restore.transition.crossfade_s)
+                self._try("lights", self.lights.set_pattern, scene_to_restore.lights)
+                self._try("audio", self.audio.play_soundscape,
+                           scene_to_restore.soundscape,
+                           scene_to_restore.transition.crossfade_s)
                 if scene_to_restore.background:
-                    self.display.set_background(scene_to_restore.background)
+                    self._try("display", self.display.set_background,
+                               scene_to_restore.background)
             else:
                 self.go_idle()
 
@@ -142,24 +217,24 @@ class Controller:
     @action(ParamSpec("pattern", "str", choices=lambda c: c.lights.available_patterns()))
     def set_lights(self, pattern: str) -> None:
         self._supersede()
-        self.lights.set_pattern(pattern)
+        self._try("lights", self.lights.set_pattern, pattern)
 
     @action(ParamSpec("track", "str", choices=lambda c: c.audio.available_tracks()))
     def set_soundscape(self, track: Optional[str]) -> None:
         self._supersede()
         crossfade = (self.current_scene.transition.crossfade_s
                      if self.current_scene else 1.5)
-        self.audio.play_soundscape(track, crossfade)
+        self._try("audio", self.audio.play_soundscape, track, crossfade)
 
     @action(ParamSpec("name", "str"))
     def set_background(self, name: str) -> None:
         self._supersede()
-        self.display.set_background(name)
+        self._try("display", self.display.set_background, name)
 
     @action(ParamSpec("track", "str", choices=lambda c: c.audio.available_tracks()))
     def play_effect(self, track: str) -> None:
         self._supersede()
-        self.audio.play_effect(track, duck=True)
+        self._try("audio", self.audio.play_effect, track, True)
 
     @action(ParamSpec("line", "str"))
     def speak_line(self, line: str) -> None:
@@ -167,17 +242,17 @@ class Controller:
         with ducking, same as any other one-shot layered over ambience."""
         self._supersede()
         self.log.record("voice.speak", line=line)
-        self.audio.play_effect(line, duck=True)
+        self._try("audio", self.audio.play_effect, line, True)
 
     @action(ParamSpec("level", "float"))
     def set_brightness(self, level: float) -> None:
         self._supersede()
-        self.lights.set_brightness(level)
+        self._try("lights", self.lights.set_brightness, level)
 
     @action(ParamSpec("target", "str"))
     def handoff_display(self, target: str) -> None:
         self._supersede()
-        self.display.handoff(target)
+        self._try("display", self.display.handoff, target)
 
     @action(ParamSpec("player", "str"), ParamSpec("text", "str"))
     def whisper(self, player: str, text: str) -> None:
@@ -188,13 +263,32 @@ class Controller:
 
     @action()
     def go_idle(self) -> None:
-        """Breathing lights, no audio (plan doc 4.3). This is also what
-        should run at boot, per the startup sequence in 5.1."""
+        """The resting state: breathing lights, no audio (plan doc 4.3).
+        Also what runs at boot, per the startup sequence in 5.1.
+
+        Reads the idle scene from config rather than hardcoding a pattern
+        name — the pattern was previously baked in here, which is exactly
+        the anti-pattern the config-driven design exists to prevent.
+        """
         self._supersede()
-        self.current_scene = None
         self.log.record("go_idle")
-        self.lights.set_pattern("breathing")
-        self.audio.play_soundscape(None, 1.5)
+
+        idle = self.config.scenes.get(self.config.idle_scene_name)
+        if idle is None:
+            # Never leave the table in an undefined state: fall back to
+            # dark and silent rather than refusing to idle at all.
+            self.log.record("go_idle.no_scene", wanted=self.config.idle_scene_name)
+            self.current_scene = None
+            self._try("audio", self.audio.play_soundscape, None, 1.5)
+            return
+
+        self.current_scene = idle
+        if idle.lights:
+            self._try("lights", self.lights.set_pattern, idle.lights)
+        self._try("audio", self.audio.play_soundscape, idle.soundscape,
+                   idle.transition.crossfade_s)
+        if idle.background:
+            self._try("display", self.display.set_background, idle.background)
 
     # ---- seats (plan doc 4.5) --------------------------------------------
 

@@ -463,14 +463,14 @@ Stand up the core software on the Pi once hardware is trusted.
 
 - [x] Decide overall software architecture — see §4 (layers, one process, config-driven actions)
 - [x] **Write the action vocabulary down** (§4.2 step 1) — see §4.6
-- [x] Controller skeleton with all-fake devices, running on the laptop — `warlock/`, run with `python run_table.py` (see §4.6). Built 2026-08-18; tested on the Pi over SSH since the laptop currently has no Python installed (Store alias only) — that's a real gap worth fixing before writing real drivers.
+- [x] Controller skeleton with all-fake devices, running on the laptop — `warlock/`, run with `python run_table.py` (see §4.6). Built 2026-08-18. Python 3.12 since installed on the laptop, so development no longer round-trips through the Pi.
 - [x] Config file + event dispatch — **fake table fully working end to end**, incl. verified: timed auto-revert from an interruption, a new scene correctly pre-empting a pending revert (precedence rule), referential-integrity rejection of a dangling reference, and stateless random-table rolls
 - [ ] Run as a systemd service on the Pi (`Restart=always`, starts with zero hardware present)
-- [ ] Swap in real Pixelblaze via discovery, not a hardcoded IP
+- [x] Swap in real Pixelblaze via discovery, not a hardcoded IP — done; `--real-lights` drives the table, discovery recovers from a wrong/absent address hint
 - [ ] Get the PN532 NFC reader reading reliably
 - [ ] Basic audio output working (HDMI/analog as needed) — pin the device explicitly
 - [ ] Basic screen visuals on the embedded TV
-- [ ] A way for one input (e.g., an NFC card) to trigger one output (e.g., a light scene) — the first end-to-end interaction **on real hardware**
+- [x] A way for one input (e.g., an NFC card) to trigger one output (e.g., a light scene) — the first end-to-end interaction **on real hardware**. Done 2026-08-20: a simulated card tap drives the physical table (`card forest` → GreenCard, `card thedevil` → sparkfire then timed revert). Input is still the CLI rather than the PN532, but the whole chain below it is real.
 
 **Reliability work (per §5) — fold in alongside the above, not after:**
 - [ ] Subsystem status strip on the panel + status screen on the TV

@@ -94,6 +94,15 @@ class Config:
     cards: Dict[str, Card]          # keyed by uid
     zones: List[Zone]
     players: List[Player] = field(default_factory=list)
+    # Which scene is the resting state (plan doc 4.3). Configurable rather
+    # than hardcoded in the controller, so the management UI can change what
+    # the table falls back to.
+    idle_scene_name: str = "idle"
+    # How long an interruption holds if the audio device can't tell us the
+    # real duration (because it failed, or the file is missing). Without this
+    # a broken audio device would strand the table in the interruption's
+    # lighting forever, with nothing scheduled to bring it back.
+    fallback_interruption_s: float = 5.0
 
     def find_card(self, uid_or_label: str) -> Optional[Card]:
         """Looks up by exact uid first, then case-insensitive label match —
@@ -194,6 +203,9 @@ def load_config(path: str) -> Config:
     config = Config(
         scenes=scenes, interruptions=interruptions, random_tables=random_tables,
         cards=cards, zones=zones, players=players,
+        idle_scene_name=raw.get("settings", {}).get("idle_scene", "idle"),
+        fallback_interruption_s=float(
+            raw.get("settings", {}).get("fallback_interruption_s", 5.0)),
     )
 
     _validate(config)

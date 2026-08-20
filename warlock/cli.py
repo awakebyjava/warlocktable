@@ -28,10 +28,16 @@ from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
 from .eventlog import EventLog
 from .registry import describe_actions
 
-BANNER = """\
+BANNER_FAKE = """\
 Warlock Table v2 — fake-hardware controller
 No Pi, no Pixelblaze, no NFC reader. Everything below is what the real
 devices would be told to do.  Type 'help' for commands, 'quit' to exit.
+"""
+
+BANNER_REAL = """\
+Warlock Table v2 — LIGHTS ARE REAL
+Lights drive the actual Pixelblaze; audio and display are still fakes.
+Card taps below will change the physical table. 'help' for commands.
 """
 
 HELP = """\
@@ -65,6 +71,18 @@ def main() -> None:
         default=os.path.join(os.path.dirname(__file__), "..", "data", "events.log"),
         help="where to append the event log (JSON Lines). Pass '' to disable.",
     )
+    parser.add_argument(
+        "--real-lights",
+        action="store_true",
+        help="drive the actual Pixelblaze instead of the fake light device. "
+             "Requires pixelblaze-client (pip install pixelblaze-client).",
+    )
+    parser.add_argument(
+        "--pixelblaze-ip",
+        default=None,
+        help="address hint for the Pixelblaze. Optional — if it is wrong or "
+             "omitted, the device is found by UDP discovery instead.",
+    )
     args = parser.parse_args()
 
     try:
@@ -78,12 +96,36 @@ def main() -> None:
         sys.exit(1)
 
     log = EventLog(path=args.logfile or None, echo=True)
-    lights = FakeLightDevice(log)
+
+    if args.real_lights:
+        # Note this is constructed exactly like the fake and handed to the
+        # same Controller. That is the layering paying off (plan doc 4.1):
+        # swapping real hardware in touches this line and nothing else.
+        from .devices.pixelblaze_lights import PixelblazeLights
+        lights = PixelblazeLights(
+            log,
+            address_hint=args.pixelblaze_ip,
+            state_path=os.path.join(os.path.dirname(__file__), "..", "data", "device-state.json"),
+        )
+    else:
+        lights = FakeLightDevice(log)
+
     audio = FakeAudioDevice(log)
     display = FakeDisplayDevice(log)
     controller = Controller(config, lights, audio, display, log)
 
-    print(BANNER)
+    print(BANNER_REAL if args.real_lights else BANNER_FAKE)
+    if args.real_lights:
+        # Deliberately does not abort if the Pixelblaze is missing — section
+        # 5.2: the controller must start with zero hardware present.
+        lights.try_connect()
+        status = lights.status()
+        if status["healthy"]:
+            print("REAL LIGHTS: connected to %s" % status["address"])
+        else:
+            print("REAL LIGHTS: not connected yet (%s)" % (status["error"] or "will retry"))
+            print("             the table will keep running; lights retry in background.")
+
     controller.go_idle()
 
     while True:

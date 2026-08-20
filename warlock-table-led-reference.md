@@ -210,6 +210,16 @@ export function render(index) {
 
 To add a "frightened" blue-ghost mode later, swap all `ghostHue` entries to a single blue when a toggle/NFC card fires — the rest of the pattern is untouched.
 
+### Patterns kept in this repo
+
+Authored patterns live in `patterns/` so they survive a device reset — the Pixelblaze is not the only copy:
+
+| File | Purpose |
+|---|---|
+| `patterns/breathing.js` | The idle / resting state (plan doc 4.3). Slow warm swell, never fully dark, so a breathing table doubles as the "controller is up" signal from 5.1. |
+
+Uploaded to the device programmatically via `pixelblaze-client`'s `savePattern()` — that is plan doc 3.8's "upload pattern via the panel" working, just driven from a script rather than a UI so far.
+
 ---
 
 ## 9. Hard-won debugging lessons (so we don't repeat them)
