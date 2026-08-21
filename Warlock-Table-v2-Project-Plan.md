@@ -575,27 +575,30 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] Run the controller on the Pi at all — done 2026-08-20, drives the Pixelblaze over wifi. Required upgrading pixelblaze-client 0.9.6 -> 1.1.8 and stubbing mini-racer (no ARM wheel); see `deploy/README.md`
 - [x] Headless mode — done 2026-08-20. `run_service.py` (`warlock/service.py`): no stdin, SIGTERM/SIGINT shut down cleanly so GPIO is released, nothing fatal. Shares device construction with the CLI via `warlock/runtime.py`. Verified on the Pi with all three subsystems real.
 - [x] Config resilience (§5.2 "never refuse to start") — falls back requested → `.last-good` (written on every clean load) → minimal built-in that still defines an idle scene, so the lights come up even with nothing usable on disk. All three levels verified.
-- [ ] `deploy/install.sh` — install to `/opt/warlocktable`, state in `/var/lib/warlocktable` (see §5.5)
-- [ ] Run as a systemd service on the Pi (`Restart=always`, starts with zero hardware present)
+- [x] `deploy/install.sh` — done. Code to `/opt`, state in `/var/lib`, config seeded once and never overwritten. `deploy/update.sh` makes deploying one reviewed command.
+- [x] Run as a systemd service — done. Starts on boot, `Restart=always`, clean SIGTERM shutdown, verified through a cold reboot.
 - [x] Swap in real Pixelblaze via discovery, not a hardcoded IP — done; `--real-lights` drives the table, discovery recovers from a wrong/absent address hint
 - [x] Get the PN532 NFC reader reading reliably — done 2026-08-20. Physical card taps drive the real table (`--nfc`). Tap-not-presence semantics verified: a card left on the reader fires once, and re-fires only after being lifted and replaced.
-- [ ] Basic audio output working (HDMI/analog as needed) — pin the device explicitly
-- [ ] Basic screen visuals on the embedded TV
+- [x] Audio — done. Two independent channel groups (looping bed + layered one-shots), true crossfade, ducking. 38 tracks. *Device pinning still uses the SDL default — not yet pinned explicitly (§5.3 risk remains).*
+- [x] Screen visuals — done. feh fullscreen at 3840×2160, 5 backgrounds with gridded variants, ~50 ms swaps, grid toggle in the panel.
 - [x] A way for one input (e.g., an NFC card) to trigger one output (e.g., a light scene) — the first end-to-end interaction **on real hardware**. Done 2026-08-20: a simulated card tap drives the physical table (`card forest` → GreenCard, `card thedevil` → sparkfire then timed revert). Input is still the CLI rather than the PN532, but the whole chain below it is real.
 
 **Reliability work (per §5) — fold in alongside the above, not after:**
-- [ ] Subsystem status strip on the panel + status screen on the TV
-- [ ] Config validation with last-known-good fallback
-- [ ] DHCP reservations + mDNS name so the iPad icon never breaks
+- [x] Status strip on the panel — done, and it reflects each device's own health, not just failed calls.
+- [ ] **Status screen on the TV** — not built. Still the best answer to "the table booted to a blank screen and I cannot tell why".
+- [x] Config validation with last-known-good fallback — done, three levels (requested → `.last-good` → minimal built-in that still lights the table).
+- [x] mDNS — `raspberrypi.local` works (avahi).
+- [ ] **DHCP reservations** for the Pi and Pixelblaze — not done. Discovery covers the Pixelblaze; the Pi's address moving would still break a bookmarked IP.
 - [ ] "Table Check" self-test button (§5.4)
 - [ ] Physical GPIO shutdown button + a known-good SD image on the shelf
-- [ ] Tag known-good releases; run tags on the Pi, not raw `main`
+- [x] Tagged releases — `v0.1.0` cut and deployed; `VERSION` and the panel both report the build.
 
 ### Phase 3+ — Feature Build-Out
-- [ ] Operator web control panel (Pixelblaze/audio/background shortcuts, Apple TV hand-off)
+- [x] Operator web panel — done. iPad PWA, status strip, scene/interruption/table buttons built from the controller's vocabulary, brightness, grid toggle, card editing. *Apple TV hand-off is stubbed — it logs intent, HDMI-CEC not implemented.*
 - [ ] Build the table's Pixelblaze pixel map (one-time)
 - [ ] Pattern authoring loop + "upload pattern" via the web panel
-- [ ] Card management interface (add cards, define interactions)
+- [x] Card management — reassign/create/delete from the panel, plus registering an unknown tag by tapping it (§4.5 steps 1–2).
+- [ ] **§4.5 steps 3–4:** upload audio through the panel, and author scenes/interruptions from scratch.
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
 - [ ] Player phone second-screens (dice rolls, break requests, private whispers)
