@@ -93,6 +93,24 @@ function render(s) {
     b.classList.toggle("active", b.dataset.name === currentScene);
   });
 
+  // Table screen: reflect the device's own state rather than what we last
+  // asked for, so the button cannot drift out of sync with reality.
+  const dd = s.display_device;
+  const gt = $("#grid-toggle");
+  if (dd) {
+    $("#display-section").style.display = "";
+    gt.classList.toggle("on", !!dd.grid);
+    $("#grid-state").textContent = dd.grid ? "on" : "off";
+    $("#display-note").textContent = dd.healthy
+      ? `${dd.images} background${dd.images === 1 ? "" : "s"}` +
+        (dd.background ? ` · showing ${dd.background}` : "")
+      : (dd.error || "display unavailable");
+  } else {
+    // No real display attached - hide the section rather than show a
+    // control that silently does nothing.
+    $("#display-section").style.display = "none";
+  }
+
   if (s.version) $("#version").textContent = s.version;
 }
 
@@ -281,6 +299,11 @@ async function poll() {
 /* ---------- wiring ---------- */
 
 $("#idle").addEventListener("click", (e) => fire("go_idle", {}, e.target));
+
+$("#grid-toggle").addEventListener("click", (e) => {
+  const btn = e.currentTarget;
+  fire("set_grid", { on: !btn.classList.contains("on") }, btn);
+});
 
 const bright = $("#bright");
 bright.addEventListener("input", () => {

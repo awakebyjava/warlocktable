@@ -266,6 +266,16 @@ class Controller:
         self._supersede()
         self._try("display", self.display.handoff, target)
 
+    @action(ParamSpec("on", "bool"))
+    def set_grid(self, on: bool) -> None:
+        """Show or hide the battle-map grid on the table screen.
+
+        Deliberately NOT a _supersede action: this is a display preference,
+        not a scene change. Toggling the grid mid-combat must not cancel a
+        pending interruption revert.
+        """
+        self._try("display", self.display.set_grid, bool(on))
+
     @action(ParamSpec("player", "str"), ParamSpec("text", "str"))
     def whisper(self, player: str, text: str) -> None:
         self._supersede()

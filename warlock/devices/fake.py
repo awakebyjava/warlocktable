@@ -95,3 +95,6 @@ class FakeDisplayDevice(DisplayDevice):
 
     def handoff(self, target: str) -> None:
         self.log.record("display.handoff", target=target)
+
+    def set_grid(self, on: bool) -> None:
+        self.log.record("display.grid", on=bool(on))

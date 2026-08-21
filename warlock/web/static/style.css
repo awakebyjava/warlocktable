@@ -214,3 +214,13 @@ body.offline .chip  { opacity: 0.35; }
 .modal-actions .primary { background: var(--accent-dk); border-color: var(--accent); font-weight: 600; }
 .modal-actions .danger  { background: rgba(226,86,77,0.15); border-color: rgba(226,86,77,0.5); color: var(--bad); }
 .modal-actions .ghost   { background: transparent; }
+
+/* ---- table screen ---- */
+
+.wide-toggle { width: 100%; }
+.wide-toggle.on {
+  background: var(--accent-dk);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.wide-toggle.on .kind { color: var(--text); }
