@@ -1,0 +1,266 @@
+"""Real display device — fullscreen artwork on the embedded TV.
+
+HOW IT WORKS
+
+feh runs fullscreen showing one file, `.current.png`, with `--reload 1`.
+Changing the background copies the wanted image over that file and feh picks
+it up within a second.
+
+That indirection is the point: feh owns the X window for the whole session,
+so switching images never creates or destroys a window. Killing and
+relaunching a viewer per change would flash the desktop between every scene,
+which at a game table looks like a fault.
+
+WHY feh RATHER THAN pygame
+
+pygame is already a dependency and could draw this. But the controller
+already uses pygame.mixer in-process, and adding pygame.display to the same
+process means one library owning both the audio device and an X window
+inside a systemd service with no session. feh is a 500KB distro package that
+does exactly one job.
+
+REACHING THE SCREEN
+
+The service runs under systemd, outside the desktop session, so it has no
+DISPLAY of its own. feh is launched with DISPLAY/XAUTHORITY pointing at the
+running X session. Xorg runs as root here but the `pi` user's Xauthority
+grants access.
+
+NAMING
+
+Config refers to a background as "forest.png" while the files on disk are
+"forest_3840x2160.png" and "forest_3840x2160_grid.png". Rather than force
+config to carry render-specific filenames, names are matched on their base:
+everything up to the resolution/grid suffix. That also gives the gridded
+variants for free as a toggle rather than as separate scenes.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+import threading
+import time
+from typing import Dict, List, Optional
+
+from .base import DeviceError, DisplayDevice, UnknownAssetError
+
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+CURRENT = ".current.png"
+
+# "forest_3840x2160_grid.png" -> base "forest", grid True
+_SUFFIX = re.compile(r"^(?P<base>.+?)(?:[_-]\d{3,5}x\d{3,5})?(?P<grid>[_-]grid)?$",
+                     re.IGNORECASE)
+
+
+class FehDisplay(DisplayDevice):
+    def __init__(self, log, search_paths: List[str],
+                 display: str = ":0",
+                 xauthority: str = "/home/pi/.Xauthority"):
+        self.log = log
+        self.search_paths = [os.path.expanduser(p) for p in search_paths]
+        self.display = display
+        self.xauthority = xauthority
+
+        # base name -> {"plain": path, "grid": path}
+        self._library: Dict[str, Dict[str, str]] = {}
+        self._proc: Optional[subprocess.Popen] = None
+        self._lock = threading.RLock()
+        self._current_dir: Optional[str] = None
+
+        self.grid = False
+        self.background: Optional[str] = None
+        self.healthy = False
+        self.last_error: Optional[str] = None
+
+    # ------------------------------------------------------------- lifecycle
+
+    def start(self) -> bool:
+        """Scan the library and launch the viewer. Never raises (5.2)."""
+        self._scan()
+        if not self._library:
+            self.last_error = "no images found in %s" % (
+                ", ".join(self.search_paths) or "any configured path")
+            self.log.record("display.unavailable", error=self.last_error)
+            return False
+
+        # feh needs a file to exist before it will start.
+        self._current_dir = os.path.dirname(
+            next(iter(self._library.values()))["plain"])
+        target = os.path.join(self._current_dir, CURRENT)
+        if not os.path.exists(target):
+            first = next(iter(self._library.values()))["plain"]
+            try:
+                shutil.copyfile(first, target)
+            except OSError as exc:
+                self.last_error = str(exc)
+                self.log.record("display.unavailable", error=self.last_error)
+                return False
+
+        return self._launch(target)
+
+    def _launch(self, target: str) -> bool:
+        env = dict(os.environ)
+        env["DISPLAY"] = self.display
+        env["XAUTHORITY"] = self.xauthority
+        cmd = [
+            "feh",
+            "--fullscreen",
+            "--hide-pointer",
+            "--auto-zoom",          # fill the screen, preserving aspect
+            "--image-bg", "black",  # letterbox in black, not desktop grey
+            "--reload", "1",        # notice the file being swapped
+            "--no-menus",
+            target,
+        ]
+        try:
+            self._proc = subprocess.Popen(
+                cmd, env=env, stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE, start_new_session=True)
+        except (OSError, FileNotFoundError) as exc:
+            self.last_error = "could not start feh: %s" % exc
+            self.log.record("display.unavailable", error=self.last_error)
+            return False
+
+        # feh exits immediately if it cannot open the display; give it a
+        # moment and check, so status() is honest rather than optimistic.
+        time.sleep(0.6)
+        if self._proc.poll() is not None:
+            err = ""
+            try:
+                err = (self._proc.stderr.read() or b"").decode("utf-8", "replace").strip()
+            except Exception:
+                pass
+            self.last_error = "feh exited immediately: %s" % (err or "no output")
+            self.log.record("display.unavailable", error=self.last_error)
+            self._proc = None
+            return False
+
+        self.healthy = True
+        self.last_error = None
+        self.log.record("display.ready", images=len(self._library),
+                        display=self.display)
+        return True
+
+    def close(self) -> None:
+        with self._lock:
+            if self._proc is not None:
+                try:
+                    self._proc.terminate()
+                    self._proc.wait(timeout=3)
+                except Exception:
+                    try:
+                        self._proc.kill()
+                    except Exception:
+                        pass
+                self._proc = None
+            self.healthy = False
+
+    # ---------------------------------------------------------------- library
+
+    @staticmethod
+    def _split(stem: str):
+        m = _SUFFIX.match(stem)
+        if not m:
+            return stem.lower(), False
+        return m.group("base").lower(), bool(m.group("grid"))
+
+    def _scan(self) -> None:
+        found: Dict[str, Dict[str, str]] = {}
+        for base_dir in self.search_paths:
+            if not os.path.isdir(base_dir):
+                self.log.record("display.path_missing", path=base_dir)
+                continue
+            for fn in sorted(os.listdir(base_dir)):
+                if fn.startswith("."):
+                    continue          # skip .current.png
+                stem, ext = os.path.splitext(fn)
+                if ext.lower() not in IMAGE_EXTENSIONS:
+                    continue
+                base, is_grid = self._split(stem)
+                entry = found.setdefault(base, {})
+                entry["grid" if is_grid else "plain"] = os.path.join(base_dir, fn)
+        # A base with only a gridded render should still be usable.
+        for base, variants in found.items():
+            variants.setdefault("plain", variants.get("grid"))
+            variants.setdefault("grid", variants.get("plain"))
+        self._library = found
+
+    def available_backgrounds(self) -> List[str]:
+        return sorted(self._library.keys())
+
+    def _resolve(self, name: str) -> str:
+        base, wanted_grid = self._split(os.path.splitext(name)[0])
+        variants = self._library.get(base)
+        if variants is None:
+            raise UnknownAssetError(
+                "no background named %r (%d available: %s)"
+                % (name, len(self._library),
+                   ", ".join(sorted(self._library)[:6])))
+        # An explicit _grid in the name wins; otherwise follow the toggle.
+        use_grid = wanted_grid or self.grid
+        return variants["grid" if use_grid else "plain"]
+
+    # -------------------------------------------------------------- interface
+
+    def set_background(self, name: str) -> None:
+        with self._lock:
+            path = self._resolve(name)
+            if not self.healthy or self._current_dir is None:
+                raise DeviceError("display unavailable: %s"
+                                  % (self.last_error or "not started"))
+
+            # Copy rather than symlink: feh's --reload re-stats the same
+            # filename, and a copy is unambiguous about having changed.
+            target = os.path.join(self._current_dir, CURRENT)
+            t0 = time.monotonic()
+            try:
+                tmp = target + ".tmp"
+                shutil.copyfile(path, tmp)
+                os.replace(tmp, target)     # atomic: feh never sees a partial file
+            except OSError as exc:
+                self.healthy = False
+                self.last_error = str(exc)
+                raise DeviceError("could not swap background: %s" % exc)
+
+            self.background = name
+            self.log.record("display.background", name=name,
+                            file=os.path.basename(path),
+                            grid=self.grid,
+                            swap_ms=round((time.monotonic() - t0) * 1000),
+                            real=True)
+
+    def set_grid(self, on: bool) -> None:
+        """Toggle the gridded variant, and re-show the current background.
+
+        Kept as a toggle rather than baked into scene names: a grid under an
+        ambient forest looks wrong when nobody is running a combat, and
+        duplicating every scene into gridded/gridless would double the
+        config for one boolean.
+        """
+        with self._lock:
+            self.grid = bool(on)
+            self.log.record("display.grid", on=self.grid)
+            if self.background:
+                self.set_background(self.background)
+
+    def handoff(self, target: str) -> None:
+        # HDMI-CEC (plan doc 3.7) is not built yet. Log the intent so the
+        # panel button can exist without silently doing nothing.
+        self.log.record("display.handoff", target=target, implemented=False)
+
+    def status(self) -> dict:
+        alive = self._proc is not None and self._proc.poll() is None
+        if self.healthy and not alive:
+            # feh died at some point - say so rather than keep claiming ok.
+            self.healthy = False
+            self.last_error = "feh is no longer running"
+        return {
+            "healthy": self.healthy,
+            "background": self.background,
+            "grid": self.grid,
+            "images": len(self._library),
+            "error": self.last_error,
+        }

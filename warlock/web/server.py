@@ -213,6 +213,9 @@ class _Handler(BaseHTTPRequestHandler):
         audio = getattr(self.controller.audio, "status", None)
         if callable(audio):
             out["audio"] = audio()
+        disp = getattr(self.controller.display, "status", None)
+        if callable(disp):
+            out["display_device"] = disp()
         nfc = getattr(self.controller, "_nfc_status", None)
         if callable(nfc):
             out["nfc"] = nfc()

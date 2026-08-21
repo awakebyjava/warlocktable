@@ -86,6 +86,11 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         help="play actual sound instead of logging what would play",
     )
     parser.add_argument(
+        "--real-display", action="store_true",
+        help="show artwork fullscreen on the TV via feh (Pi only). Paths come "
+             "from settings.background_paths in config.",
+    )
+    parser.add_argument(
         "--web", action="store_true",
         help="serve the operator panel (iPad PWA) on the LAN",
     )
@@ -199,6 +204,10 @@ class Runtime:
             self.reader = None
             _timed("nfc reader", reader.stop)
 
+        closer = getattr(self.controller.display, "close", None)
+        if callable(closer):
+            _timed("display", closer)
+
         closer = getattr(self.audio, "close", None)
         if callable(closer):
             _timed("audio", closer)
@@ -237,7 +246,13 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     else:
         audio = FakeAudioDevice(log)
 
-    display = FakeDisplayDevice(log)
+    if getattr(args, "real_display", False):
+        from .devices.feh_display import FehDisplay
+        display = FehDisplay(log, search_paths=config.background_paths)
+        display.start()
+    else:
+        display = FakeDisplayDevice(log)
+
     controller = Controller(config, lights, audio, display, log)
 
     store = ConfigStore(config, os.path.abspath(args.config), log,
