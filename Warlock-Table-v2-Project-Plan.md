@@ -108,7 +108,11 @@ The table has a **character** — a personality expressed through a voice that c
 - `map-sources/` in the repo: the small raw generator output (~1 MB each). Tracked, because they are the versioned originals.
 - **Finished 3840×2160 renders are NOT in git.** At 5–15 MB each and growing with every map, they are the audio problem one order of magnitude down. They live at `/var/lib/warlocktable/backgrounds/` on the Pi and arrive by **rsync**, resolved via `settings.background_paths` in config.
 
-**Note on the first batch (2026-08-20):** generated at 1376×768, aspect 1.7917 vs the panel's 1.7778. Close, but they need a **×2.81 upscale and a 30 px width crop** — crop rather than stretch, or circles become ovals. A plain resize will look soft at 80 px/inch; this wants a model-based upscaler.
+**First batch delivered (2026-08-20).** Ten files: five terrains × gridless and gridded, all **exactly 3840×2160** at a true 16:9. They live in `backgrounds/` (gitignored, ~78 MB) and go to the Pi by rsync.
+
+**OPEN — grid pitch needs checking against real miniatures.** A rough measurement of the gridded images suggests a pitch near **81 px** where the spec calls for **80.68 px** (1 inch / 5 ft / one medium base). If that is real it accumulates to roughly **0.2 inches of drift across the full 47-square width** — about a fifth of a mini base, so probably fine in play. But the measurement carries about ±1 px of its own noise, so it cannot distinguish 81.00 from 80.68 with confidence. **Settle it by putting actual minis on the actual table**, not by measuring the file. If it does drift, regenerate with `round(i * 80.68)` rather than a fixed 81 px step.
+
+**Superseded note on the raw sources:** generated at 1376×768, aspect 1.7917 vs the panel's 1.7778. Close, but they need a **×2.81 upscale and a 30 px width crop** — crop rather than stretch, or circles become ovals. A plain resize will look soft at 80 px/inch; this wants a model-based upscaler.
 
 - **To expand:** what drives the display (a fullscreen viewer? a custom app?), whether content is oriented to the GM's seat or orientation-neutral, and how visuals stay in sync with lights and audio.
 
