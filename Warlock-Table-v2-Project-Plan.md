@@ -589,7 +589,7 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] Config validation with last-known-good fallback — done, three levels (requested → `.last-good` → minimal built-in that still lights the table).
 - [x] mDNS — `raspberrypi.local` works (avahi).
 - [ ] **DHCP reservations** for the Pi and Pixelblaze — not done. Discovery covers the Pixelblaze; the Pi's address moving would still break a bookmarked IP.
-- [ ] "Table Check" self-test button (§5.4)
+- [x] **"Table Check" self-test — done.** Panel button, sub-second. Its centrepiece is a cross-device referential integrity check: every light pattern, audio track and background that config references is confirmed to exist on the real device. Verified by deliberately pointing a scene at a deleted pattern and a missing track — both caught by name, while every device still reported healthy. A second button additionally flashes lights and plays a clip (software cannot confirm photons or sound), restoring the previous scene afterwards.
 - [ ] Physical GPIO shutdown button + a known-good SD image on the shelf
 - [x] Tagged releases — `v0.1.0` cut and deployed; `VERSION` and the panel both report the build.
 
