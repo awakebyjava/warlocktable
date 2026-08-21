@@ -203,9 +203,17 @@ class _Handler(BaseHTTPRequestHandler):
         fn = getattr(self.controller, name, None)
         # Only expose methods the registry knows about. Without this check,
         # any controller attribute could be invoked by name from the LAN.
-        from ..registry import _REGISTRY
+        from ..registry import _REGISTRY, validate_params
         if name not in _REGISTRY or not callable(fn):
             self._send_json({"error": "no such action: %s" % name}, 400)
+            return
+
+        # Validate against the action's live choice-lists before dispatching.
+        # Without this the controller's fault isolation swallows a bad value
+        # and the caller is told "ok" while nothing happened.
+        problem = validate_params(self.controller, name, params)
+        if problem:
+            self._send_json({"error": problem}, 400)
             return
 
         try:

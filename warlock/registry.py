@@ -67,3 +67,43 @@ def describe_actions(controller: Any) -> List[Dict[str, Any]]:
             ],
         })
     return out
+
+
+def validate_params(controller: Any, name: str, params: Dict[str, Any]) -> Optional[str]:
+    """Check params against the action's declared choices.
+
+    Returns an error string, or None if the call looks valid.
+
+    This exists because the controller's fault isolation deliberately
+    SWALLOWS a bad asset — a card pointing at a missing sound must not take
+    the audio subsystem down (plan doc 5.2). Correct for the table, wrong
+    for an API: the caller got "ok" while nothing happened.
+
+    Validating here, against the same live choice-lists the UI builds its
+    forms from, means a bad request is refused honestly and the isolation
+    still protects the table from bad *config*.
+    """
+    spec = _REGISTRY.get(name)
+    if spec is None:
+        return "no such action: %s" % name
+
+    declared = {p.name for p in spec.params}
+    unexpected = set(params) - declared
+    if unexpected:
+        return "unexpected parameter(s): %s" % ", ".join(sorted(unexpected))
+
+    for p in spec.params:
+        if p.name not in params:
+            return "missing parameter: %s" % p.name
+        if not p.choices:
+            continue
+        try:
+            allowed = p.choices(controller)
+        except Exception:
+            continue          # cannot resolve right now - let the call proceed
+        value = params[p.name]
+        if allowed and value not in allowed:
+            shown = ", ".join(str(a) for a in list(allowed)[:8])
+            return "%s: no such %s (have: %s%s)" % (
+                value, p.name, shown, "..." if len(allowed) > 8 else "")
+    return None
