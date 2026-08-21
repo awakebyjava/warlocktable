@@ -1,0 +1,306 @@
+{
+  "_meta": {
+    "description": "Interruption card definitions for the Warlock Table. Category = 'interruption' covers all tarot cards, split into four subtypes: boon, person, aura, random_table. Scene cards (the 5 MTG mana cards) are defined separately and are NOT included in this file.",
+    "subtype_rules": {
+      "boon": "One-time announcement cue. Meaning is narrative/GM-declared, not mechanical. All four share the same light pattern (boon_comet_flash) and same placeholder audio clip; only suit_color differs.",
+      "person": "One-time announcement cue (flash + clip), then the table returns to whatever it was doing. Not persistent. Each card has a distinct built-in light signature (color + pattern). 'npc_binding' is null by default — the GM fills this in per-campaign via the card management UI without touching the light/audio definition.",
+      "aura": "Timed flourish. Layers on top of whatever scene/pattern is currently running for duration_seconds, then fades back to the base scene automatically. Not persistent past its duration.",
+      "random_table": "Does not resolve to its own effect directly. Instead picks a card from a target pool (here: all 12 aura cards) via the given selection method, then fires that card's effect as if it had been tapped directly. Wheel of Fortune uses uniform_random with repeats allowed — no repeat-avoidance or weighting."
+    },
+    "default_aura_duration_seconds": 60
+  },
+  "cards": [
+    {
+      "id": "ace_of_swords",
+      "display_name": "Ace of Swords",
+      "category": "interruption",
+      "subtype": "boon",
+      "suit": "swords",
+      "effects": {
+        "light": { "pattern": "boon_comet_flash", "suit_color": "#E8E8E8" },
+        "audio": { "clip": "boon_chime_placeholder.wav" }
+      }
+    },
+    {
+      "id": "ace_of_cups",
+      "display_name": "Ace of Cups",
+      "category": "interruption",
+      "subtype": "boon",
+      "suit": "cups",
+      "effects": {
+        "light": { "pattern": "boon_comet_flash", "suit_color": "#3A6FD8" },
+        "audio": { "clip": "boon_chime_placeholder.wav" }
+      }
+    },
+    {
+      "id": "ace_of_wands",
+      "display_name": "Ace of Wands",
+      "category": "interruption",
+      "subtype": "boon",
+      "suit": "wands",
+      "effects": {
+        "light": { "pattern": "boon_comet_flash", "suit_color": "#D8622E" },
+        "audio": { "clip": "boon_chime_placeholder.wav" }
+      }
+    },
+    {
+      "id": "ace_of_pentacles",
+      "display_name": "Ace of Pentacles",
+      "category": "interruption",
+      "subtype": "boon",
+      "suit": "pentacles",
+      "effects": {
+        "light": { "pattern": "boon_comet_flash", "suit_color": "#C9A15A" },
+        "audio": { "clip": "boon_chime_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_magician",
+      "display_name": "The Magician",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "double_flash", "color": "#C21807" },
+        "audio": { "clip": "person_magician_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_emperor",
+      "display_name": "The Emperor",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "rising_fill_hold", "color": "#B33B1E" },
+        "audio": { "clip": "person_emperor_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_fool",
+      "display_name": "The Fool",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "erratic_sparkle_skitter", "color": "#F5E642" },
+        "audio": { "clip": "person_fool_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_empress",
+      "display_name": "The Empress",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "breathing_glow", "color": "#3E8E4F" },
+        "audio": { "clip": "person_empress_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_high_priestess",
+      "display_name": "The High Priestess",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "shimmer_ripple_wave", "color": "#2C4770" },
+        "audio": { "clip": "person_high_priestess_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_lovers",
+      "display_name": "The Lovers",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "meet_in_middle_flash", "color": "#E29BB0" },
+        "audio": { "clip": "person_lovers_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_hermit",
+      "display_name": "The Hermit",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "single_point_lantern_light", "color": "#D9B872" },
+        "audio": { "clip": "person_hermit_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_hanged_man",
+      "display_name": "The Hanged Man",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "reverse_wave", "color": "#5C4FA3" },
+        "audio": { "clip": "person_hanged_man_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_hierophant",
+      "display_name": "The Hierophant",
+      "category": "interruption",
+      "subtype": "person",
+      "npc_binding": null,
+      "effects": {
+        "light": { "pattern": "triple_pulse", "color": "#5C2A6E" },
+        "audio": { "clip": "person_hierophant_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_sun",
+      "display_name": "The Sun",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "slow_brighten_hold", "color": "#E8A33D" },
+        "audio": { "clip": "aura_sun_triumphant_swell_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_moon",
+      "display_name": "The Moon",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "dim_wash_pulse", "color": "#2E4A7A" },
+        "audio": { "clip": "aura_moon_eerie_howl_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_star",
+      "display_name": "The Star",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "twinkle_sparkle_scatter", "color": "#BFE3F0" },
+        "audio": { "clip": "aura_star_ambient_chime_placeholder.wav" }
+      }
+    },
+    {
+      "id": "temperance",
+      "display_name": "Temperance",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "slow_wave_calm", "color": "#3E8E7E" },
+        "audio": { "clip": "aura_temperance_water_harp_placeholder.wav" }
+      }
+    },
+    {
+      "id": "strength",
+      "display_name": "Strength",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "heartbeat_pulse", "color": "#D9722E" },
+        "audio": { "clip": "aura_strength_resonant_hum_placeholder.wav" }
+      }
+    },
+    {
+      "id": "justice",
+      "display_name": "Justice",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "metronomic_pulse", "color": "#D8D8D8" },
+        "audio": { "clip": "aura_justice_scale_tick_placeholder.wav" }
+      }
+    },
+    {
+      "id": "judgement",
+      "display_name": "Judgement",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "rising_crescendo", "color": "#F5F5F5" },
+        "audio": { "clip": "aura_judgement_horn_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_devil",
+      "display_name": "The Devil",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "ember_flicker", "color": "#B5451B" },
+        "audio": { "clip": "aura_devil_flame_laughter_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_tower",
+      "display_name": "The Tower",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "violent_strobe", "color": "#FFFFFF" },
+        "audio": { "clip": "aura_tower_thunder_crash_placeholder.wav" }
+      }
+    },
+    {
+      "id": "death",
+      "display_name": "Death",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "dim_fade_down", "color": "#2A1B33" },
+        "audio": { "clip": "aura_death_ominous_tone_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_world",
+      "display_name": "The World",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "full_spectrum_cycle", "color": null },
+        "audio": { "clip": "aura_world_orchestral_swell_placeholder.wav" }
+      }
+    },
+    {
+      "id": "the_chariot",
+      "display_name": "The Chariot",
+      "category": "interruption",
+      "subtype": "aura",
+      "duration_seconds": 60,
+      "effects": {
+        "light": { "pattern": "fast_streak_race", "color": "#C9A15A" },
+        "audio": { "clip": "aura_chariot_galloping_drums_placeholder.wav" }
+      }
+    },
+    {
+      "id": "wheel_of_fortune",
+      "display_name": "Wheel of Fortune",
+      "category": "interruption",
+      "subtype": "random_table",
+      "table": {
+        "target_subtype": "aura",
+        "selection": "uniform_random",
+        "allow_repeats": true,
+        "pool": [
+          "the_sun", "the_moon", "the_star", "temperance", "strength",
+          "justice", "judgement", "the_devil", "the_tower", "death",
+          "the_world", "the_chariot"
+        ]
+      },
+      "notes": "On tap, uniformly picks one id from pool and fires that card's full effect (light + audio + its own duration_seconds) exactly as if that aura card had been tapped directly. No weighting, no repeat-avoidance."
+    }
+  ]
+}

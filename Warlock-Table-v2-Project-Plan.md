@@ -57,6 +57,14 @@ The big themes:
 - **Existing card inventory (already RFID-tagged):**
   - **5 environment cards** — the five Magic: The Gathering mana types (White/Blue/Black/Red/Green). Likely used to set the environment / mood of the table.
   - **A few tarot cards** — e.g., Wheel of Fortune, The Devil, Ace of Pentacles. **Tarot is the intended expansion path** — the card set that grows and carries the richer, more numerous interactions.
+- **The tarot set has its own design doc:**
+  [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md)
+  — the full taxonomy for all 26 cards (Boon / Person / Aura / Random
+  Table), what each should do, and the data shape. **Specified, not built.**
+  It is the source of truth for *intent*; the companion
+  `warlock-table-interruption-cards.json` it refers to is **not in the repo
+  yet**. Note it redefines Wheel of Fortune: instead of pulling a random
+  scene it should draw a random Aura card and fire that card's effect.
 - **Resolved — see §4.3–4.5 for the full interaction spec.** In short: cards are dumb triggers (UID + label); every card is a tap (no presence detection); a card points at a Scene, an Interruption, or a Random Table, editable between them in the management UI; cards are stateless. The mana/tarot distinction is configuration, not code — mana cards happen to map to Scenes and tarot cards to Interruptions, but either could be either.
 
 ### 3.3 Audio & Soundscapes
@@ -64,6 +72,43 @@ The big themes:
 - Soundscapes echoed/coordinated with the lighting.
 - Expanding overall audio capability and complexity.
 - **Audio routing:** Pi 4 can output HDMI + analog jack simultaneously if we want sound in multiple places.
+
+**Volume and output switching *(built 2026-08-21)*.** The panel's Sound
+section has a master volume slider and a switch between named outputs.
+
+- **Volume is applied in software**, across the bed and effects, rather than
+  by moving the system mixer. ALSA's level is shared with the whole machine,
+  and a table that quietly reconfigures the OS surprises whoever touches it
+  next. It persists, because the right level is a property of the room, and
+  is written on slider release rather than during the drag.
+- **Outputs are named in config** (`settings.audio_outputs`), so the panel
+  offers "Television" and the ALSA string stays a config detail. Named **by
+  card, never by number** — `hw:0,0` breaks the moment HDMI renumbers the
+  cards, which is the failure §5.3 records.
+- **Switching rebuilds the mixer**, because SDL only reads the output device
+  at init. Setup, not something to do mid-scene — though the soundscape is
+  restarted afterwards so it does not go silent.
+
+**The TV needs the `hdmi:` PCM, NOT `plughw:`.** This is not obvious and cost
+real time. `vc4-hdmi` accepts only `IEC958_SUBFRAME_LE`, and the ALSA plug
+layer will not convert to it — `plughw:CARD=vc4hdmi0,DEV=0` fails with
+"Sample format non available" from `aplay` and "Couldn't find any hardware
+audio formats" from SDL. The `hdmi:` plugin does the IEC958 framing and
+accepts ordinary S16 stereo at 44100, which is exactly what the mixer asks
+for. Correct values:
+
+| Output | ALSA device |
+|---|---|
+| Speakers (3.5mm) | `plughw:CARD=Headphones,DEV=0` |
+| Television (HDMI0) | `hdmi:CARD=vc4hdmi0,DEV=0` |
+
+**A refused switch is better than a silent one.** `_init_mixer` deliberately
+falls back to the SDL default when a device will not open, so the table is
+never silent at boot. Correct there, wrong for a deliberate switch — it
+would send sound somewhere unexpected *and* persist a broken device. The
+switch compares what actually opened against what was asked for and reverts
+if they differ.
+
 
 **Where audio files live (important):**
 - **Audio is deliberately *not* in the git repo.** `.wav/.ogg/.mp3/.flac` are gitignored. Large binaries can't be diffed or compressed and every version is kept forever — the V1 audio alone was **1.08 GB**, which would have made every clone and every Pi pull drag.
@@ -150,10 +195,34 @@ The table is controlled through two deliberately separate surfaces:
 - **v1 scope decision (revised):** buttons/shortcuts that *fire actions*, **plus a subsystem status strip** — Lights / Sound / NFC / Network, green-or-red. Status readback was originally deferred to "later," but it's what turns *"it's broken and I don't know why"* into *"oh, the Pixelblaze lost power."* Cheap to build, and it's the difference between trusting the table and not. Full live state readback (current pattern, current track, volume levels) is still a later enhancement — this is just health, not detail. See §5.
 - **To expand:** exact button list, layout, whether any controls need live state later.
 
-**Player phones as second screens (subtask):**
-- The same Pi web server can serve **player-facing pages** to phones on the Wi-Fi — a lighter counterpart to the operator iPad panel.
-- Uses: **rolling dice** (pairs naturally with dddice — see Dice subsystem), **requesting a break**, and other simple player actions.
-- **Private messages:** the table can send a **private whispered message** to an individual player's phone — great for secrets, DM asides, and character-specific info.
+**Player phones *(seat claiming built 2026-08-21; the rest still to come)*.**
+
+Three front doors, all on the same server:
+
+| Path | Who | What |
+|---|---|---|
+| `/` | anyone scanning the QR | asks player-or-GM, nothing else |
+| `/gm` | the GM | the operator panel (the PWA's `start_url`) |
+| `/player` | a player | choose a seat |
+
+- **The QR points at `/`.** Its URL is built from the `Host` header the phone
+  actually used, not from a hostname lookup: that is the one address known
+  to work from a device on this network, and it sidesteps mDNS entirely.
+  Encoded with `segno` — pure Python, no ARM wheel trouble — and optional at
+  runtime, degrading to printing the URL, because a join page that 500s over
+  a missing decoration is far worse than an address people can type.
+- **The player page does exactly one job: pick a seat.** Name, then tap the
+  colour lit in front of you. The swatch is large and flat because it is
+  held up against the actual lights. A taken seat stays visible and greyed
+  rather than vanishing, so someone whose friend grabbed the wrong colour
+  can see *that* rather than wondering why there are fewer seats than
+  chairs. Two people tapping the same colour gets a 409 and a repainted
+  list, which will happen every session.
+- **Still to come:** dice, break requests, and private whispers. Each is a
+  separate decision rather than one lump, and **how far the phone goes has
+  not been settled** — do not assume it, ask.
+
+
 - Mostly "more routes" on the server you're already running; low added cost.
 
 ### 3.8 Pixelblaze Patterns — Authoring & Upload
@@ -870,15 +939,48 @@ Ready in about a minute, with no interaction required.
 | **Game-day deploy** | The Git bridge makes it trivially easy to `git pull` an hour before people arrive and break everything. | Run a **tagged known-good version** on the Pi, not raw `main`, so rollback is one command. Test on the laptop first — the fakes (§4.2) make this possible. |
 | **Unknown card scanned** | Old code printed `not a registered card!` to a terminal nobody is reading. | Surface it on the panel; ideally offer to register it right there. |
 
-### 5.4 "Table Check" — pre-session self-test
+### 5.4 "Table Check" — pre-session self-test *(built)*
 
-One button on the panel that runs through:
-- ping / discover the Pixelblaze, flash a test pattern
-- play a one-second test tone on each audio output
-- read the PN532 firmware version
-- validate the config file
+One button on the panel. Run it ten minutes before people arrive. **This is
+the highest-value reliability feature in the whole build** — it is the
+difference between finding a problem with time to fix it and finding it with
+an audience.
 
-...and reports pass/fail per line. Run it ten minutes before people arrive. **This is the highest-value reliability feature in the whole build** — it's the difference between finding a problem with time to fix it and finding it with an audience.
+Fourteen checks, in three groups. Never raises: a broken check still reports.
+
+**Does config point at things that exist?** The centrepiece, because every
+device can be perfectly healthy while the table is still broken.
+
+| Check | Answers |
+|---|---|
+| Build | which version is actually installed |
+| Config | it parses, and what is in it |
+| Light patterns | every pattern config names is on the Pixelblaze |
+| Audio tracks | every track resolves to a real file |
+| Backgrounds | every background image exists |
+| Zone model | 1–7 players divide cleanly, and `patterns/zones.js` agrees |
+| Seats | the player count is sane and nobody claimed a seat that is gone |
+| Zone lighting | the `zones` pattern is on the device |
+
+**Is each device alive?** Lights, Audio, NFC reader, Display, Disk space.
+
+**Is anything actually coming out?** Video output — see below. And in
+`physical` mode, a pattern is flashed and a sound played so a human can
+confirm with their own eyes and ears, then whatever was showing is restored.
+
+**Why "Video output" is the odd one out, and why it matters most.** Every
+other check answers *"did the call succeed"*. That one answers *"did anything
+come out"*, and they are not the same question. On 2026-08-21 the HDMI output
+sat connected with **no mode set**: the Pi drove no signal, the TV was black,
+and the service, the display device, feh and the status strip all reported
+green — because each was working exactly as designed. Nothing was wrong
+upstream. There was simply nothing downstream. A connected output is not a
+working one; only an active mode is.
+
+That gap is the general form of the problem noted in §5.7: *device call
+returned* is not *the thing changed*. Video output is the only check that
+currently closes it, and the same reasoning would apply to sound if it were
+ever worth asking ALSA whether samples are really leaving the card.
 
 ### 5.5 Deployment layout — the repo is source, not runtime
 
@@ -1061,6 +1163,13 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] Card management — reassign/create/delete from the panel, plus registering an unknown tag by tapping it (§4.5 steps 1–2).
 - [ ] **§4.5 steps 3–4:** upload audio through the panel, and author scenes/interruptions from scratch.
 - [ ] **Cut input-to-effect latency** (§5.7) — the NFC read is the biggest single delay and sits upstream of everything; the picture also trails the lights and sound by up to a second. Measure the chain first.
+- [x] **Volume and audio output switching** — built 2026-08-21 (§3.3).
+  Master volume in software, and a switch between the 3.5mm jack and the
+  television.
+- [ ] **The tarot interruption system** — specified in
+  `warlock-table-interruption-cards.md`, not built. Needs the per-card
+  Pixelblaze patterns, the audio assets, an NPC-binding editor, and a real
+  mechanism for layering an Aura over a running scene.
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
 - [x] **Zone map + per-zone lighting** — built 2026-08-21 (§4.7). The perimeter divides between the GM and 1–7 players, each seat lit its own colour; `patterns/zones.js` is on the device and confirmed working. **Unblocks player phones.**

@@ -24,6 +24,7 @@ driven from an iPad web panel or from the cards themselves.
 | **Pick up where the project left off** | [`Warlock-Table-Claude-Code-Handoff.md`](Warlock-Table-Claude-Code-Handoff.md) |
 | Understand *why* it is built this way | [`Warlock-Table-v2-Project-Plan.md`](Warlock-Table-v2-Project-Plan.md) — the source of truth |
 | Write a Pixelblaze pattern | [`warlock-table-led-reference.md`](warlock-table-led-reference.md) — **read the power budget first** |
+| Design the tarot card behaviours | [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md) — specified, not built |
 | Generate artwork for the TV | [`display-image-specifications.md`](display-image-specifications.md) |
 | Deploy to, or debug, the Pi | [`deploy/README.md`](deploy/README.md) |
 | Build any UI | [`warlock-table-style-guide.html`](warlock-table-style-guide.html) |
@@ -97,8 +98,9 @@ the failure mode that matters at a session.
 `v0.1.0` — first working table (card tap → real lights and sound).
 `v0.2.0` — all four subsystems real; panel, status screen, Table Check,
 card editing, visual identity.
-`v0.3.0` — seat zones: the perimeter divides between the GM and 1–7 players,
-each seat lit its own colour.
+`v0.3.1` — seat zones (GM + 1–7 players, each its own colour), player
+initiative on the lights, the join/QR page with seat claiming, and volume
+plus audio-output switching.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.

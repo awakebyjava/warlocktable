@@ -49,23 +49,31 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 
 *(Updated 2026-08-21. `Warlock-Table-v2-Project-Plan.md` is the detailed source of truth — this is the summary. If they disagree, the plan doc wins.)*
 
-**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.2.0**.
+**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.3.1**.
 
 **All four subsystems are real** — nothing is a fake any more:
 
 | | |
 |---|---|
 | Lights | Pixelblaze, 764 px, found by UDP discovery. Pattern writes verified by read-back. 50% ceiling (power budget — see below) |
-| Audio | Two channel groups: looping bed + layered one-shots, true crossfade, ducking. Output pinned by name to the 3.5mm jack |
+| Audio | Two channel groups: looping bed + layered one-shots, true crossfade, ducking. Master volume, and switchable between the 3.5mm jack and the television |
 | Cards | PN532 over SPI. Tap semantics — fires once, re-fires only after lift-and-replace |
 | Screen | feh fullscreen at 3840×2160. Backgrounds carry named overlays: none / square grid / hex |
 
-**Also built:** the operator panel (iPad PWA on :8080 — status strip, controls, brightness, overlays, **card editing** including registering an unknown tag by tapping it), the **TV status screen**, **Table Check** (pre-session self-test), headless mode, `install.sh` + systemd, and the full visual identity on both surfaces.
+**Also built:** the operator panel (iPad PWA on :8080 — status strip, controls, brightness, **volume and audio output**, overlays, **card editing** including registering an unknown tag by tapping it), the **TV status screen**, **Table Check** (14 checks), headless mode, `install.sh` + systemd, and the full visual identity on both surfaces.
+
+**Built 2026-08-21, all verified on hardware:**
+- **Seat zones** — the perimeter divides between the GM (fixed 38 in section) and 1–7 players, each seat its own colour, numbered clockwise from the GM. §4.7.
+- **Player initiative** — the GM taps players into an order; the active seat flashes. Standalone, and needs **no integration with anything**. §3.9.
+- **Join page + seat claiming** — QR to `/`, which asks player-or-GM. The player page does exactly one thing: pick a seat. §3.7.
+- **Volume and output switching** — including the `hdmi:` vs `plughw:` trap. §3.3.
 
 **Not built yet:**
-- **Zones are not mapped to LEDs, and there is no per-zone lighting.** This blocks seat claiming, and therefore player phones. **Fully specced in plan doc §4.7** — zone table, the exported-variables mechanism, and the traps. It is the next piece of work.
+- **The tarot interruption system** — 26 cards, fully specified in `warlock-table-interruption-cards.md`, none of it implemented. Needs per-card patterns, audio, an NPC-binding editor, and a real mechanism for layering an Aura over a running scene. Its companion JSON is referenced but not in the repo.
+- **Everything on the player phone beyond claiming a seat** — dice, break requests, whispers. **How far the phone should go is deliberately unsettled: ask, do not assume.**
+- **Input-to-effect latency** (§5.7) — the NFC read is the biggest single delay and sits upstream of everything. **Measure before changing anything.**
 - Audio upload and scene authoring in the panel (§4.5 steps 3–4)
-- Govee, voice/personality, Overseer, dice, session recap — all still Phase 3+
+- Govee, voice/personality, dice, session recap — Phase 3+. Overseer is explicitly **not planned**.
 
 **Read these before touching the matching area:**
 - `warlock-table-led-reference.md` — **before any Pixelblaze pattern.** Layout, the verified `segStart` ordering (do not "tidy" it), and the **power budget: the brightness limit is a 40 A supply constraint, not a preference.**
@@ -80,7 +88,7 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Config is Pi-owned.** `/var/lib/warlocktable/config.json` does not come from git; editing `data/config.example.json` will not reach the table.
 - The panel and the interactive CLI **cannot both own the NFC reader**. Stop the service first.
 
-**SD card image:** `~/Documents/warlocktable-backups/` on the laptop, verified. See its README.
+**SD card image:** `~/Documents/warlocktable-backups/` on the laptop, verified. See its README. **It is stale as of 2026-08-21** — since it was taken, `/boot/cmdline.txt` gained the forced-HDMI `e`, `segno` was installed into the venv, and the live config grew new keys. None of that comes from git, which is exactly what the image is for. Take a fresh one.
 
 ## Zones and seats (added 2026-08-21)
 
