@@ -627,10 +627,18 @@ deployed. That bit for real: the orange/yellow fix landed in code and would
 have had no effect on the Pi whatsoever. Hence:
 
 ```bash
-python3 tools/sync_seat_colours.py --dry-run   # on the Pi
-sudo python3 tools/sync_seat_colours.py
+python3 tools/sync_seat_colours.py --dry-run   # on the Pi, AS THE SERVICE USER
+python3 tools/sync_seat_colours.py
 sudo systemctl restart warlocktable
 ```
+
+**Not with `sudo`.** The config belongs to the service user and is writable
+by it. Running the tool as root once left a root-owned `0600` config the
+service could not read, and the table crash-looped until the ownership was
+restored. The underlying fault was in `save_config`: `os.replace()` swaps the
+temp file in wholesale, so the config inherited `mkstemp`'s mode and owner
+rather than keeping its own. It now copies both across, which also fixes the
+panel having quietly turned a `0644` config into `0600` on every edit.
 
 Deliberately **not** run by `install.sh` — overwriting seat colours on every
 deploy would discard a real customisation, and seeding-once exists precisely

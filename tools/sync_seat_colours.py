@@ -2,7 +2,13 @@
 """Bring a config's seat palette in line with the defaults in warlock/zones.py.
 
     python3 tools/sync_seat_colours.py --dry-run
-    sudo python3 tools/sync_seat_colours.py
+    python3 tools/sync_seat_colours.py
+
+RUN IT AS THE SERVICE USER, NOT WITH sudo. The config belongs to the
+service user and is writable by it, so root is not needed -- and using it
+once left a root-owned config the service could not read, which crash-looped
+the table. save_config now preserves ownership across its atomic replace, so
+sudo is survivable, but it is still the wrong tool for this job.
 
 WHY THIS EXISTS
 
@@ -105,7 +111,33 @@ def main() -> int:
     print()
     print("written. restart the service for it to take effect:")
     print("    sudo systemctl restart warlocktable")
+    _warn_if_service_cannot_read(args.config)
     return 0
+
+
+def _warn_if_service_cannot_read(path: str) -> None:
+    """Say so loudly if the file we just wrote is not the service user's.
+
+    Belt and braces: save_config preserves ownership now, but a config the
+    service cannot read is a crash loop rather than a degraded mode, and it
+    is worth being told at the moment of the write instead of finding out
+    from journalctl.
+    """
+    try:
+        import pwd
+        st = os.stat(path)
+        owner = pwd.getpwuid(st.st_uid).pw_name
+    except Exception:
+        return
+    if os.geteuid() == 0 and st.st_uid == 0:
+        print()
+        print("WARNING: %s is now owned by root." % path)
+        print("         The service runs as a normal user and will not be")
+        print("         able to read it. Put it back with:")
+        print("             sudo chown %s:%s %s" % (owner, owner, path))
+    elif st.st_mode & 0o044 == 0 and st.st_uid != os.geteuid():
+        print()
+        print("WARNING: %s is not readable by other users." % path)
 
 
 if __name__ == "__main__":

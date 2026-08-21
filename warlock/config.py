@@ -361,6 +361,42 @@ def to_dict(config: Config) -> Dict[str, Any]:
     return out
 
 
+# Mode for a config that did not exist before. Readable by anyone, writable
+# by its owner: the service user needs to read it, and mkstemp's 0600 would
+# lock out a panel or a maintenance script running as anyone else.
+NEW_CONFIG_MODE = 0o644
+
+
+def _preserve_file_identity(tmp: str, existing) -> None:
+    """Give `tmp` the mode and ownership of the file it is about to replace.
+
+    `existing` is an os.stat_result, or None for a file being created.
+
+    Best effort by design: chown is POSIX-only and an unprivileged process
+    cannot give a file away, so failures are ignored rather than blocking a
+    save. The common cases both work -- root restoring the service user's
+    ownership, and the service user writing its own file (a no-op).
+    """
+    import os as _os
+    import stat as _stat
+
+    if existing is None:
+        try:
+            _os.chmod(tmp, NEW_CONFIG_MODE)
+        except OSError:
+            pass
+        return
+
+    try:
+        _os.chmod(tmp, _stat.S_IMODE(existing.st_mode))
+    except OSError:
+        pass
+    try:
+        _os.chown(tmp, existing.st_uid, existing.st_gid)
+    except (AttributeError, OSError):
+        pass        # Windows has no chown; unprivileged chown is refused
+
+
 def save_config(config: Config, path: str, backup_dir: Optional[str] = None) -> None:
     """Write config to disk safely.
 
@@ -409,12 +445,36 @@ def save_config(config: Config, path: str, backup_dir: Optional[str] = None) -> 
             pass       # a failed backup must not block the save
 
     directory = _os.path.dirname(_os.path.abspath(path))
+
+    # What the file currently looks like, so the replace can put it back.
+    try:
+        existing = _os.stat(path)
+    except OSError:
+        existing = None
+
     fd, tmp = tempfile.mkstemp(suffix=".tmp", dir=directory)
     try:
         with _os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
             fh.flush()
             _os.fsync(fh.fileno())
+
+        # Carry the original's mode and ownership onto the replacement.
+        #
+        # os.replace() swaps the temp file in WHOLESALE, so the config ends
+        # up with whatever mkstemp gave us: mode 0600, owned by whoever is
+        # running. Two consequences, one cosmetic and one fatal:
+        #
+        #   - the panel (running as the service user) quietly turned a 0644
+        #     config into 0600 on every single edit;
+        #   - a maintenance script run under sudo left a root-owned 0600
+        #     config that the service user could not even read, which
+        #     crash-looped the table until the ownership was put back.
+        #
+        # Preserving the metadata is what makes "atomic write" actually a
+        # drop-in replacement rather than a new file wearing the old name.
+        _preserve_file_identity(tmp, existing)
+
         _os.replace(tmp, path)      # atomic
     except Exception:
         try:
