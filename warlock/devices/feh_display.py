@@ -232,6 +232,26 @@ class FehDisplay(DisplayDevice):
                             swap_ms=round((time.monotonic() - t0) * 1000),
                             real=True)
 
+    def show_status(self, report, branding: str = None) -> None:
+        """Render the status screen and put it on the TV (plan doc 5.1).
+
+        Goes through the SAME feh instance as the artwork, so there is only
+        ever one thing drawing on the screen. The status screen is, as far as
+        the display is concerned, just another image.
+        """
+        from ..statusscreen import render
+        with self._lock:
+            if self._current_dir is None:
+                raise DeviceError("display not started")
+            out = os.path.join(self._current_dir, ".status.png")
+            render(out, report, branding=branding)
+            target = os.path.join(self._current_dir, CURRENT)
+            tmp = target + ".tmp"
+            shutil.copyfile(out, tmp)
+            os.replace(tmp, target)
+            self.background = "(status screen)"
+            self.log.record("display.status_screen", overall=report.get("overall"))
+
     def set_grid(self, on: bool) -> None:
         """Toggle the gridded variant, and re-show the current background.
 

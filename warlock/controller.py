@@ -266,6 +266,26 @@ class Controller:
         self._supersede()
         self._try("display", self.display.handoff, target)
 
+    @action()
+    def show_status_screen(self) -> None:
+        """Put the system status on the table's own screen.
+
+        Deliberately available as an action so it can be summoned from the
+        panel — but its real value is at boot, when there may be no panel
+        and a blank screen is indistinguishable from a crash.
+        """
+        shower = getattr(self.display, "show_status", None)
+        if not callable(shower):
+            self.log.record("display.status_unsupported")
+            return
+        from .statusscreen import build_report
+        rt = getattr(self, "_runtime", None)
+        if rt is None:
+            self.log.record("display.status_unsupported", reason="no runtime")
+            return
+        self._try("display", shower, build_report(rt),
+                   getattr(self, "_branding_path", None))
+
     @action(ParamSpec("on", "bool"))
     def set_grid(self, on: bool) -> None:
         """Show or hide the battle-map grid on the table screen.

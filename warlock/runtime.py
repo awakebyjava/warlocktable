@@ -277,6 +277,23 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
 
     rt = Runtime(controller, log, audio, lights, reader, source,
                  store=store, unassigned=unassigned)
+    # Back-reference so show_status_screen() can read live device status.
+    controller._runtime = rt
+    for candidate in ("/opt/warlocktable/branding/warlockandtext.jpg",
+                      os.path.join(os.path.dirname(__file__), "..",
+                                   "branding", "warlockandtext.jpg")):
+        if os.path.exists(candidate):
+            controller._branding_path = os.path.abspath(candidate)
+            break
+
+    # Put status on the TV at startup. Per 5.1 this is the whole point: at
+    # boot there may be no panel to hand, and a blank screen is
+    # indistinguishable from a crash.
+    if getattr(args, "real_display", False):
+        try:
+            controller.show_status_screen()
+        except Exception as exc:   # noqa: BLE001
+            log.record("display.status_failed", error=str(exc))
 
     if getattr(args, "web", False):
         from .web.server import WebPanel

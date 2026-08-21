@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warlock Table — Style Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0b0a08;
+    --black-2:#151310;
+    --black-3:#1d1a15;
+    --brass:#c9a15a;
+    --brass-bright:#e0be80;
+    --brass-dim:#6e5a35;
+    --purple:#8a5cc9;
+    --purple-deep:#3c2a5c;
+    --bone:#eae4d6;
+    --bone-dim:#9c9587;
+    --bone-mid:#a89f8c;
+    --line:#3a3327;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--black);
+    color:var(--bone);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{font-family:'Syne',sans-serif; font-weight:700; letter-spacing:0.01em;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+
+  /* background texture: faint radial like table felt under raking light */
+  .bg-field{
+    position:fixed; inset:0; z-index:-1;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(201,161,90,0.07), transparent 60%),
+      radial-gradient(ellipse 700px 700px at 100% 100%, rgba(138,92,201,0.05), transparent 60%),
+      var(--black);
+  }
+
+  .wrap{max-width:920px; margin:0 auto; padding:0 28px;}
+
+  /* ---- hero ---- */
+  header.hero{
+    padding:120px 28px 90px;
+    text-align:center;
+    border-bottom:1px solid var(--line);
+    position:relative;
+  }
+  .sigil-ring{width:180px; height:180px; margin:0 auto 40px; opacity:0.92;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:18px;
+  }
+  h1.title{
+    font-size:clamp(40px,6vw,64px);
+    line-height:1.05;
+    margin:0 0 18px;
+    color:var(--bone);
+  }
+  h1.title em{
+    font-style:normal;
+    color:var(--purple);
+  }
+  .subtitle{
+    color:var(--bone-mid);
+    font-size:17px;
+    max-width:520px;
+    margin:0 auto;
+    line-height:1.6;
+  }
+
+  /* ---- section chapter markers ---- */
+  section{padding:90px 0; border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  .chapter{
+    display:flex;
+    align-items:baseline;
+    gap:18px;
+    margin-bottom:48px;
+  }
+  .chapter-num{
+    font-family:'Syne',sans-serif;
+    font-weight:800;
+    font-size:15px;
+    color:var(--purple);
+    letter-spacing:0.1em;
+  }
+  .chapter-title{
+    font-family:'Syne',sans-serif;
+    font-weight:700;
+    font-size:28px;
+    color:var(--bone);
+  }
+  .chapter-line{flex:1; height:1px; background:var(--line); align-self:center;}
+  .chapter-note{color:var(--bone-mid); font-size:15px; line-height:1.7; max-width:640px; margin:-28px 0 44px;}
+
+  /* ---- palette ---- */
+  .palette{display:grid; grid-template-columns:repeat(5,1fr); gap:14px;}
+  .swatch{border:1px solid var(--line); border-radius:2px; overflow:hidden;}
+  .swatch-fill{height:96px;}
+  .swatch-meta{padding:12px 14px; background:var(--black-2);}
+  .swatch-name{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--bone); text-transform:uppercase; letter-spacing:0.06em;}
+  .swatch-hex{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--bone-mid); margin-top:4px;}
+  .swatch-use{font-size:11px; color:var(--brass); margin-top:8px; line-height:1.4;}
+
+  /* ---- type specimen ---- */
+  .type-row{display:flex; justify-content:space-between; align-items:baseline; padding:26px 0; border-bottom:1px solid var(--line); gap:24px;}
+  .type-row:last-child{border-bottom:none;}
+  .type-sample-display{font-family:'Syne',sans-serif; font-weight:700; font-size:38px; color:var(--bone);}
+  .type-sample-body{font-family:'IBM Plex Sans',sans-serif; font-size:17px; color:var(--bone); max-width:420px; line-height:1.6;}
+  .type-sample-mono{font-family:'IBM Plex Mono',monospace; font-size:14px; color:var(--brass-bright); letter-spacing:0.02em;}
+  .type-label{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--bone-mid); text-transform:uppercase; letter-spacing:0.1em; min-width:130px;}
+
+  /* ---- sigil / icon system ---- */
+  .icon-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:16px;}
+  .icon-card{
+    border:1px solid var(--line);
+    background:var(--black-2);
+    border-radius:2px;
+    padding:22px 10px 14px;
+    text-align:center;
+  }
+  .icon-card svg{width:44px; height:44px;}
+  .icon-card .icon-label{font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--bone-mid); margin-top:10px; text-transform:uppercase; letter-spacing:0.06em;}
+  .rule-list{list-style:none; padding:0; margin:32px 0 0; display:grid; gap:14px;}
+  .rule-list li{
+    display:flex; gap:14px; align-items:flex-start;
+    font-size:14px; color:var(--bone-mid); line-height:1.6;
+  }
+  .rule-list .mark{color:var(--purple); font-family:'IBM Plex Mono',monospace; flex-shrink:0;}
+
+  /* ---- component mockups ---- */
+  .panel-mock{
+    border:1px solid var(--brass-dim);
+    background:var(--black-2);
+    border-radius:3px;
+    padding:28px;
+  }
+  .panel-mock-header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding-bottom:18px; margin-bottom:22px; border-bottom:1px solid var(--line);
+  }
+  .panel-mock-title{font-family:'Syne',sans-serif; font-weight:700; font-size:16px; letter-spacing:0.03em;}
+  .status-dot{width:8px; height:8px; border-radius:50%; background:var(--purple); display:inline-block; box-shadow:0 0 8px var(--purple); margin-right:8px;}
+  .status-text{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--bone-mid); text-transform:uppercase; letter-spacing:0.08em;}
+  .btn-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    padding:13px 20px;
+    border-radius:2px;
+    cursor:pointer;
+    transition:all 0.15s ease;
+    border:1px solid var(--brass-dim);
+    background:transparent;
+    color:var(--bone);
+  }
+  .btn:hover{border-color:var(--brass); background:rgba(201,161,90,0.08); color:var(--brass-bright);}
+  .btn-primary{background:var(--purple-deep); border-color:var(--purple); color:var(--bone);}
+  .btn-primary:hover{background:var(--purple); box-shadow:0 0 20px rgba(138,92,201,0.35);}
+  .btn-active{border-color:var(--purple); color:var(--purple); box-shadow:inset 0 0 0 1px var(--purple);}
+
+  .card-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:22px;}
+  .card{
+    border:1px solid var(--line);
+    background:var(--black);
+    padding:16px;
+    border-radius:2px;
+  }
+  .card-label{font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--bone-mid); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;}
+  .card-value{font-family:'Syne',sans-serif; font-weight:700; font-size:20px; color:var(--bone);}
+
+  /* ---- signature element ---- */
+  .signature-block{text-align:center; padding:60px 0;}
+  .signature-block .sigil-ring{width:220px; height:220px;}
+  .signature-caption{font-size:14px; color:var(--bone-mid); max-width:560px; margin:24px auto 0; line-height:1.7;}
+
+  footer{padding:60px 28px 100px; text-align:center; color:var(--bone-mid); font-size:12px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.06em;}
+
+  @media (max-width:720px){
+    .palette{grid-template-columns:repeat(2,1fr);}
+    .icon-grid{grid-template-columns:repeat(3,1fr);}
+    .card-grid{grid-template-columns:1fr;}
+    .type-row{flex-direction:column; align-items:flex-start; gap:10px;}
+  }
+</style>
+</head>
+<body>
+<div class="bg-field"></div>
+
+<header class="hero">
+  <svg class="sigil-ring" viewBox="0 0 200 200" fill="none">
+    <circle cx="100" cy="100" r="92" stroke="#c9a15a" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="100" cy="100" r="70" stroke="#c9a15a" stroke-width="6" stroke-linecap="round"/>
+    <g stroke="#8a5cc9" stroke-width="6.5" stroke-linecap="round">
+      <line x1="100" y1="30" x2="100" y2="170"/>
+      <line x1="30" y1="100" x2="170" y2="100"/>
+      <line x1="52" y1="52" x2="148" y2="148"/>
+      <line x1="148" y1="52" x2="52" y2="148"/>
+    </g>
+    <circle cx="100" cy="100" r="34" stroke="#c9a15a" stroke-width="6"/>
+    <circle cx="100" cy="30" r="9" fill="#c9a15a"/>
+    <circle cx="100" cy="170" r="9" fill="#c9a15a"/>
+    <circle cx="30" cy="100" r="9" fill="#c9a15a"/>
+    <circle cx="170" cy="100" r="9" fill="#c9a15a"/>
+    <circle cx="100" cy="100" r="11" fill="#8a5cc9"/>
+  </svg>
+  <div class="eyebrow">Warlock Table — Visual Identity</div>
+  <h1 class="title">Clean <em>Occult</em></h1>
+  <p class="subtitle">A style system drawn directly from the table itself — matte black, brass inlay, sigil geometry, and the purple of the chair gems. Disciplined and ceremonial, not broken. The strangeness lives in what it says, not in how it renders.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- I. PALETTE -->
+  <section id="palette">
+    <div class="chapter">
+      <span class="chapter-num">I.</span>
+      <span class="chapter-title">Materials</span>
+      <span class="chapter-line"></span>
+    </div>
+    <p class="chapter-note">Five tones, all sourced from the physical table. No accent invented that isn't already sitting in the room.</p>
+
+    <div class="palette">
+      <div class="swatch">
+        <div class="swatch-fill" style="background:#0b0a08;"></div>
+        <div class="swatch-meta">
+          <div class="swatch-name">Black</div>
+          <div class="swatch-hex">#0B0A08</div>
+          <div class="swatch-use">Base field — the table's finish</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-fill" style="background:#151310;"></div>
+        <div class="swatch-meta">
+          <div class="swatch-name">Black-2</div>
+          <div class="swatch-hex">#151310</div>
+          <div class="swatch-use">Elevated surfaces, panels, cards</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-fill" style="background:#c9a15a;"></div>
+        <div class="swatch-meta">
+          <div class="swatch-name">Brass</div>
+          <div class="swatch-hex">#C9A15A</div>
+          <div class="swatch-use">Structure — borders, frames, stable UI</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-fill" style="background:#8a5cc9;"></div>
+        <div class="swatch-meta">
+          <div class="swatch-name">Purple</div>
+          <div class="swatch-hex">#8A5CC9</div>
+          <div class="swatch-use">Active state — the gem. Selected, live, listening</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-fill" style="background:#eae4d6;"></div>
+        <div class="swatch-meta">
+          <div class="swatch-name">Bone</div>
+          <div class="swatch-hex">#EAE4D6</div>
+          <div class="swatch-use">Text — sparse, precise, never a large field</div>
+        </div>
+      </div>
+    </div>
+
+    <ul class="rule-list">
+      <li><span class="mark">→</span> Brass reads as <em style="color:var(--bone)">structural</em> — it's what tells you a thing is stable, always available, part of the frame.</li>
+      <li><span class="mark">→</span> Purple reads as <em style="color:var(--bone)">alive</em> — reserve it for things that are currently happening: an active scene, a live connection, the entity currently speaking.</li>
+      <li><span class="mark">→</span> Bone white is a precision instrument, not a background. Large fields of it fight the "black table" feeling.</li>
+    </ul>
+  </section>
+
+  <!-- II. TYPE -->
+  <section id="type">
+    <div class="chapter">
+      <span class="chapter-num">II.</span>
+      <span class="chapter-title">Voice, in Type</span>
+      <span class="chapter-line"></span>
+    </div>
+    <p class="chapter-note">Angular display face for headers — geometric, diagram-like, related to the sigils without illustrating them. A restrained mono/sans pairing carries everything that needs to be read fast, in a dim room, mid-session.</p>
+
+    <div class="type-row">
+      <span class="type-label">Display — Syne 700</span>
+      <span class="type-sample-display">The Circle Holds</span>
+    </div>
+    <div class="type-row">
+      <span class="type-label">Display — Syne 800, caps</span>
+      <span class="type-sample-display" style="text-transform:uppercase; font-size:26px; letter-spacing:0.04em;">SCENE · THRESHOLD</span>
+    </div>
+    <div class="type-row">
+      <span class="type-label">Body — IBM Plex Sans</span>
+      <span class="type-sample-body">Body copy stays plain and legible — this is a tool people use at a table, often in low light, mid-conversation. The strangeness belongs to what's said, never to whether it can be read.</span>
+    </div>
+    <div class="type-row">
+      <span class="type-label">Utility — IBM Plex Mono</span>
+      <span class="type-sample-mono">STATUS: LISTENING — CH.04 — 21:42</span>
+    </div>
+  </section>
+
+  <!-- III. MARKS -->
+  <section id="marks">
+    <div class="chapter">
+      <span class="chapter-num">III.</span>
+      <span class="chapter-title">Marks</span>
+      <span class="chapter-line"></span>
+    </div>
+    <p class="chapter-note">One icon family, built from the same rule as the table's two inlaid sigils: a circular frame, radial symmetry, one glyph at the center that names the function. Clean construction — the sigils carry meaning through symbolism, not through distortion.</p>
+
+    <div class="icon-grid">
+      <div class="icon-card">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="30" cy="30" r="6" fill="#8a5cc9"/><line x1="30" y1="8" x2="30" y2="18" stroke="#8a5cc9" stroke-width="6" stroke-linecap="round"/></svg>
+        <div class="icon-label">Live / Connected</div>
+      </div>
+      <div class="icon-card">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="30" cy="30" r="6" fill="none" stroke="#9c9587" stroke-width="6" stroke-linecap="round"/></svg>
+        <div class="icon-label">Idle / Standby</div>
+      </div>
+      <div class="icon-card">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M30 14 L44 38 L16 38 Z" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/></svg>
+        <div class="icon-label">Scene</div>
+      </div>
+      <div class="icon-card">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="30" cy="30" r="14" stroke="#8a5cc9" stroke-width="6" stroke-linecap="round" fill="none"/><line x1="30" y1="16" x2="30" y2="44" stroke="#8a5cc9" stroke-width="5.5" stroke-linecap="round"/><line x1="16" y1="30" x2="44" y2="30" stroke="#8a5cc9" stroke-width="5.5" stroke-linecap="round"/></svg>
+        <div class="icon-label">Card / NFC</div>
+      </div>
+      <div class="icon-card">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M20 36 Q30 16 40 36" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/><circle cx="30" cy="36" r="2" fill="#c9a15a"/></svg>
+        <div class="icon-label">Audio</div>
+      </div>
+      <div class="icon-card">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" stroke="#c9a15a" stroke-width="6" stroke-linecap="round" fill="none"/><rect x="20" y="20" width="20" height="20" stroke="#9c9587" stroke-width="6" stroke-linecap="round" fill="none"/></svg>
+        <div class="icon-label">Display / TV</div>
+      </div>
+    </div>
+
+    <ul class="rule-list">
+      <li><span class="mark">→</span> Every mark shares the same 26px circular frame — that consistency is the "family," not a shared decorative flourish.</li>
+      <li><span class="mark">→</span> Brass ring = the mark exists / is available. Purple = the mark is currently active. Muted bone = disabled or unavailable.</li>
+      <li><span class="mark">→</span> No skulls, no pentagrams-as-cliché, no dripping textures. The real sigils on the table are elegant line diagrams — the icon set should read as instruments, not Halloween clip art.</li>
+    </ul>
+  </section>
+
+  <!-- IV. INSTRUMENTS (component mockups) -->
+  <section id="instruments">
+    <div class="chapter">
+      <span class="chapter-num">IV.</span>
+      <span class="chapter-title">Instruments</span>
+      <span class="chapter-line"></span>
+    </div>
+    <p class="chapter-note">How the system behaves as an actual control surface — buttons, states, panel framing.</p>
+
+    <div class="panel-mock">
+      <div class="panel-mock-header">
+        <span class="panel-mock-title">Operator Panel</span>
+        <span class="status-text"><span class="status-dot"></span>Entity active</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn">Set Scene</button>
+        <button class="btn btn-primary">Trigger Voice Line</button>
+        <button class="btn btn-active">Combat Mode</button>
+        <button class="btn">Apple TV</button>
+      </div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-label">Pixelblaze</div>
+          <div class="card-value">Ember Pulse</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Soundscape</div>
+          <div class="card-value">Cathedral — Low</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Mood</div>
+          <div class="card-value" style="color:var(--purple);">Cryptic</div>
+        </div>
+      </div>
+    </div>
+
+    <ul class="rule-list">
+      <li><span class="mark">→</span> Default buttons: brass outline, transparent fill. Hover brightens the brass and warms the text — the panel "wakes up" slightly under your hand.</li>
+      <li><span class="mark">→</span> Primary / high-commitment actions (triggering a line, firing a scene): filled deep purple. These are the moments the entity is doing something.</li>
+      <li><span class="mark">→</span> Active/selected state: purple outline glow, no fill change on idle — clearly different from hover, clearly different from primary.</li>
+    </ul>
+  </section>
+
+  <!-- SIGNATURE -->
+  <section id="signature" style="border-bottom:none;">
+    <div class="chapter">
+      <span class="chapter-num">V.</span>
+      <span class="chapter-title">The Signature</span>
+      <span class="chapter-line"></span>
+    </div>
+    <div class="signature-block">
+      <svg class="sigil-ring" viewBox="0 0 200 200" fill="none">
+        <circle cx="100" cy="100" r="92" stroke="#c9a15a" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="100" cy="100" r="70" stroke="#c9a15a" stroke-width="6" stroke-linecap="round"/>
+        <g stroke="#8a5cc9" stroke-width="6.5" stroke-linecap="round">
+          <line x1="100" y1="30" x2="100" y2="170"/>
+          <line x1="30" y1="100" x2="170" y2="100"/>
+          <line x1="52" y1="52" x2="148" y2="148"/>
+          <line x1="148" y1="52" x2="52" y2="148"/>
+        </g>
+        <circle cx="100" cy="100" r="34" stroke="#c9a15a" stroke-width="6"/>
+        <circle cx="100" cy="30" r="9" fill="#c9a15a"/>
+        <circle cx="100" cy="170" r="9" fill="#c9a15a"/>
+        <circle cx="30" cy="100" r="9" fill="#c9a15a"/>
+        <circle cx="170" cy="100" r="9" fill="#c9a15a"/>
+        <circle cx="100" cy="100" r="11" fill="#8a5cc9"/>
+      </svg>
+      <p class="signature-caption">The sigil ring is the one recurring mark across the whole system — favicon, loading state, the frame around the entity's "currently speaking" indicator, a watermark on session recaps. One geometric form, reused with intention, never redrawn differently twice. It's the thing this brand is remembered by, the same way the two sigils are the first thing you see on the table itself.</p>
+    </div>
+  </section>
+
+</div>
+
+<footer>WARLOCK TABLE — VISUAL IDENTITY V1 — CLEAN OCCULT</footer>
+
+</body>
+</html>
