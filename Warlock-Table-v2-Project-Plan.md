@@ -424,6 +424,12 @@ python run_table.py --real-lights --nfc      + real card taps (Pi only)
 
 ## 5. Reliability & Startup Behavior
 
+> **Verified end to end on 2026-08-20.** A cold reboot brought the table up
+> with no intervention: systemd started the controller, it connected to the
+> Pixelblaze (by discovery), audio (38 tracks) and the PN532 (firmware 1.6),
+> served the panel, and settled to the breathing idle scene — 0 restarts, no
+> terminal. The startup sequence in 5.1 is behaviour, not aspiration.
+
 *Scope note: this is a hobby build, not a commercial appliance, and a certain amount of fiddliness is fine and expected. The specific thing worth engineering properly is **boot-up** — power the table on, pick up the iPad, and have it work without opening a terminal. Everything in this section serves that one goal; anything beyond it is explicitly out of scope (§5.6).*
 
 ### 5.1 Target startup sequence
