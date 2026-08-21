@@ -54,7 +54,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pattern", nargs="?",
-                    help="name of a file in patterns/, with or without .js")
+                    help="name of a file in patterns/ or patterns/generated/, "
+                         "with or without .js")
     ap.add_argument("--address", default=None,
                     help="Pixelblaze IP (default: last known, from data/device-state.json)")
     ap.add_argument("--activate", action="store_true",
@@ -85,9 +86,17 @@ def main() -> int:
     source = None
     if args.pattern:
         name = args.pattern[:-3] if args.pattern.endswith(".js") else args.pattern
-        path = os.path.join(PATTERN_DIR, name + ".js")
-        if not os.path.exists(path):
-            print("error: no such pattern file: %s" % path)
+        # Hand-written patterns live in patterns/; generated ones in
+        # patterns/generated/. The device name is the bare filename either
+        # way, so a generated pattern can sit alongside the original for
+        # comparison without the directory leaking into the name.
+        candidates = [os.path.join(PATTERN_DIR, name + ".js"),
+                      os.path.join(PATTERN_DIR, "generated", name + ".js")]
+        path = next((c for c in candidates if os.path.exists(c)), None)
+        if path is None:
+            print("error: no such pattern file. Looked in:")
+            for c in candidates:
+                print("   " + c)
             return 2
         source = io.open(path, encoding="utf-8").read()
 
