@@ -62,9 +62,15 @@ The big themes:
   — the full taxonomy for all 26 cards (Boon / Person / Aura / Random
   Table), what each should do, and the data shape. **Specified, not built.**
   It is the source of truth for *intent*; the companion
-  `warlock-table-interruption-cards.json` it refers to is **not in the repo
-  yet**. Note it redefines Wheel of Fortune: instead of pulling a random
-  scene it should draw a random Aura card and fire that card's effect.
+  `warlock-table-interruption-cards.json` carries the same 26 cards as
+  structured data — a starting-point draft for implementation, not a config
+  the controller reads today. Verified consistent with the markdown: 4 boon,
+  9 person, 12 aura, 1 random table; unique ids; all nine Person cards have
+  a null `npc_binding` awaiting a GM; and the Wheel's pool is exactly the
+  twelve Aura ids.
+  Note it **redefines Wheel of Fortune**: currently it pulls a random scene,
+  and it is specified to draw a random Aura card and fire that card's effect
+  instead.
 - **Resolved — see §4.3–4.5 for the full interaction spec.** In short: cards are dumb triggers (UID + label); every card is a tap (no presence detection); a card points at a Scene, an Interruption, or a Random Table, editable between them in the management UI; cards are stateless. The mana/tarot distinction is configuration, not code — mana cards happen to map to Scenes and tarot cards to Interruptions, but either could be either.
 
 ### 3.3 Audio & Soundscapes
