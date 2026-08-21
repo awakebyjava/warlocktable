@@ -333,7 +333,7 @@ def _check_video_output(rt) -> Dict[str, Any]:
 
     A connected output is not a working one. Only an active MODE is.
     """
-    reader = getattr(rt.display, "video_output", None)
+    reader = getattr(rt.controller.display, "video_output", None)
     if not callable(reader):
         # The fake display has no X server to ask. Not a fault.
         return _r("Video output", PASS, "not applicable (no real display)")
