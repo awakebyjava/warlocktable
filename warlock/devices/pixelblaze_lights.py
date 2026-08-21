@@ -22,9 +22,11 @@ Three behaviours here come straight out of the reliability spec (section 5):
 from __future__ import annotations
 
 import contextlib
+import functools
 import json
 import os
 import socket
+import threading
 import time
 from typing import Dict, List, Optional
 
@@ -34,6 +36,27 @@ try:  # keep the import soft so the fake CLI runs on a machine without it
     import pixelblaze as _pixelblaze
 except ImportError:  # pragma: no cover
     _pixelblaze = None
+
+
+def _synchronized(fn):
+    """Serialise access to the single websocket.
+
+    ONE socket, many callers. The web panel is threaded (a thread per
+    request), so its status poll overlaps with every button press, and the
+    NFC thread can call in on top of that. Without this, two threads read
+    the same socket, one consumes the other's response, the protocol
+    desyncs, and the connection drops with "Connection to remote host was
+    lost."
+
+    That is not hypothetical: it is what happened the first time the panel
+    was used for real. Pressing buttons quickly made the overlap
+    near-certain.
+    """
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return fn(self, *args, **kwargs)
+    return wrapper
 
 
 class PixelblazeLights(LightDevice):
@@ -59,6 +82,9 @@ class PixelblazeLights(LightDevice):
     # Bounding it turns "the whole table hangs" into "lights are unhealthy
     # for a few seconds", which is what 5.2 promises.
     SOCKET_TIMEOUT_S = 6.0
+
+    # How long a cached brightness reading stays good enough for status().
+    BRIGHTNESS_TTL_S = 30.0
     # Pattern lists change rarely (only when you author one), so cache them.
     PATTERN_CACHE_TTL_S = 60.0
 
@@ -80,6 +106,16 @@ class PixelblazeLights(LightDevice):
         self.current_pattern: Optional[str] = None
         self.healthy = False
         self.last_error: Optional[str] = None
+
+        # RLock, not Lock: these methods legitimately call one another
+        # (set_pattern -> available_patterns -> _ensure).
+        self._lock = threading.RLock()
+
+        # Brightness for status(), cached. Reading it live meant a websocket
+        # round-trip every 3 seconds purely to draw a number - the single
+        # largest source of contention on the socket.
+        self._brightness = None
+        self._brightness_at = 0.0
 
     @contextlib.contextmanager
     def _bounded(self):
@@ -154,16 +190,29 @@ class PixelblazeLights(LightDevice):
             "pattern": self.current_pattern,
             "error": self.last_error,
         }
-        if self._pb is not None and self.healthy:
-            try:
-                with self._bounded():
-                    slider = self._pb.getBrightnessSlider()
-                    limit = self._pb.getBrightnessLimit()
-                info["brightness_slider"] = slider
-                info["brightness_limit_pct"] = limit
-                info["effective_pct"] = round(slider * limit, 1)
-            except Exception:
-                pass
+        cached = self._brightness
+        stale = (time.monotonic() - self._brightness_at) > self.BRIGHTNESS_TTL_S
+        if self._pb is not None and self.healthy and (cached is None or stale):
+            # Non-blocking acquire on purpose: drawing a status number must
+            # never queue behind (or delay) a button press. If the device is
+            # busy, show the last known figure.
+            if self._lock.acquire(blocking=False):
+                try:
+                    with self._bounded():
+                        cached = (self._pb.getBrightnessSlider(),
+                                  self._pb.getBrightnessLimit())
+                    self._brightness = cached
+                    self._brightness_at = time.monotonic()
+                except Exception:
+                    pass
+                finally:
+                    self._lock.release()
+
+        if cached:
+            slider, limit = cached
+            info["brightness_slider"] = slider
+            info["brightness_limit_pct"] = limit
+            info["effective_pct"] = round(slider * limit, 1)
         return info
 
     # ------------------------------------------------------------ connection
@@ -293,6 +342,7 @@ class PixelblazeLights(LightDevice):
 
     # -------------------------------------------------------------- interface
 
+    @_synchronized
     def set_pattern(self, name: str) -> None:
         pb = self._ensure()
 
@@ -348,6 +398,7 @@ class PixelblazeLights(LightDevice):
                 return {}
         return {pid: name for name, pid in self._patterns.items()}
 
+    @_synchronized
     def set_brightness(self, level: float) -> None:
         level = max(0.0, min(1.0, float(level)))
         pb = self._ensure()
@@ -360,8 +411,12 @@ class PixelblazeLights(LightDevice):
         except Exception as exc:
             self._drop(exc)
             raise DeviceError("set_brightness(%s) failed: %s" % (level, exc))
+        if self._brightness:
+            self._brightness = (level, self._brightness[1])
+            self._brightness_at = time.monotonic()
         self.log.record("lights.set_brightness", level=level, real=True)
 
+    @_synchronized
     def available_patterns(self) -> List[str]:
         now = time.monotonic()
         fresh = (now - self._patterns_fetched_at) < self.PATTERN_CACHE_TTL_S
@@ -380,6 +435,7 @@ class PixelblazeLights(LightDevice):
         self._patterns_fetched_at = now
         return sorted(self._patterns.keys(), key=str.lower)
 
+    @_synchronized
     def close(self) -> None:
         """1.1.8 exposes only _close(); wrap it so callers have a public name."""
         if self._pb is not None:
