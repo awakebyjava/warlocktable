@@ -47,19 +47,40 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 
 ## Where we are right now
 
-*(Updated 2026-08-20. The project plan doc is the detailed source of truth — this is the summary.)*
+*(Updated 2026-08-21. `Warlock-Table-v2-Project-Plan.md` is the detailed source of truth — this is the summary. If they disagree, the plan doc wins.)*
 
-- **Phase 1 (hardware) is COMPLETE.** The light distribution board is rebuilt and all 764 pixels across 8 expander channels are verified physically. `warlock-table-led-reference.md` is the ground truth for the layout, the corrected `segStart` ordering, the pixel map, and the power budget. **Read it before writing any Pixelblaze pattern.**
-- **Phase 2 (software foundation) is current**, and the core loop works end to end on real hardware: **a physical NFC card tap drives the real table.** Controller runs on the Pi, finds the Pixelblaze by discovery, and the laptop is not in the path.
-- **Real:** lights (Pixelblaze) and card input (PN532). **Still fake:** audio and display.
-- **Not built:** the web panel and management UI, headless mode, and the `install.sh`/systemd deployment. The controller currently runs from the git working tree and must be started by hand — fine for development, not for a real session (see plan doc §5.5).
+**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.2.0**.
 
-**Environment notes that will save you time:**
-- The laptop has Python 3.12 (installed 2026-08-20). Windows' Store alias can shadow it in an already-open terminal — open a fresh one.
-- The Pi needs a special install route for `pixelblaze-client`: `mini-racer` has no ARM wheel. See `deploy/README.md`.
-- Pixelblaze is at 10.10.0.171 ("Warlock's Table"), the Pi at 10.10.0.24. Prefer discovery over hardcoding either — the Pixelblaze IP has already drifted once.
+**All four subsystems are real** — nothing is a fake any more:
 
-**Suggested next steps:** the audio driver (the last fake with real design content in it — two channels, crossfade, ducking), then deployment so the table survives a power cycle.
+| | |
+|---|---|
+| Lights | Pixelblaze, 764 px, found by UDP discovery. Pattern writes verified by read-back. 50% ceiling (power budget — see below) |
+| Audio | Two channel groups: looping bed + layered one-shots, true crossfade, ducking. Output pinned by name to the 3.5mm jack |
+| Cards | PN532 over SPI. Tap semantics — fires once, re-fires only after lift-and-replace |
+| Screen | feh fullscreen at 3840×2160. Backgrounds carry named overlays: none / square grid / hex |
+
+**Also built:** the operator panel (iPad PWA on :8080 — status strip, controls, brightness, overlays, **card editing** including registering an unknown tag by tapping it), the **TV status screen**, **Table Check** (pre-session self-test), headless mode, `install.sh` + systemd, and the full visual identity on both surfaces.
+
+**Not built yet:**
+- **Zones are not mapped to LEDs, and there is no per-zone lighting.** This blocks seat claiming, and therefore player phones. It is the next piece of work — see plan doc §6.
+- Audio upload and scene authoring in the panel (§4.5 steps 3–4)
+- Govee, voice/personality, Overseer, dice, session recap — all still Phase 3+
+
+**Read these before touching the matching area:**
+- `warlock-table-led-reference.md` — **before any Pixelblaze pattern.** Layout, the verified `segStart` ordering (do not "tidy" it), and the **power budget: the brightness limit is a 40 A supply constraint, not a preference.**
+- `display-image-specifications.md` — before generating artwork. Grid pitch is **107.85 px**, not what the panel dimensions imply.
+- `deploy/README.md` — before touching the Pi. Two copies of the code, and the ARM install route.
+- `warlock-table-style-guide.html` — before any UI work.
+
+**Environment notes that save time:**
+- Laptop has Python 3.12. Windows' Store alias shadows it in an already-open terminal — open a fresh one.
+- The Pi needs a special `pixelblaze-client` install (`mini-racer` has no ARM wheel) plus a stub. `deploy/README.md`.
+- Pixelblaze at 10.10.0.171, Pi at 10.10.0.24. **Prefer discovery over hardcoding** — the Pixelblaze IP has already drifted once.
+- **Config is Pi-owned.** `/var/lib/warlocktable/config.json` does not come from git; editing `data/config.example.json` will not reach the table.
+- The panel and the interactive CLI **cannot both own the NFC reader**. Stop the service first.
+
+**SD card image:** `~/Documents/warlocktable-backups/` on the laptop, verified. See its README.
 
 ## Working-style reminders
 
