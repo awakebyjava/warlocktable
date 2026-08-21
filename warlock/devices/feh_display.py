@@ -50,6 +50,31 @@ from .base import DeviceError, DisplayDevice, UnknownAssetError
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 CURRENT = ".current.png"
 
+# "HDMI-1 connected primary 3840x2160+0+0 (normal ...)" -- the geometry is
+# optional, and its ABSENCE is the interesting case.
+_OUTPUT_LINE = re.compile(
+    r"^(?P<name>\S+) (?P<state>connected|disconnected)"
+    r"(?: primary)?(?: (?P<mode>\d+x\d+)\+\d+\+\d+)?")
+
+# Where the boot-time mode pin lives, per the HDMI notes in plan doc 3.6.
+CMDLINE = "/boot/cmdline.txt"
+
+
+def _pinned_mode():
+    """The resolution pinned at boot, e.g. "3840x2160", or None.
+
+    Read rather than assumed: comparing what X is doing against what the
+    boot config asked for is what turns "there is a picture" into "there is
+    the RIGHT picture".
+    """
+    try:
+        with open(CMDLINE, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return None
+    match = re.search(r"video=\S*?:(\d+x\d+)", text)
+    return match.group(1) if match else None
+
 # Overlays a background can carry. "" is the plain artwork.
 #   forest_3840x2160.png       -> base "forest", overlay ""
 #   forest_3840x2160_grid.png  -> base "forest", overlay "grid"
@@ -110,6 +135,59 @@ class FehDisplay(DisplayDevice):
                 return False
 
         return self._launch(target)
+
+    def video_output(self) -> dict:
+        """What the X server is actually driving on each output.
+
+        WHY THIS EXISTS, and it is not theoretical.
+
+        `healthy` on this device means "feh is running and the file swap
+        worked". It does NOT mean a picture is reaching the television. An
+        output can be *connected*, list every mode it supports, and have
+        **none of them active** -- in which case the Pi drives no signal at
+        all, the screen is black, and every check in this system still
+        reports green. That is exactly what happened on 2026-08-21: the
+        table looked perfectly healthy while the TV showed nothing.
+
+        So this asks the X server the one question the rest of the stack
+        cannot: is a mode actually set?
+
+        Returns {"outputs": [...], "pinned": str|None, "error": str|None}.
+        Never raises -- a check that cannot run must report that, not crash
+        the thing it was checking.
+        """
+        env = dict(os.environ)
+        env["DISPLAY"] = self.display
+        env["XAUTHORITY"] = self.xauthority
+
+        try:
+            proc = subprocess.run(["xrandr", "--query"], env=env,
+                                  capture_output=True, text=True, timeout=10)
+        except FileNotFoundError:
+            return {"outputs": [], "pinned": None,
+                    "error": "xrandr is not installed"}
+        except Exception as exc:   # noqa: BLE001
+            return {"outputs": [], "pinned": None, "error": str(exc)}
+
+        if proc.returncode != 0:
+            return {"outputs": [], "pinned": None,
+                    "error": (proc.stderr or "xrandr failed").strip()}
+
+        outputs = []
+        for line in proc.stdout.splitlines():
+            match = _OUTPUT_LINE.match(line)
+            if not match:
+                continue
+            # A geometry (WxH+X+Y) on the output's own line is the only
+            # reliable sign a mode is set. "connected" alone says a cable
+            # and a sink are there, which is not the same thing at all.
+            outputs.append({
+                "name": match.group("name"),
+                "connected": match.group("state") == "connected",
+                "mode": match.group("mode"),          # None when unset
+            })
+
+        return {"outputs": outputs, "pinned": _pinned_mode(), "error": None}
 
     def _launch(self, target: str) -> bool:
         env = dict(os.environ)

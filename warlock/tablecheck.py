@@ -85,6 +85,7 @@ def run_check(rt, physical: bool = False) -> Dict[str, Any]:
     results.append(_check_audio_device(rt))
     results.append(_check_nfc(rt))
     results.append(_check_display(rt))
+    results.append(_check_video_output(rt))
     results.append(_check_disk())
 
     # ---------------------------------------------------------- physical
@@ -315,6 +316,63 @@ def _check_display(rt) -> Dict[str, Any]:
         return _r("Display", FAIL, info.get("error") or "viewer not running")
     return _r("Display", PASS, "%d backgrounds, showing %s"
               % (info.get("images", 0), info.get("background") or "nothing yet"))
+
+
+def _check_video_output(rt) -> Dict[str, Any]:
+    """Is a picture actually reaching the television?
+
+    THE ONE CHECK THAT COVERS THE GAP.
+
+    Everything else in this file answers "did the call succeed". This one
+    answers "did anything come out", and they are not the same question.
+    On 2026-08-21 the HDMI output sat *connected with no mode set*: the Pi
+    drove no signal, the TV was black, and the service, the display device,
+    feh and the status strip all reported green, because every one of them
+    was working exactly as designed. Nothing was wrong upstream. There was
+    simply nothing downstream.
+
+    A connected output is not a working one. Only an active MODE is.
+    """
+    reader = getattr(rt.display, "video_output", None)
+    if not callable(reader):
+        # The fake display has no X server to ask. Not a fault.
+        return _r("Video output", PASS, "not applicable (no real display)")
+
+    try:
+        info = reader()
+    except Exception as exc:   # noqa: BLE001
+        return _r("Video output", FAIL, "could not read: %s" % exc)
+
+    if info.get("error"):
+        return _r("Video output", WARN,
+                  "could not ask the X server: %s" % info["error"])
+
+    outputs = info.get("outputs") or []
+    connected = [o for o in outputs if o["connected"]]
+    if not connected:
+        return _r("Video output", FAIL,
+                  "no display is connected — check the HDMI cable and that "
+                  "the TV is powered on")
+
+    live = [o for o in connected if o["mode"]]
+    if not live:
+        names = ", ".join(o["name"] for o in connected)
+        # Name the fix. This is recoverable in one command, and a check that
+        # says only "broken" at the start of a session is half a check.
+        return _r("Video output", FAIL,
+                  "%s is connected but NO MODE IS SET, so nothing is being "
+                  "sent to the screen. Fix: xrandr --output %s --mode %s"
+                  % (names, connected[0]["name"],
+                     info.get("pinned") or "3840x2160"))
+
+    pinned = info.get("pinned")
+    shown = ", ".join("%s at %s" % (o["name"], o["mode"]) for o in live)
+    if pinned and any(o["mode"] != pinned for o in live):
+        return _r("Video output", WARN,
+                  "%s, but %s was pinned at boot — artwork will be scaled"
+                  % (shown, pinned))
+
+    return _r("Video output", PASS, shown)
 
 
 def _check_disk() -> Dict[str, Any]:
