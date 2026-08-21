@@ -43,6 +43,9 @@ class Controller:
         # Combat order. In memory only, and deliberately so — see the note
         # at the top of warlock/initiative.py.
         self.initiative = Initiative()
+        # Restores the scene after flash_player(). Separate from the
+        # interruption revert timer so the two cannot cancel each other.
+        self._flash_timer = None
 
         # Per-subsystem health, for the panel status strip and the TV status
         # screen (plan doc 5.1). A subsystem going unhealthy must never stop
@@ -439,97 +442,150 @@ class Controller:
         }
 
     # ---- initiative (plan doc 3.9) ---------------------------------------
+    #
+    # Player turns only. No monsters, no scores, no sorting: the GM taps the
+    # players in the order they want and that is the order. See the note at
+    # the top of warlock/initiative.py for why this is deliberately small.
+
+    # A flash is ~0.7s in patterns/zones.js. Three of them is long enough to
+    # catch someone looking away and short enough not to interrupt play.
+    PING_FLASHES = 3
+    PING_SECONDS = 3 * 0.7 + 0.3
 
     def _push_active_zone(self) -> None:
-        """Tell the lights whose turn it is, if they can show it."""
+        """Tell the lights which seat is up, if they can show it."""
         if not self.lights.supports_zones():
             return
-        zone = self.initiative.active_zone()
-        if zone > self.config.player_count:
-            # The order outlived the seating: someone reduced the player
-            # count mid-combat. Light nobody rather than a seat that is not
-            # there any more.
-            zone = -1
-        self._try("lights", self.lights.set_active_zone, zone)
+        self.initiative.drop_missing(self.config.player_count)
+        self._try("lights", self.lights.set_active_zone,
+                  self.initiative.active_zone())
 
-    def start_initiative(self, entries, sort: bool = True) -> dict:
-        """Replace the order and light whoever is first.
-
-        entries is a list of dicts: name, and optionally zone and score.
-        """
-        from .initiative import Entry
-        rows = []
-        for raw in entries:
-            name = str(raw.get("name", "")).strip()
-            if not name:
-                continue
-            zone = raw.get("zone")
-            zone = None if zone in (None, "", -1) else int(zone)
-            if zone is not None and not 1 <= zone <= self.config.player_count:
+    def set_initiative_order(self, zones) -> dict:
+        """The order, as seat numbers, exactly as tapped."""
+        cleaned = []
+        for zone in zones or []:
+            zone = int(zone)
+            if not 1 <= zone <= self.config.player_count:
                 raise ValueError("seat %d does not exist with %d players"
                                  % (zone, self.config.player_count))
-            score = raw.get("score")
-            score = None if score in (None, "") else float(score)
-            rows.append(Entry(name=name, zone=zone, score=score))
-        if not rows:
-            raise ValueError("initiative needs at least one combatant")
-
-        self.initiative.set_order(rows, sort=sort)
-        self.log.record("initiative.start", count=len(rows))
-        self._show_seats_if_possible()
+            cleaned.append(zone)
+        self.initiative.set_order(cleaned)
+        self.log.record("initiative.order_set", seats=cleaned)
         self._push_active_zone()
         return self.initiative_report()
+
+    @action()
+    def run_initiative(self) -> None:
+        """Start the order from the top and light the first player."""
+        if self.initiative.run() is None:
+            self.log.record("initiative.no_order")
+            return
+        self._ensure_zones_pattern()
+        self.log.record("initiative.run",
+                        seat=self.initiative.active_zone())
+        self._push_active_zone()
 
     @action(ParamSpec("step", "float"))
     def advance_turn(self, step: float = 1) -> None:
-        """Move initiative on by one. Also bindable to a card.
+        """Next player, or the previous one with step = -1.
 
-        A physical "next turn" card is the reason this is an action rather
-        than only an API call: passing a token round the table is a nicer
-        interaction than everyone waiting on the GM's tablet.
+        An action as well as an API call so it can be put on a card: passing
+        a physical token round the table beats everyone waiting on the GM's
+        tablet.
         """
-        entry = self.initiative.advance(int(step))
-        if entry is None:
+        if self.initiative.advance(int(step)) is None:
             self.log.record("initiative.not_running")
             return
-        self.log.record("initiative.turn", name=entry.name,
-                        zone=entry.zone,
-                        round=self.initiative.report()["round"])
+        self.log.record("initiative.turn", seat=self.initiative.active_zone())
         self._push_active_zone()
 
     @action()
-    def end_initiative(self) -> None:
-        """Combat over: clear the order and put the seats back to flat."""
-        self.initiative.clear()
-        self.log.record("initiative.end")
-        if self.lights.supports_zones():
-            self._try("lights", self.lights.set_active_zone, -1)
+    def stop_initiative(self) -> None:
+        """Stop pointing at anyone. The order is kept for next time."""
+        self.initiative.stop()
+        self.log.record("initiative.stopped")
+        self._push_active_zone()
 
-    def goto_turn(self, index: int) -> dict:
-        self.initiative.go_to(int(index))
+    def clear_initiative(self) -> dict:
+        self.initiative.clear()
+        self.log.record("initiative.cleared")
         self._push_active_zone()
         return self.initiative_report()
 
+    @action(ParamSpec("zone", "float"))
+    def flash_player(self, zone: float) -> None:
+        """Flash one seat a few times, then put the scene back.
+
+        The "oi, you" button. Deliberately NOT a mode: it interrupts
+        whatever the table is showing for about two seconds and then
+        restores it, so the GM can get a player's attention without
+        abandoning the scene they set up.
+        """
+        zone = int(zone)
+        if not 1 <= zone <= self.config.player_count:
+            raise ValueError("seat %d does not exist with %d players"
+                             % (zone, self.config.player_count))
+        if not self.lights.supports_zones():
+            self.log.record("lights.zones_unsupported")
+            return
+
+        # What to go back to. Grab it BEFORE switching, and prefer the
+        # scene's pattern over whatever is currently loaded: if two flashes
+        # overlap, the second would otherwise "restore" to the zones
+        # pattern and strand the table there.
+        scene = self.current_scene
+        restore_to = scene.lights if scene and scene.lights else None
+
+        with self._lock:
+            if self._flash_timer is not None:
+                self._flash_timer.cancel()
+                self._flash_timer = None
+
+        self._ensure_zones_pattern()
+        self._try("lights", self.lights.set_active_zone, zone)
+        self.log.record("initiative.flash_player", seat=zone,
+                        flashes=self.PING_FLASHES, restore_to=restore_to)
+
+        def restore():
+            with self._lock:
+                self._flash_timer = None
+            # If combat started while the flash was in the air, the order
+            # wins: putting the scene back would drop the turn indicator.
+            if self.initiative.report()["running"]:
+                self._push_active_zone()
+                return
+            self._try("lights", self.lights.set_active_zone, -1)
+            if restore_to:
+                self._try("lights", self.lights.set_pattern, restore_to)
+
+        timer = threading.Timer(self.PING_SECONDS, restore)
+        timer.daemon = True
+        with self._lock:
+            self._flash_timer = timer
+        timer.start()
+
     def initiative_report(self) -> dict:
+        """The order, with each seat's colour and whoever claimed it."""
         report = self.initiative.report()
-        seat_names = {p.zone_id: p.name for p in self.config.players
-                      if p.zone_id is not None}
-        for row in report["order"]:
-            row["player"] = seat_names.get(row["zone"])
+        by_id = {z.id: z.colour for z in self.config.zones}
+        claimed = {p.zone_id: p.name for p in self.config.players
+                   if p.zone_id is not None}
+        report["order"] = [
+            {"zone": z,
+             "colour": by_id.get(z, zonemap.seat_colour(z)),
+             "player": claimed.get(z)}
+            for z in report["order"]
+        ]
         return report
 
-    def _show_seats_if_possible(self) -> None:
-        """Make sure the zones pattern is up, without disturbing a scene.
-
-        Initiative needs the zones pattern active for its highlight to be
-        visible at all, but starting combat should not silently throw away
-        the scene the GM had running. So this only switches when the lights
-        are already showing zones; otherwise the GM chooses.
-        """
-        if not self.lights.supports_zones():
+    def _ensure_zones_pattern(self) -> None:
+        """Seat lighting only shows while the zones pattern is loaded."""
+        if getattr(self.lights, "current_pattern", None) == "zones":
             return
-        if getattr(self.lights, "current_pattern", None) != "zones":
-            self.log.record("initiative.lights_not_showing_seats")
+        self._try("lights", self.lights.show_zones,
+                  self.config.player_count, self.zone_colours(),
+                  *zonemap.gm_span())
+
 
     # ---- seats (plan doc 4.5) --------------------------------------------
 

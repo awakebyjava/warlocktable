@@ -80,12 +80,21 @@ export var playerCount = 0    // 0 until the controller says otherwise
 // anyone having to look at a screen.
 export var activeZone = -1
 
-// How far the resting seats fall back, and how deep the active one
-// breathes. The active seat never dims below the resting level: a turn
-// indicator that goes darker than its neighbours reads as a fault.
-DIM_OTHERS = 0.30
-PULSE_FLOOR = 0.55
-PULSE_SPEED = 0.5             // seconds-ish per breath; slow enough to read
+// A FLASH, not a breath. A slow swell reads as ambience and gets ignored
+// across a noisy table; an on/off flash is what makes someone look up. The
+// off state is not black - it drops to the resting level, so a seat that
+// is flashing never looks less lit than one that is not.
+DIM_OTHERS   = 0.30
+FLASH_LOW    = 0.30
+FLASH_DUTY   = 0.45           // slightly less than half on, so it reads as
+                              // a pulse of light rather than a wobble
+
+// time() counts in units of 65.536 seconds, so a period in real seconds has
+// to be divided by that. Written out rather than folded into a constant
+// because getting this wrong silently gives a flash at the wrong speed,
+// which looks deliberate and is therefore hard to notice.
+FLASH_PERIOD_S = 0.7
+FLASH_INTERVAL = FLASH_PERIOD_S / 65.536
 
 // ===== Zone map =====
 // Rebuilt only when the layout changes, not per frame. It is ~800 array
@@ -175,9 +184,10 @@ export function beforeRender(delta) {
     buildZones()
   }
   // Once per frame, not once per pixel: every pixel of the active seat
-  // shares one brightness, so the seat breathes as a block rather than
-  // rippling along its length.
-  pulse = PULSE_FLOOR + (1 - PULSE_FLOOR) * wave(time(PULSE_SPEED))
+  // shares one brightness, so the whole seat flashes as a block rather
+  // than rippling along its length.
+  pulse = FLASH_LOW
+  if (square(time(FLASH_INTERVAL), FLASH_DUTY) > 0) pulse = 1
 }
 
 export function render(index) {

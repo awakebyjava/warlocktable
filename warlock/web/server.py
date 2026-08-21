@@ -293,12 +293,13 @@ class _Handler(BaseHTTPRequestHandler):
                               "zones": self.controller.zone_report()})
             return
 
-        # --- Initiative (plan doc 3.9): GM only ---
-        if path == "/api/initiative":
+        # --- Initiative (plan doc 3.9): GM only. Player turns, in the order
+        # the GM tapped them. Nothing is parsed or sorted here.
+        if path == "/api/initiative/order":
             body = self._read_json()
             try:
-                report = self.controller.start_initiative(
-                    body.get("order") or [], sort=bool(body.get("sort", True)))
+                report = self.controller.set_initiative_order(
+                    body.get("order") or [])
             except ValueError as exc:
                 self._send_json({"error": str(exc)}, 400)
                 return
@@ -308,20 +309,24 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(report)
             return
 
+        if path == "/api/initiative/run":
+            self.controller.run_initiative()
+            self._send_json(self.controller.initiative_report())
+            return
+
         if path == "/api/initiative/advance":
             body = self._read_json()
             self.controller.advance_turn(int(body.get("step", 1)))
             self._send_json(self.controller.initiative_report())
             return
 
-        if path == "/api/initiative/goto":
-            body = self._read_json()
-            self._send_json(self.controller.goto_turn(int(body.get("index", 0))))
+        if path == "/api/initiative/stop":
+            self.controller.stop_initiative()
+            self._send_json(self.controller.initiative_report())
             return
 
-        if path == "/api/initiative/end":
-            self.controller.end_initiative()
-            self._send_json(self.controller.initiative_report())
+        if path == "/api/initiative/clear":
+            self._send_json(self.controller.clear_initiative())
             return
 
         # --- Action surface: does something NOW ---

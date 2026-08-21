@@ -363,108 +363,118 @@ function renderOverlayButtons(dd) {
 
 /* ---------- initiative (plan doc 3.9) ---------- */
 
-// "Ada 18" -> {name:"Ada", score:18}. A trailing number is a score; anything
-// else is part of the name, so "Goblin 2" without a score still works as a
-// name as long as the GM does not also use scores on that line.
-function parseInitiative(text) {
-  return text.split("\n").map(l => l.trim()).filter(Boolean).map(line => {
-    const m = line.match(/^(.*?)[\s]+(-?\d+(?:\.\d+)?)$/);
-    if (m) return { name: m[1].trim(), score: Number(m[2]) };
-    return { name: line };
-  });
-}
+// Player turns only. The GM taps the seats below in the order they want;
+// nothing is parsed, sorted or guessed.
 
-// Names are matched to seats by the claim a player already made, so the GM
-// types "Ada" and the table knows which lights are hers.
-function withSeats(rows, zones) {
-  const byName = {};
-  zones.zones.forEach(z => { if (z.player) byName[z.player.toLowerCase()] = z.zone; });
-  rows.forEach(r => {
-    const seat = byName[r.name.toLowerCase()];
-    if (seat !== undefined) r.zone = seat;
-  });
-  return rows;
-}
-
-function renderInitiative(rep, zones) {
-  const running = rep.running;
-  $("#init-idle").hidden = running;
-  $("#init-running").hidden = !running;
-  $("#init-round").textContent = running ? ("round " + rep.round) : "";
-  if (!running) return;
-
-  const colours = {};
-  if (zones) zones.zones.forEach(z => { colours[z.zone] = z.colour; });
-
-  const list = $("#init-list");
-  list.innerHTML = "";
-  rep.order.forEach((row, i) => {
-    const li = el("li", (i === rep.index ? "now " : "") + (row.zone === null ? "noseat" : ""));
-    const dot = el("span", "init-dot");
-    if (row.zone !== null && colours[row.zone]) dot.style.setProperty("--seat", colours[row.zone]);
-    const name = el("div");
-    name.append(document.createTextNode(row.name));
-    const score = el("span", "init-score");
-    score.append(document.createTextNode(row.score === null ? "" : String(row.score)));
-    li.append(dot, name, score);
-    // Tapping a line jumps to it: mis-clicking "next" mid-combat is common
-    // and hunting back through the order with Back is worse.
-    li.addEventListener("click", async () => {
-      try { await postJSON("/api/initiative/goto", { index: i }); }
-      catch (err) { showError(err.message); }
-      refreshInitiative();
-    });
-    list.append(li);
-  });
-}
+let seatsByZone = {};      // zone id -> seat row, filled by renderSeats
+let ordering = false;      // building the order by tapping seats
+let draft = [];            // seats tapped so far, in order
+let initState = { order: [], index: null, running: false };
 
 async function postJSON(path, body) {
-  const res = await api(path, {
+  return api(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body || {})
   });
-  return res;
+}
+
+function renderInitiative() {
+  const list = $("#init-list");
+  const rows = ordering ? draft.map(z => ({ zone: z })) : initState.order;
+
+  $("#init-set").textContent = ordering ? "Done" : "Set Initiative Order";
+  $("#init-help").hidden = !ordering;
+  $("#init-state").textContent = ordering
+    ? (draft.length + " tapped")
+    : (initState.running ? "running" : "");
+
+  list.innerHTML = "";
+  if (!rows.length) {
+    const p = el("li", "init-empty");
+    p.append(document.createTextNode(
+      ordering ? "Tap players below…" : "No order set."));
+    list.append(p);
+  } else {
+    rows.forEach((row, i) => {
+      const seat = seatsByZone[row.zone] || {};
+      const live = !ordering && initState.running && i === initState.index;
+      const li = el("li", live ? "now" : "");
+      const pos = el("span", "init-pos");
+      pos.append(document.createTextNode(String(i + 1)));
+      const dot = el("span", "init-dot");
+      dot.style.setProperty("--seat", row.colour || seat.colour || "");
+      const name = el("div");
+      // A seat nobody claimed still takes a turn - the GM may be running
+      // this before everyone has joined.
+      name.append(document.createTextNode(
+        row.player || seat.player || (seat.label || ("Seat " + row.zone))));
+      li.append(pos, dot, name);
+      list.append(li);
+    });
+  }
+
+  const canRun = !ordering && initState.order.length > 0;
+  $("#init-run").disabled = !canRun;
+  $("#init-run").textContent = initState.running ? "Restart from Top" : "Run Initiative";
+  $("#init-prev").disabled = !(canRun && initState.running);
+  $("#init-next").disabled = !(canRun && initState.running);
 }
 
 async function refreshInitiative() {
   try {
-    const [rep, zones] = await Promise.all([
-      api("/api/initiative"), api("/api/zones")
-    ]);
-    renderInitiative(rep, zones);
+    initState = await api("/api/initiative");
+    renderInitiative();
   } catch (e) { /* the status strip already reports an unreachable table */ }
 }
 
-$("#init-start").addEventListener("click", async () => {
-  const rows = parseInitiative($("#init-input").value);
-  if (!rows.length) { showError("nothing to put in initiative"); return; }
+$("#init-set").addEventListener("click", async () => {
+  if (!ordering) {
+    ordering = true;
+    draft = initState.order.map(r => r.zone);
+    document.body.classList.add("ordering");
+    renderInitiative();
+    refreshSeats();
+    return;
+  }
+  ordering = false;
+  document.body.classList.remove("ordering");
   try {
-    const zones = await api("/api/zones");
-    await postJSON("/api/initiative", { order: withSeats(rows, zones) });
-    refreshInitiative();
+    initState = await postJSON("/api/initiative/order", { order: draft });
   } catch (e) { showError(e.message); }
+  renderInitiative();
+  refreshSeats();
+});
+
+$("#init-run").addEventListener("click", async () => {
+  try { initState = await postJSON("/api/initiative/run", {}); }
+  catch (e) { showError(e.message); }
+  renderInitiative();
 });
 
 $("#init-next").addEventListener("click", async () => {
-  try { await postJSON("/api/initiative/advance", { step: 1 }); }
+  try { initState = await postJSON("/api/initiative/advance", { step: 1 }); }
   catch (e) { showError(e.message); }
-  refreshInitiative();
+  renderInitiative();
 });
 
 $("#init-prev").addEventListener("click", async () => {
-  try { await postJSON("/api/initiative/advance", { step: -1 }); }
+  try { initState = await postJSON("/api/initiative/advance", { step: -1 }); }
   catch (e) { showError(e.message); }
-  refreshInitiative();
+  renderInitiative();
 });
 
-$("#init-end").addEventListener("click", async () => {
-  try { await postJSON("/api/initiative/end", {}); }
-  catch (e) { showError(e.message); }
-  refreshInitiative();
-});
+function tapSeat(zone) {
+  const at = draft.indexOf(zone);
+  // Tapping again removes, so a mis-tap costs one tap to undo rather than
+  // starting the whole order over.
+  if (at >= 0) draft.splice(at, 1);
+  else draft.push(zone);
+  renderInitiative();
+  refreshSeats();
+}
 
-/* ---------- seats (plan doc 4.7) ---------- */
+/* ---------- seats (plan doc 4.7) ---------- *//* ---------- seats (plan doc 4.7) ---------- */
 
 // Every seat colour name in warlock/zones.py is also a valid CSS colour
 // keyword, so the swatch needs no lookup table that could drift from the
@@ -489,6 +499,11 @@ function renderSeats(z) {
     b.classList.toggle("active", b.dataset.count === String(z.player_count));
   });
 
+  // Keep a lookup so the initiative list can show colours and names
+  // without fetching the seats again on every render.
+  seatsByZone = {};
+  z.zones.forEach(seat => { seatsByZone[seat.zone] = seat; });
+
   const list = $("#seat-list");
   list.innerHTML = "";
   z.zones.forEach(seat => {
@@ -501,9 +516,31 @@ function renderSeats(z) {
     who.append(document.createTextNode(seat.player || "unclaimed"));
     name.append(document.createTextNode(" "));
     name.append(who);
-    const size = el("div", "size");
-    size.append(document.createTextNode(seat.inches + " in"));
-    line.append(sw, name, size);
+
+    // The GM's seat takes no turn and cannot be flashed at: it is where
+    // they are already sitting.
+    const isPlayer = seat.zone > 0;
+
+    if (ordering && isPlayer) {
+      const at = draft.indexOf(seat.zone);
+      const pos = el("span", "seat-pos");
+      pos.append(document.createTextNode(at >= 0 ? String(at + 1) : "+"));
+      line.append(sw, name, pos, el("span"));
+      line.addEventListener("click", () => tapSeat(seat.zone));
+    } else {
+      const size = el("div", "size");
+      size.append(document.createTextNode(seat.inches + " in"));
+      let flash = el("span");
+      if (isPlayer) {
+        flash = el("button", "seat-flash");
+        flash.append(document.createTextNode("Flash"));
+        flash.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          fire("flash_player", { zone: seat.zone }, flash);
+        });
+      }
+      line.append(sw, name, size, flash);
+    }
     list.append(line);
   });
 

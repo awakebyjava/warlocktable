@@ -445,49 +445,77 @@ button.ghost {
 
 /* ---------- initiative (plan doc 3.9) ---------- */
 
-#init-input {
-  width: 100%;
-  padding: .6rem;
-  font-family: var(--mono, monospace);
-  font-size: 1rem;
-  color: var(--bone);
-  background: var(--black-2);
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  resize: vertical;
-}
+button.wide { width: 100%; }
 
-#init-input:focus { outline: none; border-color: var(--brass); }
-
-.init-list { list-style: none; margin: 0 0 .9rem; padding: 0; }
+.init-list { list-style: none; margin: .8rem 0; padding: 0; }
 
 .init-list li {
   display: grid;
-  grid-template-columns: 1rem 1fr auto;
+  grid-template-columns: 1.6rem 1rem 1fr;
   align-items: center;
   gap: .6rem;
-  padding: .5rem .6rem;
+  padding: .55rem .6rem;
   border: 1px solid transparent;
   border-radius: 2px;
 }
 
-/* The current combatant is marked with a border and a filled dot rather
-   than colour alone, so it survives being glanced at in a dark room. */
-.init-list li.now {
-  border-color: var(--brass);
-  background: var(--black-3);
+/* The player whose turn it is gets a border and a filled marker, not just
+   a colour: it has to survive being glanced at across a dark table. */
+.init-list li.now { border-color: var(--brass); background: var(--black-3); }
+
+.init-pos {
+  font-variant-numeric: tabular-nums;
+  color: var(--bone-mid);
+  font-size: .8rem;
+  text-align: right;
 }
 
 .init-dot {
-  width: .85rem; height: .85rem;
+  width: .95rem; height: .95rem;
   border-radius: 50%;
   background: var(--seat, var(--line));
-  border: 1px solid rgba(0,0,0,.4);
+  border: 1px solid rgba(0, 0, 0, .4);
 }
 
-.init-list li.noseat .init-dot { background: none; border-style: dashed; }
-.init-score { font-variant-numeric: tabular-nums; color: var(--bone-mid); font-size: .82rem; }
+.init-empty { color: var(--bone-mid); font-style: italic; padding: .4rem .6rem; }
 
-.init-controls { display: grid; grid-template-columns: 1fr 2fr; gap: .5rem; }
-.init-controls button { padding: .9rem; font-size: 1.05rem; }
-.init-end { width: 100%; margin-top: .5rem; }
+/* Arrows flank the run button, per the layout asked for: the thing you
+   press most often is the biggest target and sits in the middle. */
+.init-controls {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr 3.2rem;
+  gap: .5rem;
+}
+
+.init-controls button { padding: .95rem .3rem; font-size: 1.05rem; }
+.init-controls .arrow { font-size: 1.1rem; line-height: 1; }
+.init-controls button:disabled { opacity: .35; }
+
+/* ---- ordering mode ---- */
+
+/* While building the order the seat rows become targets, so they get an
+   affordance they do not have the rest of the time. */
+.ordering .seat { cursor: pointer; border-color: var(--brass-dim); }
+.ordering .seat:active { background: var(--black-3); }
+
+.seat-pos {
+  min-width: 1.4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--black);
+  background: var(--brass);
+  border-radius: 2px;
+  font-size: .78rem;
+}
+
+/* The per-seat attention button. Small and unobtrusive: it is used a few
+   times a session, unlike everything else in this list. */
+.seat-flash {
+  padding: .3rem .55rem;
+  font-size: .75rem;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--bone-mid);
+}
+
+.seat { grid-template-columns: 1.1rem 1fr auto auto; }

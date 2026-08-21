@@ -67,28 +67,23 @@
     <p class="note" id="display-note"></p>
   </section>
 
-  <!-- Initiative (plan doc 3.9). Sits directly above Seats because the two
-       are read together: the order is written in terms of who is in which
-       seat, and the lights are how the table answers "whose go is it". -->
+  <!-- Initiative (plan doc 3.9). Player turns only. Sits directly above
+       Seats because the order is built by tapping the seats below it. -->
   <section id="initiative-section">
-    <h2>Initiative <span class="muted" id="init-round"></span></h2>
+    <h2>Initiative <span class="muted" id="init-state"></span></h2>
 
-    <div id="init-idle">
-      <p class="note">One combatant per line. <code>Name 18</code> to give a
-         score, or just names to keep the order you typed. Anyone without a
-         seat still takes a turn &mdash; the lights simply show nobody.</p>
-      <textarea id="init-input" rows="6" spellcheck="false"
-                placeholder="Ada 18&#10;Bo 15&#10;Goblins 12"></textarea>
-      <button id="init-start">Start Combat</button>
-    </div>
+    <button id="init-set" class="wide">Set Initiative Order</button>
 
-    <div id="init-running" hidden>
-      <ol id="init-list" class="init-list"></ol>
-      <div class="init-controls">
-        <button id="init-prev" class="ghost">Back</button>
-        <button id="init-next">Next Turn</button>
-      </div>
-      <button id="init-end" class="ghost init-end">End Combat</button>
+    <p class="note" id="init-help" hidden>
+      Tap the players below in turn order. Tap again to remove.
+    </p>
+
+    <ol id="init-list" class="init-list"></ol>
+
+    <div class="init-controls">
+      <button id="init-prev" class="arrow" title="Previous player">&#9664;</button>
+      <button id="init-run">Run Initiative</button>
+      <button id="init-next" class="arrow" title="Next player">&#9654;</button>
     </div>
   </section>
 
