@@ -23,3 +23,7 @@
 *.png       binary
 *.jpg       binary
 *.mp4       binary
+
+# Fonts are binary; never let line-ending conversion near them.
+*.ttf binary
+*.woff2 binary

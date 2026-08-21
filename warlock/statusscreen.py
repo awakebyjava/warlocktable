@@ -48,20 +48,46 @@ BONE_DIM    = (0x9c, 0x95, 0x87)
 LINE        = (0x3a, 0x33, 0x27)
 BAD         = (0xc9, 0x5a, 0x5a)   # not in the guide; a failure needs to read
 
-FONT_DIR = "/usr/share/fonts/truetype/ibm-plex"
-DISPLAY_FONT = os.path.join(FONT_DIR, "IBMPlexSans-Bold.ttf")     # Syne stand-in
-BODY_FONT    = os.path.join(FONT_DIR, "IBMPlexSans-Regular.ttf")
-MONO_FONT    = os.path.join(FONT_DIR, "IBMPlexMono-Regular.ttf")
-FALLBACK     = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+# Bundled with the panel, so the TV and the iPad use identical type rather
+# than the TV falling back to whatever apt happened to install.
+BUNDLED = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "web", "static", "fonts")
+DISPLAY_FONT = os.path.join(BUNDLED, "Syne.ttf")
+BODY_FONT    = os.path.join(BUNDLED, "IBMPlexSans.ttf")
+MONO_FONT    = os.path.join(BUNDLED, "IBMPlexMono-Regular.ttf")
+
+# apt-installed copies, if the bundled ones are somehow missing.
+SYSTEM_DIR   = "/usr/share/fonts/truetype/ibm-plex"
+FALLBACKS = {
+    DISPLAY_FONT: os.path.join(SYSTEM_DIR, "IBMPlexSans-Bold.ttf"),
+    BODY_FONT:    os.path.join(SYSTEM_DIR, "IBMPlexSans-Regular.ttf"),
+    MONO_FONT:    os.path.join(SYSTEM_DIR, "IBMPlexMono-Regular.ttf"),
+}
+LAST_RESORT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 
-def _font(path, size):
+def _font(path, size, weight=None):
+    """Load a font, selecting a named instance for variable faces.
+
+    Syne and IBM Plex Sans are shipped as VARIABLE fonts - one file holding
+    a weight axis. Without set_variation_by_name() they render at their
+    default (Regular), so a "bold" heading would come out the same weight as
+    body text. PIL exposes the named instances, so ask for one by name.
+    """
     from PIL import ImageFont
-    for candidate in (path, FALLBACK):
+    for candidate in (path, FALLBACKS.get(path), LAST_RESORT):
+        if not candidate:
+            continue
         try:
-            return ImageFont.truetype(candidate, size)
+            f = ImageFont.truetype(candidate, size)
         except OSError:
             continue
+        if weight:
+            try:
+                f.set_variation_by_name(weight)
+            except Exception:
+                pass    # static font, or no such instance - keep the default
+        return f
     return ImageFont.load_default()
 
 
@@ -149,9 +175,9 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
         draw = ImageDraw.Draw(img)
 
     f_eyebrow = _font(MONO_FONT, px(30))
-    f_title   = _font(DISPLAY_FONT, px(104))
+    f_title   = _font(DISPLAY_FONT, px(104), "ExtraBold")
     f_sub     = _font(BODY_FONT, px(36))
-    f_row     = _font(DISPLAY_FONT, px(46))
+    f_row     = _font(DISPLAY_FONT, px(46), "Bold")
     f_detail  = _font(BODY_FONT, px(30))
     f_mono    = _font(MONO_FONT, px(28))
 
