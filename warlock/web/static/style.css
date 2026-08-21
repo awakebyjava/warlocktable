@@ -164,3 +164,53 @@ footer {
 /* Offline / unreachable: make it unmistakable rather than silently stale. */
 body.offline header { background: rgba(226,86,77,0.18); }
 body.offline .chip  { opacity: 0.35; }
+
+/* ---- card editing (plan doc 4.5 step 2) ---- */
+
+.card-row { cursor: pointer; }
+.card-row:active { background: var(--panel-2); }
+.card-row .chev { color: var(--muted); font-size: 18px; padding-left: 4px; }
+
+.card-row.unassigned {
+  border-color: var(--accent);
+  background: rgba(160,108,240,0.10);
+}
+.card-row.unassigned .target { color: var(--accent); font-weight: 600; }
+
+/* Modal, not inline editing: a mis-tap mid-session must not quietly
+   rewrite what a card does. */
+.modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(8,5,13,0.75);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal[hidden] { display: none; }
+
+.modal-box {
+  background: var(--panel); border: 1px solid var(--edge);
+  border-radius: 16px; padding: 20px;
+  width: 100%; max-width: 520px;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-box h3 { margin: 0 0 16px; font-size: 17px; color: var(--accent); }
+
+.modal-box label {
+  display: block; margin-bottom: 14px;
+  font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted);
+}
+.modal-box input, .modal-box select {
+  display: block; width: 100%; margin-top: 6px;
+  font: 16px/1.3 inherit;     /* 16px stops iOS zooming the page on focus */
+  color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--edge); border-radius: 10px;
+  padding: 12px; text-transform: none; letter-spacing: normal;
+}
+.modal-box input[readonly] { color: var(--muted); font-family: ui-monospace, monospace; font-size: 13px; }
+
+.modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+.modal-actions button { flex: 1; min-height: 52px; padding: 12px; }
+.modal-actions .primary { background: var(--accent-dk); border-color: var(--accent); font-weight: 600; }
+.modal-actions .danger  { background: rgba(226,86,77,0.15); border-color: rgba(226,86,77,0.5); color: var(--bad); }
+.modal-actions .ghost   { background: transparent; }

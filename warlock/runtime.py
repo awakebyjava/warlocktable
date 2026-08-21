@@ -15,6 +15,7 @@ import shutil
 from typing import Optional, Tuple
 
 from .config import Config, ConfigError, load_config
+from .configstore import ConfigStore, UnassignedCards
 from .controller import Controller
 from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
 from .eventlog import EventLog
@@ -155,7 +156,7 @@ class Runtime:
 
     def __init__(self, controller: Controller, log: EventLog,
                  audio, lights, reader=None, config_source: str = "",
-                 web=None):
+                 web=None, store=None, unassigned=None):
         self.controller = controller
         self.log = log
         self.audio = audio
@@ -163,6 +164,8 @@ class Runtime:
         self.reader = reader
         self.config_source = config_source
         self.web = web
+        self.store = store
+        self.unassigned = unassigned
 
     def shutdown(self) -> None:
         """Release hardware. Safe to call more than once.
@@ -237,19 +240,28 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     display = FakeDisplayDevice(log)
     controller = Controller(config, lights, audio, display, log)
 
+    store = ConfigStore(config, os.path.abspath(args.config), log,
+                        backup_dir=os.path.join(
+                            os.path.dirname(os.path.abspath(args.config)), "backups"))
+    unassigned = UnassignedCards()
+
     reader = None
     if getattr(args, "nfc", False):
         from .inputs.nfc import NFCReader
 
         def _default_on_card(uid: str) -> None:
             if not controller.handle_card(uid):
+                # Remember it so the panel can offer to register it (4.5),
+                # rather than logging into the void as V1 did.
+                unassigned.note(uid)
                 log.record("card.unregistered", scanned=uid)
 
         reader = NFCReader(log, on_card or _default_on_card)
         reader.start()
         controller._nfc_status = reader.status
 
-    rt = Runtime(controller, log, audio, lights, reader, source)
+    rt = Runtime(controller, log, audio, lights, reader, source,
+                 store=store, unassigned=unassigned)
 
     if getattr(args, "web", False):
         from .web.server import WebPanel

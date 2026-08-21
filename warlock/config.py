@@ -290,3 +290,127 @@ def _validate(config: Config) -> None:
     for table in config.random_tables.values():
         for entry in table.entries:
             config.resolve(entry)
+
+
+# ---------------------------------------------------------------- writing
+
+def to_dict(config: Config) -> Dict[str, Any]:
+    """Config -> plain JSON structure. The exact inverse of load_config().
+
+    Kept next to the loader on purpose: if one gains a field and the other
+    doesn't, a save silently drops data the user entered. That is the worst
+    class of bug here, because it looks like nothing happened.
+    """
+    out: Dict[str, Any] = {}
+
+    out["settings"] = {
+        "audio_paths": list(config.audio_paths),
+        "background_paths": list(config.background_paths),
+        "audio_device": config.audio_device,
+        "duck_level": config.duck_level,
+        "duck_ramp_s": config.duck_ramp_s,
+        "idle_scene": config.idle_scene_name,
+        "fallback_interruption_s": config.fallback_interruption_s,
+    }
+
+    out["zones"] = [{"id": z.id, "colour": z.colour} for z in config.zones]
+
+    out["scenes"] = {}
+    for name, s in config.scenes.items():
+        entry: Dict[str, Any] = {"lights": s.lights}
+        if s.soundscape is not None:
+            entry["soundscape"] = s.soundscape
+        if s.background is not None:
+            entry["background"] = s.background
+        entry["transition"] = {"crossfade_s": s.transition.crossfade_s,
+                                "duck": s.transition.duck}
+        out["scenes"][name] = entry
+
+    out["interruptions"] = {}
+    for name, i in config.interruptions.items():
+        entry = {"audio": i.audio, "duck": i.duck}
+        if i.duration_s is not None:
+            entry["duration_s"] = i.duration_s
+        if i.lights is not None:
+            entry["lights"] = i.lights
+        if i.background is not None:
+            entry["background"] = i.background
+        out["interruptions"][name] = entry
+
+    out["random_tables"] = {
+        name: {"entries": [{"type": e.kind, "name": e.name} for e in t.entries]}
+        for name, t in config.random_tables.items()
+    }
+
+    out["cards"] = {
+        uid: {"label": c.label,
+               "target": {"type": c.target.kind, "name": c.target.name}}
+        for uid, c in config.cards.items()
+    }
+
+    out["players"] = [{"name": p.name, "zone_id": p.zone_id}
+                       for p in config.players]
+    return out
+
+
+def save_config(config: Config, path: str, backup_dir: Optional[str] = None) -> None:
+    """Write config to disk safely.
+
+    Three things matter here, all learned from this project rather than
+    theory:
+
+    1. **Atomic.** Write to a temp file in the same directory, flush, fsync,
+       then os.replace() — which is atomic on POSIX. A power cut mid-write
+       must never leave a half-written config, because that file is what the
+       table needs to boot.
+    2. **Backed up first.** The previous version is copied aside before it
+       is replaced. Config is now Pi-owned data with no git history behind
+       it (plan doc 4.4), so this is the only undo that exists.
+    3. **Validated before it lands.** The result is parsed back and checked
+       for dangling references, so a bad edit is refused rather than written
+       and discovered mid-session.
+    """
+    import os as _os
+    import shutil as _shutil
+    import tempfile
+    from datetime import datetime
+
+    payload = to_dict(config)
+
+    # Validate by round-tripping through the loader BEFORE touching the
+    # real file. Cheaper than being clever, and catches anything to_dict
+    # produced that load_config would reject.
+    fd, probe = tempfile.mkstemp(suffix=".probe.json",
+                                  dir=_os.path.dirname(_os.path.abspath(path)))
+    try:
+        with _os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2)
+        load_config(probe)          # raises ConfigError on a dangling target
+    finally:
+        try:
+            _os.unlink(probe)
+        except OSError:
+            pass
+
+    if backup_dir and _os.path.exists(path):
+        try:
+            _os.makedirs(backup_dir, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            _shutil.copy2(path, _os.path.join(backup_dir, "config-%s.json" % stamp))
+        except OSError:
+            pass       # a failed backup must not block the save
+
+    directory = _os.path.dirname(_os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(suffix=".tmp", dir=directory)
+    try:
+        with _os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2)
+            fh.flush()
+            _os.fsync(fh.fileno())
+        _os.replace(tmp, path)      # atomic
+    except Exception:
+        try:
+            _os.unlink(tmp)
+        except OSError:
+            pass
+        raise

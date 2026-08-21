@@ -136,26 +136,141 @@ async function buildUI() {
              "roll_table", "table_name", "roll");
   if (!v.random_tables.length) $("#tables-section").style.display = "none";
 
+  await refreshCards();
+}
+
+/* ---------- cards: view + edit (plan doc 4.5 step 2) ---------- */
+
+let validTargets = {};
+
+function cardRow(card, opts) {
+  const row = el("div", "card-row" + (opts && opts.unassigned ? " unassigned" : ""));
+  const left = el("div");
+  left.append(el("div", null, card.label || "(unnamed)"));
+  left.append(el("div", "uid", card.uid));
+  row.append(left);
+  const right = el("div");
+  right.append(el("div", "target",
+    opts && opts.unassigned ? "tap to register"
+                            : `${card.target_kind}: ${card.target_name}`));
+  row.append(right);
+  row.append(el("span", "chev", "›"));
+  row.addEventListener("click", () => openEditor(card, opts && opts.unassigned));
+  return row;
+}
+
+async function refreshCards() {
+  validTargets = await api("/api/config/targets");
+
   const c = await api("/api/config/cards");
   const box = $("#cards");
   box.innerHTML = "";
   $("#card-count").textContent = `(${c.cards.length})`;
-  c.cards.forEach(card => {
-    const row = el("div", "card-row");
-    const left = el("div");
-    left.append(el("div", null, card.label));
-    left.append(el("div", "uid", card.uid));
-    row.append(left);
-    row.append(el("div", "target", `${card.target_kind}: ${card.target_name}`));
-    box.append(row);
+  c.cards.forEach(card => box.append(cardRow(card)));
+
+  const u = await api("/api/config/unassigned");
+  const ubox = $("#unassigned");
+  ubox.innerHTML = "";
+  $("#unassigned-section").style.display = u.unassigned.length ? "" : "none";
+  u.unassigned.forEach(item => {
+    ubox.append(cardRow(
+      { uid: item.uid, label: `unknown tag · ${Math.round(item.seconds_ago)}s ago` },
+      { unassigned: true }));
   });
 }
 
+/* ---------- the editor ---------- */
+
+let editing = null;
+
+function fillNames(kind, selected) {
+  const sel = $("#ed-name");
+  sel.innerHTML = "";
+  (validTargets[kind] || []).forEach(n => {
+    const o = el("option", null, n);
+    o.value = n;
+    if (n === selected) o.selected = true;
+    sel.append(o);
+  });
+  if (!(validTargets[kind] || []).length) {
+    sel.append(el("option", null, "(none defined)"));
+  }
+}
+
+function openEditor(card, isNew) {
+  editing = { uid: card.uid, isNew: !!isNew };
+  $("#ed-title").textContent = isNew ? "Register Card" : "Edit Card";
+  $("#ed-label").value = isNew ? "" : (card.label || "");
+  $("#ed-uid").value = card.uid;
+  const kind = card.target_kind || "scene";
+  $("#ed-kind").value = kind;
+  fillNames(kind, card.target_name);
+  $("#ed-err").textContent = "";
+  $("#ed-delete").style.display = isNew ? "none" : "";
+  $("#editor").hidden = false;
+  if (isNew) setTimeout(() => $("#ed-label").focus(), 50);
+}
+
+function closeEditor() {
+  $("#editor").hidden = true;
+  editing = null;
+}
+
+$("#ed-kind").addEventListener("change", () => fillNames($("#ed-kind").value));
+$("#ed-cancel").addEventListener("click", closeEditor);
+$("#editor").addEventListener("click", (e) => {
+  if (e.target.id === "editor") closeEditor();   // tap the backdrop to dismiss
+});
+
+$("#ed-save").addEventListener("click", async () => {
+  const btn = $("#ed-save");
+  btn.classList.add("busy");
+  try {
+    await api("/api/config/cards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: $("#ed-uid").value,
+        label: $("#ed-label").value,
+        target_kind: $("#ed-kind").value,
+        target_name: $("#ed-name").value
+      })
+    });
+    closeEditor();
+    await refreshCards();
+  } catch (e) {
+    // Keep the dialog open on failure - the operator's typing is still in it.
+    $("#ed-err").textContent = e.message;
+  } finally {
+    btn.classList.remove("busy");
+  }
+});
+
+$("#ed-delete").addEventListener("click", async () => {
+  if (!editing) return;
+  if (!confirm("Delete this card? The physical tag will stop doing anything.")) return;
+  try {
+    await api("/api/config/cards/" + encodeURIComponent(editing.uid), { method: "DELETE" });
+    closeEditor();
+    await refreshCards();
+  } catch (e) {
+    $("#ed-err").textContent = e.message;
+  }
+});
+
 /* ---------- polling ---------- */
+
+let lastUnassigned = -1;
 
 async function poll() {
   try {
     render(await api("/api/status"));
+    // Surface a newly-tapped unknown tag without needing a reload.
+    const u = await api("/api/config/unassigned");
+    if (u.unassigned.length !== lastUnassigned) {
+      lastUnassigned = u.unassigned.length;
+      if ($("#editor").hidden) await refreshCards();
+    }
   } catch (e) {
     // Two strikes before declaring offline, so one dropped request on
     // flaky wifi doesn't make the panel flash red mid-session.

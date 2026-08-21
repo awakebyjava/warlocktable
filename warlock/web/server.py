@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+from urllib.parse import unquote as _unquote
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
@@ -109,7 +110,11 @@ class _Handler(BaseHTTPRequestHandler):
             from ..registry import describe_actions
             self._send_json({"actions": describe_actions(self.controller)})
         elif path == "/api/config/cards":
-            self._send_json(self._cards())
+            self._send_json({"cards": self.runtime.store.list_cards()})
+        elif path == "/api/config/targets":
+            self._send_json(self.runtime.store.valid_targets())
+        elif path == "/api/config/unassigned":
+            self._send_json({"unassigned": self.runtime.unassigned.list()})
         elif path.startswith("/api/"):
             self._send_json({"error": "unknown endpoint"}, 404)
         else:
@@ -117,8 +122,52 @@ class _Handler(BaseHTTPRequestHandler):
 
     # ----------------------------------------------------------------- POST
 
+    def do_DELETE(self):
+        path = self.path.split("?", 1)[0]
+        if path.startswith("/api/config/cards/"):
+            uid = _unquote(path[len("/api/config/cards/"):])
+            from ..config import ConfigError
+            try:
+                self.runtime.store.delete_card(uid)
+            except ConfigError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json({"ok": True, "cards": self.runtime.store.list_cards()})
+            return
+        self._send_json({"error": "unknown endpoint"}, 404)
+
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+
+        # --- Management surface: changes what things DO (plan doc 4.5) ---
+        if path == "/api/config/cards":
+            body = self._read_json()
+            from ..config import ConfigError
+            try:
+                result = self.runtime.store.set_card(
+                    uid=body.get("uid", ""),
+                    label=body.get("label", ""),
+                    kind=body.get("target_kind", ""),
+                    name=body.get("target_name", ""),
+                )
+            except ConfigError as exc:
+                # A rejected edit is a content problem, not a server fault:
+                # say what was wrong so the operator can fix it.
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            # Registering a tag clears it from the unassigned list.
+            self.runtime.unassigned.forget(result["uid"])
+            self._send_json({"ok": True, "card": result,
+                              "cards": self.runtime.store.list_cards()})
+            return
+
+        # --- Action surface: does something NOW ---
         if path != "/api/action":
             self._send_json({"error": "unknown endpoint"}, 404)
             return
@@ -178,20 +227,6 @@ class _Handler(BaseHTTPRequestHandler):
             "random_tables": sorted(cfg.random_tables),
             "idle_scene": cfg.idle_scene_name,
         }
-
-    def _cards(self) -> dict:
-        cfg = self.controller.config
-        cards = []
-        for uid, card in cfg.cards.items():
-            cards.append({
-                "uid": uid,
-                "label": card.label,
-                "target_kind": card.target.kind,
-                "target_name": card.target.name,
-            })
-        cards.sort(key=lambda c: c["label"].lower())
-        return {"cards": cards}
-
 
 def _read_version() -> Optional[str]:
     """What build is deployed, for the panel footer (plan doc 5.5)."""

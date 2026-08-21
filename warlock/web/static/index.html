@@ -57,6 +57,13 @@
        exceed it &mdash; see the LED reference.</p>
   </section>
 
+  <!-- Unassigned tags: tap an unknown card on the reader and it shows up
+       here ready to name. Replaces V1 printing into a terminal nobody read. -->
+  <section id="unassigned-section" style="display:none">
+    <h2>Unregistered Cards <span class="muted">just tapped</span></h2>
+    <div id="unassigned" class="cards"></div>
+  </section>
+
   <section>
     <h2>Cards <span class="muted" id="card-count"></span></h2>
     <div id="cards" class="cards"></div>
@@ -71,6 +78,38 @@
   <span id="version" class="muted"></span>
   <span id="err" class="err"></span>
 </footer>
+
+<!-- Card editor. A dialog rather than inline, so a mis-tap during a
+     session cannot silently change what a card does. -->
+<div id="editor" class="modal" hidden>
+  <div class="modal-box">
+    <h3 id="ed-title">Edit Card</h3>
+    <label>Label
+      <input type="text" id="ed-label" placeholder="what the object IS, e.g. The Devil (tarot)">
+    </label>
+    <label>UID
+      <input type="text" id="ed-uid" readonly>
+    </label>
+    <label>Does what
+      <select id="ed-kind">
+        <option value="scene">Scene &mdash; persists until replaced</option>
+        <option value="interruption">Interruption &mdash; plays over, then reverts</option>
+        <option value="random_table">Random Table &mdash; picks one at random</option>
+      </select>
+    </label>
+    <label>Which one
+      <!-- Options come from the controller, so an impossible target
+           cannot be chosen (plan doc 4.5). -->
+      <select id="ed-name"></select>
+    </label>
+    <p id="ed-err" class="err"></p>
+    <div class="modal-actions">
+      <button id="ed-cancel" class="ghost">Cancel</button>
+      <button id="ed-delete" class="danger">Delete</button>
+      <button id="ed-save" class="primary">Save</button>
+    </div>
+  </div>
+</div>
 
 <script src="/app.js"></script>
 </body>
