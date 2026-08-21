@@ -400,6 +400,16 @@ class PygameAudio(AudioDevice):
             self.device = device
             try:
                 self._init_mixer()
+                # _init_mixer does NOT raise when a device will not open --
+                # it falls back to the SDL default so the table is never
+                # silent at boot. Correct there, wrong here: a switch that
+                # quietly routes sound somewhere else is worse than one that
+                # refuses. actual_device is the honest answer.
+                actual = getattr(self, "actual_device", None)
+                if actual != device:
+                    raise DeviceError(
+                        "would not open; sound would have gone to %s instead"
+                        % (actual or "the default output"))
             except Exception as exc:   # noqa: BLE001
                 # Put the old device back rather than leaving the table mute.
                 self.device = previous

@@ -11,7 +11,7 @@
     "volume": 0.8,
     "audio_outputs": {
       "Speakers": "plughw:CARD=Headphones,DEV=0",
-      "Television": "plughw:CARD=vc4hdmi0,DEV=0"
+      "Television": "hdmi:CARD=vc4hdmi0,DEV=0"
     },
     "background_paths": [
       "/var/lib/warlocktable/backgrounds"

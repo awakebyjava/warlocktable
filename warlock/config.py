@@ -30,9 +30,15 @@ from typing import Any, Dict, List, Optional
 #
 # Named by CARD, never by number. hw:0,0 breaks the moment HDMI renumbers
 # the cards, which is the failure 5.3 records.
+#
+# The TV uses the "hdmi:" PCM, NOT "plughw:". The vc4-hdmi hardware accepts
+# only IEC958_SUBFRAME_LE, and the plug layer will not convert to it -- both
+# aplay and speaker-test refuse with "Sample format non available". The
+# "hdmi:" plugin does the IEC958 framing and takes ordinary S16 stereo at
+# 44100, which is what the mixer asks for.
 DEFAULT_AUDIO_OUTPUTS = {
     "Speakers": "plughw:CARD=Headphones,DEV=0",
-    "Television": "plughw:CARD=vc4hdmi0,DEV=0",
+    "Television": "hdmi:CARD=vc4hdmi0,DEV=0",
 }
 
 
