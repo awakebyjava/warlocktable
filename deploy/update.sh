@@ -31,7 +31,12 @@ cd "$REPO"
 # --- what is pending? -------------------------------------------------
 
 echo "=== Fetching ==="
-git fetch --quiet origin
+# --prune-tags as well as --tags: a tag that was MOVED or deleted upstream
+# otherwise lingers here forever, and install.sh stamps VERSION from
+# `git describe`. The Pi spent a day reporting v0.3.0-12-g... against a tag
+# that no longer existed anywhere else, which makes a version string
+# useless for the one thing it is for -- saying exactly what is running.
+git fetch --quiet --tags --prune --prune-tags origin
 BEHIND=$(git rev-list --count HEAD..origin/main)
 
 if [[ "$BEHIND" -eq 0 ]]; then
@@ -85,6 +90,7 @@ if [[ "$BEHIND" -gt 0 ]]; then
     echo
     echo "=== Pulling ==="
     git pull --quiet --ff-only origin main
+    git fetch --quiet --tags --prune --prune-tags origin
     echo "  now at $(git log --oneline -1)"
 fi
 
