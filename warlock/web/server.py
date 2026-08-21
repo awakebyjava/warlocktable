@@ -167,6 +167,19 @@ class _Handler(BaseHTTPRequestHandler):
                               "cards": self.runtime.store.list_cards()})
             return
 
+        # Table Check (plan doc 5.4). POST because the physical mode
+        # deliberately changes what the table is doing, briefly.
+        if path == "/api/check":
+            body = self._read_json()
+            from ..tablecheck import run_check
+            try:
+                report = run_check(self.runtime, physical=bool(body.get("physical")))
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json(report)
+            return
+
         # --- Action surface: does something NOW ---
         if path != "/api/action":
             self._send_json({"error": "unknown endpoint"}, 404)

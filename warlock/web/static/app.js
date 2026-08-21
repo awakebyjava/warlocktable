@@ -300,6 +300,41 @@ async function poll() {
 
 $("#idle").addEventListener("click", (e) => fire("go_idle", {}, e.target));
 
+async function runCheck(physical, btn) {
+  const box = $("#check-results");
+  box.innerHTML = "";
+  box.append(el("div", "check-summary warn",
+    physical ? "Running — watch and listen to the table…" : "Running…"));
+  btn.classList.add("busy");
+  try {
+    const rep = await api("/api/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ physical: !!physical })
+    });
+    box.innerHTML = "";
+    const c = rep.counts || {};
+    const head = el("div", "check-summary " + rep.overall,
+      `${rep.overall.toUpperCase()} · ${c.pass || 0} passed, ` +
+      `${c.warn || 0} warnings, ${c.fail || 0} failed · ${rep.duration_s}s`);
+    box.append(head);
+    rep.results.forEach(r => {
+      const line = el("div", "check-line " + r.status);
+      line.append(el("span", "who", r.name));
+      line.append(el("span", "what", r.detail));
+      box.append(line);
+    });
+  } catch (e) {
+    box.innerHTML = "";
+    box.append(el("div", "check-summary fail", "Check failed: " + e.message));
+  } finally {
+    btn.classList.remove("busy");
+  }
+}
+
+$("#check-run").addEventListener("click", (e) => runCheck(false, e.currentTarget));
+$("#check-full").addEventListener("click", (e) => runCheck(true, e.currentTarget));
+
 $("#grid-toggle").addEventListener("click", (e) => {
   const btn = e.currentTarget;
   fire("set_grid", { on: !btn.classList.contains("on") }, btn);
