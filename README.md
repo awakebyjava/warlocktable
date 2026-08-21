@@ -62,7 +62,8 @@ warlock/
   inputs/          things that CALL the controller (the NFC reader)
   web/             the operator panel, served from the controller process
 deploy/            install.sh, update.sh, the systemd unit
-tools/             upload_pattern.py - put a pattern on the Pixelblaze
+tools/             upload_pattern.py   - put a pattern on the Pixelblaze
+                   sync_seat_colours.py - realign a live config's palette
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy
 ```

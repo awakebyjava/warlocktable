@@ -181,9 +181,17 @@ def summarise(players: int, gm_leds: int = GM_LEDS) -> List[Dict[str, object]]:
 #
 # Deliberately a rainbow rather than the project's brass/purple identity:
 # these exist to be told apart by a player pointing at the table in a dim
-# room, so maximum separation beats house style. Hues are spaced to stay
-# distinguishable on an SK6812 -- notably orange and yellow sit closer
-# together in hue than they look, hence 0.07/0.13 rather than even steps.
+# room, so maximum separation beats house style.
+#
+# ORANGE IS NOT A SEAT COLOUR. It stays in this table so an existing config
+# or an explicit set_zone() call still resolves, but it is out of the seat
+# rotation: on the real table orange and yellow were indistinguishable
+# (confirmed 2026-08-21). The underlying fault was not that one pair looked
+# alike, it was that red/orange/yellow crowded three of seven seats into 13%
+# of the hue wheel while yellow->green sat empty. Dropping the MIDDLE term
+# separates both its neighbours at once -- worst-case gap 0.06 -> 0.12.
+# Dropping yellow instead barely helps (0.07), because red and orange then
+# become the confusable pair.
 COLOUR_HSV: Dict[str, Tuple[float, float]] = {   # name -> (hue, saturation)
     "red":     (0.00, 1.0),
     "orange":  (0.07, 1.0),
@@ -191,7 +199,8 @@ COLOUR_HSV: Dict[str, Tuple[float, float]] = {   # name -> (hue, saturation)
     "green":   (0.33, 1.0),
     "cyan":    (0.50, 1.0),
     "blue":    (0.62, 1.0),
-    "purple":  (0.78, 1.0),
+    "purple":  (0.75, 1.0),   # 0.75, not the idle breathing 0.78: it sits
+                              # midway between blue and magenta there
     "magenta": (0.88, 1.0),
     "pink":    (0.94, 0.6),
     "white":   (0.00, 0.0),
@@ -202,8 +211,9 @@ COLOUR_HSV: Dict[str, Tuple[float, float]] = {   # name -> (hue, saturation)
 GM_COLOUR = "white"
 
 # Default seat colours in zone order, matching the ids in config.zones.
+# Seven hues, spaced so the closest pair is 0.12 apart on the wheel.
 SEAT_COLOURS: List[str] = [
-    "red", "orange", "yellow", "green", "cyan", "blue", "magenta",
+    "red", "yellow", "green", "cyan", "blue", "purple", "magenta",
 ]
 
 # Brightness for seat display. The device's persisted brightness limit is
@@ -211,6 +221,11 @@ SEAT_COLOURS: List[str] = [
 # content sitting underneath it, kept moderate because seat claiming runs
 # with the room lights up and does not need to be blinding.
 SEAT_VALUE = 0.6
+
+# Every seat colour is fully saturated on purpose. On RGBW, dropping
+# saturation pulls in the white channel and washes the hue toward a pastel
+# grey -- which is precisely how two neighbouring seats stop being telling
+# apart. Same reasoning as the sat note in patterns/breathing.js.
 
 
 def hsv_for(colour: str, value: float = SEAT_VALUE) -> Tuple[float, float, float]:

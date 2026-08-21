@@ -20,11 +20,11 @@
 
   "zones": [
     { "id": 1, "colour": "red" },
-    { "id": 2, "colour": "orange" },
-    { "id": 3, "colour": "yellow" },
-    { "id": 4, "colour": "green" },
-    { "id": 5, "colour": "cyan" },
-    { "id": 6, "colour": "blue" },
+    { "id": 2, "colour": "yellow" },
+    { "id": 3, "colour": "green" },
+    { "id": 4, "colour": "cyan" },
+    { "id": 5, "colour": "blue" },
+    { "id": 6, "colour": "purple" },
     { "id": 7, "colour": "magenta" }
   ],
 

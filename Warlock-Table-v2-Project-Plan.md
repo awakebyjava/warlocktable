@@ -598,6 +598,44 @@ of the GM's arc, and forward along the bottom edge runs right to left. So
 player 1 continues past the GM into the BL ring and up the left side.
 
 
+#### Seat colours
+
+Seven hues, defined in `warlock/zones.py`. Deliberately a rainbow rather than
+the project's brass-and-purple identity: these exist to be told apart by a
+player pointing at the table in a dim room, so separation beats house style.
+
+**Orange is not a seat colour.** On the real table orange and yellow were
+indistinguishable (observed 2026-08-21). The underlying fault was not that
+one pair looked alike — it was that red, orange and yellow crowded three of
+seven seats into 13% of the hue wheel while the span from yellow to green
+sat empty. Dropping the *middle* term separates both its neighbours at once,
+taking the worst-case gap from 0.06 to 0.12. Dropping yellow instead would
+barely have helped (0.07), because red and orange then become the confusable
+pair. Purple fills the gap between blue and magenta.
+
+Orange stays in the lookup table so an existing config or an explicit
+`set_zone()` still resolves; it is simply out of the seat rotation.
+
+Every seat colour is fully saturated on purpose. On RGBW, dropping saturation
+pulls in the white channel and washes the hue toward pastel grey — which is
+exactly how two neighbouring seats stop being tellable apart.
+
+**A live config overrides all of this, and that is a trap.** `install.sh`
+seeds `config.json` once and then never touches it, so a config seeded before
+a palette change keeps the old colours no matter how much new code is
+deployed. That bit for real: the orange/yellow fix landed in code and would
+have had no effect on the Pi whatsoever. Hence:
+
+```bash
+python3 tools/sync_seat_colours.py --dry-run   # on the Pi
+sudo python3 tools/sync_seat_colours.py
+sudo systemctl restart warlocktable
+```
+
+Deliberately **not** run by `install.sh` — overwriting seat colours on every
+deploy would discard a real customisation, and seeding-once exists precisely
+so the operator's data stays theirs.
+
 #### Per-zone lighting
 
 The controller sets patterns by name; it cannot address regions. Adding a
