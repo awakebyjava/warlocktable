@@ -166,6 +166,11 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
             ratio = target_w / logo_img.width
             logo_img = logo_img.resize((target_w, int(logo_img.height * ratio)),
                                        Image.LANCZOS)
+            # Crush near-black to true black. The source is a JPEG, so its
+            # "black" background carries compression noise a shade lighter
+            # than the field - and ImageChops.lighter faithfully keeps every
+            # one of those pixels, drawing a faint rectangle around the logo.
+            logo_img = logo_img.point(lambda v: 0 if v < 26 else v)
         except Exception:
             logo_img = None
 
