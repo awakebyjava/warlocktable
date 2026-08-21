@@ -155,6 +155,7 @@ async function buildUI() {
   await refreshCards();
   await refreshSeats();
   await refreshInitiative();
+  await refreshAudio();
 }
 
 /* ---------- cards: view + edit (plan doc 4.5 step 2) ---------- */
@@ -563,6 +564,60 @@ async function refreshSeats() {
 
 $("#seat-show").addEventListener("click", (ev) => {
   fire("show_seat_colours", {}, ev.currentTarget);
+});
+
+/* ---------- sound ---------- */
+
+function renderAudio(a) {
+  const slider = $("#vol");
+  // Do not fight a finger: a poll landing mid-drag must not snap the slider
+  // back to the server's value.
+  if (document.activeElement !== slider) {
+    slider.value = String(Math.round(a.volume * 100));
+    $("#vol-val").textContent = slider.value + "%";
+  }
+
+  const row = $("#audio-out-row");
+  const names = a.outputs || [];
+  row.style.gridTemplateColumns = "repeat(" + Math.max(1, names.length) + ",1fr)";
+  if (row.dataset.names !== names.join(",")) {
+    row.dataset.names = names.join(",");
+    row.innerHTML = "";
+    names.forEach(n => {
+      const b = el("button");
+      b.dataset.out = n;
+      b.append(document.createTextNode(n));
+      b.addEventListener("click", async () => {
+        // Switching rebuilds the mixer, so it is slow enough to be worth
+        // saying something rather than looking frozen.
+        $("#audio-note").textContent = "switching to " + n + "\u2026";
+        await fire("set_audio_output", { name: n }, b);
+        await refreshAudio();
+      });
+      row.append(b);
+    });
+  }
+  row.querySelectorAll("button").forEach(b => {
+    b.classList.toggle("active", b.dataset.out === a.current);
+  });
+
+  $("#audio-note").textContent = a.current
+    ? ""
+    : "Playing to " + (a.device || "the default device") +
+      ", which is not one of the configured outputs.";
+}
+
+async function refreshAudio() {
+  try { renderAudio(await api("/api/audio")); }
+  catch (e) { $("#audio-note").textContent = "could not read sound: " + e.message; }
+}
+
+const vol = $("#vol");
+vol.addEventListener("input", () => { $("#vol-val").textContent = vol.value + "%"; });
+// On release, not on every pixel of the drag: each change is a config write,
+// and the SD card is the one component here with a wear limit.
+vol.addEventListener("change", () => {
+  fire("set_volume", { level: Number(vol.value) / 100 });
 });
 
 const bright = $("#bright");

@@ -270,6 +270,75 @@ class Controller:
         self._supersede()
         self._try("lights", self.lights.set_brightness, level)
 
+    @action(ParamSpec("level", "float"))
+    def set_volume(self, level: float) -> None:
+        """Master audio level, 0.0-1.0.
+
+        Deliberately NOT a _supersede action, same reasoning as set_overlay:
+        nudging the volume mid-scene is a preference, not a scene change,
+        and must not cancel a pending interruption revert.
+        """
+        level = max(0.0, min(1.0, float(level)))
+        self._try("audio", self.audio.set_volume, level)
+        self._persist_audio(volume=level)
+
+    @action(ParamSpec("name", "str",
+                      choices=lambda c: sorted(c.config.audio_outputs)))
+    def set_audio_output(self, name: str) -> None:
+        """Send sound to a named output, e.g. the speakers or the TV.
+
+        Takes a NAME from config rather than a raw ALSA string, so the panel
+        offers "Television" and the device string stays a config detail. It
+        also means an unknown name is refused here rather than becoming a
+        failed mixer init on the far side.
+        """
+        device = self.config.audio_outputs.get(name)
+        if device is None:
+            raise ValueError(
+                "no audio output named %r (have: %s)"
+                % (name, ", ".join(sorted(self.config.audio_outputs)) or "none"))
+        if not self._try("audio", self.audio.set_output, device):
+            # _try has already marked audio unhealthy and logged why. Do not
+            # persist a device that would not open, or the next restart
+            # comes up silent.
+            return
+        self._persist_audio(device=device)
+        self.log.record("audio.output_changed", name=name, device=device)
+
+    def _persist_audio(self, volume=None, device=None) -> None:
+        store = getattr(getattr(self, "_runtime", None), "store", None)
+        if store is None:
+            # Interactive CLI with nothing to save to: honour it in memory.
+            if volume is not None:
+                self.config.volume = volume
+            if device is not None:
+                self.config.audio_device = device
+            return
+        try:
+            store.set_audio(volume=volume, device=device)
+        except Exception as exc:   # noqa: BLE001
+            # A failed write must not undo a change the operator can hear.
+            self.log.record("audio.persist_failed", error=str(exc))
+
+    def audio_report(self) -> dict:
+        """What the panel's volume slider and output switch render from."""
+        status = {}
+        probe = getattr(self.audio, "status", None)
+        if callable(probe):
+            try:
+                status = probe()
+            except Exception:   # noqa: BLE001
+                status = {}
+        current = status.get("device_requested") or self.config.audio_device
+        outputs = dict(self.config.audio_outputs)
+        return {
+            "volume": self.config.volume,
+            "outputs": sorted(outputs),
+            "current": next((n for n, d in outputs.items() if d == current),
+                            None),
+            "device": current,
+        }
+
     @action(ParamSpec("target", "str"))
     def handoff_display(self, target: str) -> None:
         self._supersede()

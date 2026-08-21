@@ -141,6 +141,27 @@ class AudioDevice(ABC):
     def available_tracks(self) -> List[str]:
         ...
 
+    # ---- optional capability, same shape as set_overlay below ------------
+
+    def set_volume(self, level: float) -> None:
+        """Master level, 0.0-1.0, across the bed and any effects.
+
+        Applied in software rather than by moving the system mixer: the Pi's
+        ALSA volume is shared with anything else on the machine, and a table
+        that quietly reconfigures the OS is a table that surprises whoever
+        touches it next.
+        """
+        return None
+
+    def set_output(self, device: str) -> None:
+        """Send sound somewhere else, e.g. the 3.5mm jack or HDMI.
+
+        `device` is an ALSA name. Expensive compared with everything else
+        here -- the mixer has to be torn down and rebuilt -- so it is a
+        setup action, not something to do mid-scene.
+        """
+        return None
+
 
 class DisplayDevice(ABC):
     @abstractmethod

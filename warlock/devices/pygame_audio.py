@@ -74,6 +74,11 @@ class PygameAudio(AudioDevice):
         self._bed_channels: List[object] = []
         self._bed_active = 0
         self._bed_volume = 1.0
+        # Master level, applied on top of the bed/duck levels. Software
+        # rather than the system mixer on purpose: ALSA's volume is shared
+        # with the whole machine, and a table that quietly reconfigures the
+        # OS surprises whoever touches it next.
+        self._master = 1.0
         self._unduck_timer: Optional[threading.Timer] = None
         self._lock = threading.RLock()
 
@@ -203,6 +208,7 @@ class PygameAudio(AudioDevice):
             "healthy": self.healthy,
             "device": getattr(self, "actual_device", None) or self.device or "(sdl default)",
             "device_requested": self.device,
+            "volume": self._master,
             "tracks": len(self._library),
             "soundscape": self.soundscape,
             "error": self.last_error,
@@ -262,7 +268,7 @@ class PygameAudio(AudioDevice):
             # silent hole between soundscapes.
             nxt = 1 - self._bed_active
             incoming = self._bed_channels[nxt]
-            incoming.set_volume(self._bed_volume)
+            incoming.set_volume(self._bed_volume * self._master)
             incoming.play(sound, loops=-1, fade_ms=ms)
             current.fadeout(ms)
 
@@ -316,6 +322,10 @@ class PygameAudio(AudioDevice):
         else:
             channel.play(sound)
 
+        # Effects previously ignored the master level entirely, so turning the
+        # table down quietened the bed and left the stings at full blast.
+        channel.set_volume(self._master)
+
         if duck:
             self._duck(duration)
 
@@ -325,6 +335,92 @@ class PygameAudio(AudioDevice):
                         ducking=self.soundscape if duck else None, real=True)
         return duration
 
+    def set_volume(self, level: float) -> None:
+        """Master level for everything, applied immediately."""
+        level = max(0.0, min(1.0, float(level)))
+        with self._lock:
+            self._master = level
+            if self._mixer is not None:
+                for channel in self._bed_channels:
+                    try:
+                        # Whatever the bed is currently at -- ducked or not --
+                        # rescaled to the new master, so changing the volume
+                        # mid-effect does not cancel a duck.
+                        current = self._bed_volume
+                        if self._unduck_timer is not None:
+                            current *= self.duck_level
+                        channel.set_volume(current * level)
+                    except Exception:   # noqa: BLE001
+                        pass
+        self.log.record("audio.set_volume", level=level)
+
+    def set_output(self, device: str) -> None:
+        """Move the sound to another ALSA device, e.g. HDMI.
+
+        Tears the mixer down and rebuilds it, because SDL only reads the
+        output device at init. Three things have to be dealt with, and the
+        middle one is not obvious:
+
+        1. Timers referencing the old channels are cancelled.
+        2. **The Sound cache is cleared.** Every cached Sound is bound to the
+           mixer that created it. Keeping them across a re-init leaves
+           objects pointing at a destroyed mixer, and the next card tap
+           plays silence or crashes -- with nothing in the log to say why.
+        3. The soundscape is restarted, so switching output mid-session does
+           not leave the table silent until the next scene change.
+        """
+        device = (device or "").strip()
+        if not device:
+            raise DeviceError("no audio device given")
+
+        with self._lock:
+            playing = self.soundscape
+            for timer in self._effect_timers:
+                timer.cancel()
+            self._effect_timers = []
+            if self._unduck_timer is not None:
+                self._unduck_timer.cancel()
+                self._unduck_timer = None
+
+            previous = self.device
+            try:
+                if self._mixer is not None:
+                    self._mixer.quit()
+            except Exception:   # noqa: BLE001
+                pass
+
+            self._cache = {}          # see (2) above
+            self._cache_order = []
+            self._mixer = None
+            self._bed_channels = []
+            self._bed_active = 0
+            self._bed_volume = 1.0
+            self.soundscape = None
+
+            self.device = device
+            try:
+                self._init_mixer()
+            except Exception as exc:   # noqa: BLE001
+                # Put the old device back rather than leaving the table mute.
+                self.device = previous
+                self.healthy = False
+                self.last_error = "%s: %s" % (type(exc).__name__, exc)
+                self.log.record("audio.output_failed", device=device,
+                                error=self.last_error, reverting_to=previous)
+                try:
+                    self._init_mixer()
+                    self.healthy = True
+                except Exception:   # noqa: BLE001
+                    pass
+                raise DeviceError("could not open %s: %s" % (device, exc))
+
+            self.healthy = True
+            self.last_error = None
+            self.log.record("audio.set_output", device=device)
+
+        if playing:
+            self.play_soundscape(playing, 1.0)
+
     def _duck(self, duration: float) -> None:
         """Drop the bed under an effect, and restore it afterwards."""
         with self._lock:
@@ -333,11 +429,12 @@ class PygameAudio(AudioDevice):
                 self._unduck_timer = None
 
             bed = self._bed_channels[self._bed_active]
-            bed.set_volume(self._bed_volume * self.duck_level)
+            bed.set_volume(self._bed_volume * self.duck_level * self._master)
 
             def restore():
                 try:
-                    self._bed_channels[self._bed_active].set_volume(self._bed_volume)
+                    self._bed_channels[self._bed_active].set_volume(
+                        self._bed_volume * self._master)
                     self.log.record("audio.unduck")
                 except Exception:
                     pass
@@ -376,7 +473,8 @@ class PygameAudio(AudioDevice):
             # Restore the bed immediately, since whatever we were ducking for
             # is now gone.
             try:
-                self._bed_channels[self._bed_active].set_volume(self._bed_volume)
+                self._bed_channels[self._bed_active].set_volume(
+                    self._bed_volume * self._master)
             except Exception:
                 pass
 

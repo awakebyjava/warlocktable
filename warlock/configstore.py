@@ -112,6 +112,31 @@ class ConfigStore:
                                 new_count=count)
             return count
 
+    def set_audio(self, volume=None, device=None):
+        """Persist the master volume and/or the chosen output.
+
+        Own rollback for the same reason set_player_count has one:
+        _with_rollback snapshots config.cards, which would not restore
+        either of these, and quietly keeping a change in memory after a
+        refused write is what that machinery exists to prevent.
+        """
+        with self._lock:
+            before = (self.config.volume, self.config.audio_device)
+            if volume is not None:
+                self.config.volume = max(0.0, min(1.0, float(volume)))
+            if device is not None:
+                self.config.audio_device = device
+            try:
+                self._commit("audio", volume=self.config.volume,
+                             device=self.config.audio_device)
+            except Exception as exc:
+                self.config.volume, self.config.audio_device = before
+                self.log.record("config.save_failed", change="audio",
+                                error=str(exc))
+                raise
+            return {"volume": self.config.volume,
+                    "device": self.config.audio_device}
+
     # ---------------------------------------------------------------- cards
 
     def list_cards(self) -> List[dict]:

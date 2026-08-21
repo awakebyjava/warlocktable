@@ -21,6 +21,21 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
+# Offered by the panel when a config does not name its own outputs.
+#
+# There BECAUSE install.sh seeds config.json once and never touches it
+# again: a config written before this feature existed would otherwise show
+# an empty switch forever, exactly as the seat palette did. An empty dict
+# means "never configured", not "deliberately none", so it falls back here.
+#
+# Named by CARD, never by number. hw:0,0 breaks the moment HDMI renumbers
+# the cards, which is the failure 5.3 records.
+DEFAULT_AUDIO_OUTPUTS = {
+    "Speakers": "plughw:CARD=Headphones,DEV=0",
+    "Television": "plughw:CARD=vc4hdmi0,DEV=0",
+}
+
+
 def normalise_uid(value: str) -> str:
     """Canonical form of an NFC UID for comparison: hex digits only, upper.
 
@@ -133,6 +148,18 @@ class Config:
     # here; 4 players means five zones. Stored rather than computed because
     # it is a fact about the room that nothing in software can observe.
     player_count: int = 4
+
+    # Master audio level, 0.0-1.0. Persisted because otherwise every restart
+    # comes back at whatever the default is, in a room where the right level
+    # is a property of the room.
+    volume: float = 0.8
+
+    # Named outputs the panel offers, name -> ALSA device. Config-driven
+    # rather than hardcoded for the usual reason (plan doc 3.3): V1 baked
+    # device paths into every branch. Named BY CARD, never by number --
+    # hw:0,0 breaks the moment HDMI renumbers the cards, which is the exact
+    # failure 5.3 records.
+    audio_outputs: Dict[str, str] = field(default_factory=dict)
 
     # How long an interruption holds if the audio device can't tell us the
     # real duration (because it failed, or the file is missing). Without this
@@ -276,6 +303,9 @@ def load_config(path: str) -> Config:
         cards=cards, zones=zones, players=players,
         idle_scene_name=raw.get("settings", {}).get("idle_scene", "idle"),
         player_count=int(raw.get("settings", {}).get("player_count", 4)),
+        volume=float(raw.get("settings", {}).get("volume", 0.8)),
+        audio_outputs=dict(raw.get("settings", {}).get("audio_outputs")
+                            or DEFAULT_AUDIO_OUTPUTS),
         fallback_interruption_s=float(
             raw.get("settings", {}).get("fallback_interruption_s", 5.0)),
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
@@ -318,6 +348,8 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "duck_ramp_s": config.duck_ramp_s,
         "idle_scene": config.idle_scene_name,
         "player_count": config.player_count,
+        "volume": config.volume,
+        "audio_outputs": dict(config.audio_outputs),
         "fallback_interruption_s": config.fallback_interruption_s,
     }
 

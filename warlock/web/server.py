@@ -121,6 +121,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self._join_info())
         elif path == "/api/qr.svg":
             self._send_qr()
+        elif path == "/api/audio":
+            self._send_json(self.controller.audio_report())
         elif path == "/api/initiative":
             self._send_json(self.controller.initiative_report())
         elif path == "/api/status":

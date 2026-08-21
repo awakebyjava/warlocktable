@@ -102,6 +102,20 @@
     <p class="note" id="seat-note"></p>
   </section>
 
+  <!-- Sound. Volume is a slider like brightness; output is two explicit
+       buttons rather than a toggle, for the same reason the overlay row is:
+       mid-session you want to hit the state you want, not guess where a
+       toggle will land. -->
+  <section id="audio-section">
+    <h2>Sound</h2>
+    <div class="bright-row">
+      <input type="range" id="vol" min="0" max="100" value="80" step="5">
+      <span id="vol-val">80%</span>
+    </div>
+    <div id="audio-out-row" class="check-row" style="margin-top:.8rem"></div>
+    <p class="note" id="audio-note"></p>
+  </section>
+
   <section>
     <h2>Brightness</h2>
     <div class="bright-row">

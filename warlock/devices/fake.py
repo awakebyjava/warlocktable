@@ -92,6 +92,8 @@ class FakeLightDevice(LightDevice):
 class FakeAudioDevice(AudioDevice):
     def __init__(self, log):
         self.log = log
+        self.volume = 1.0
+        self.output = "(fake)"
         self.soundscape: Optional[str] = None
 
     def play_soundscape(self, track: Optional[str], crossfade_s: float) -> None:
@@ -118,6 +120,14 @@ class FakeAudioDevice(AudioDevice):
 
     def available_tracks(self) -> List[str]:
         return list(FAKE_TRACKS.keys())
+
+    def set_volume(self, level: float) -> None:
+        self.volume = max(0.0, min(1.0, float(level)))
+        self.log.record("audio.set_volume", level=self.volume)
+
+    def set_output(self, device: str) -> None:
+        self.output = device
+        self.log.record("audio.set_output", device=device)
 
 
 class FakeDisplayDevice(DisplayDevice):
