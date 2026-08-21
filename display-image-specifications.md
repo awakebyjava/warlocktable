@@ -84,35 +84,47 @@ A useful mental test: *would you be happy with this image on a lamp pointed at y
 
 ---
 
-## 4. Battle maps — the grid must be exact
+## 4. Battle maps — the grid
 
-If **physical miniatures** stand on the map, the on-screen grid has to match their bases, or nothing lines up.
+**Settled against real miniatures on the real table (2026-08-21).** The
+working grid pitch is **107.85 px per square**, which is what the shipped
+`*_grid.png` files use.
 
-The panel is 1209 mm × 680 mm = 47.598" × 26.772". At 3840 × 2160 that gives:
+| Thing | Pixels |
+|---|---|
+| One grid square (5 ft / one medium base) | **107.85 px** |
+| Large creature (2×2) | 215.7 px |
+| Full screen | **≈ 35 × 20 squares** (about 175 × 100 ft) |
 
-**80.68 pixels per inch** — and pixels are square (verified identical horizontally and vertically).
+### Why this is not the number the panel size implies
 
-| Thing | Physical size | Pixels |
-|---|---|---|
-| Standard grid square (5 ft, medium base) | 1 inch | **80.68 px** |
-| Large creature (2×2) | 2 inches | 161.4 px |
-| Gargantuan (4×4) | 4 inches | 322.7 px |
-| Full screen width | 47.598 inches | **≈ 47 squares** |
-| Full screen height | 26.772 inches | **≈ 26 squares** |
+Earlier drafts of this document derived a pitch of **80.68 px** from the
+panel dimensions `xrandr` reports (1209 mm wide → 47.6″ → 80.68 px/inch).
+Maps generated at that scale did not match physical minis.
 
-So a full-screen map at true 1-inch scale is about a **47 × 26 grid** — roughly 235 × 130 feet of game space.
+The reason is that **`xrandr` reports the panel, not the table.** The TV is
+recessed into the tabletop, so the visible area is smaller than the panel
+itself — a pitch of 107.85 px corresponds to roughly **35.6 inches of
+visible width**, not 47.6. The display density figure is therefore a
+property of *this installation*, not of the TV.
 
-**Two practical rules:**
+**The lesson, for anything else physical:** a measurement taken from
+software describes the hardware, not the build it is mounted in. Check it
+against the object before designing to it.
 
-1. **Compute grid positions as `round(i × 80.68)`, not by stepping a fixed 81 px.** Rounding to 81 accumulates about half a square of drift across the full width, which is visible and will annoy anyone placing minis.
+### Practical rules
 
-2. **Draw the grid programmatically, not with the AI.** Generate the *artwork* with the model, then overlay the grid afterwards in code or an image editor. Image models are unreliable at producing evenly spaced, accurate grids, and a drifting grid is worse than no grid when miniatures have to sit on it.
+1. **Compute grid positions as `round(i × 107.85)`**, not by stepping a
+   rounded integer — stepping 108 accumulates about a square and a half of
+   drift across the full width.
+2. **Draw the grid programmatically**, over AI-generated artwork. Image
+   models are unreliable at evenly spaced grids, and a drifting grid is
+   worse than no grid when miniatures sit on it.
+3. Keep grid lines **thin and low-contrast** (1–2 px, 20–30% opacity). At
+   table distance a heavy grid dominates the art beneath it.
 
-Keep grid lines **thin and subtle** — 1–2 px at 20–30% opacity. At table distance a heavy grid dominates the artwork underneath.
-
-*(If miniatures are not being used, ignore this whole section and treat any grid as decorative.)*
-
----
+*(If minis are not in play, none of this matters and the grid is
+decorative.)*
 
 ## 5. Safe area — keep important content inside 3456 × 1944
 
@@ -184,10 +196,12 @@ RESOLUTION       3840 x 2160  exactly
 ASPECT           16:9
 COLOUR           sRGB, 8-bit
 
-PIXEL DENSITY    80.68 px per inch
-GRID SQUARE      80.68 px  = 1 inch = 5 ft = one medium base
-FULL SCREEN      ~47 x 26 grid squares (~235 x 130 ft)
-GRID MATH        position = round(i * 80.68)   -- do NOT step by 81
+GRID SQUARE      107.85 px = one medium base = 5 ft
+                 (settled against real minis - NOT the 80.68 the panel
+                  size implies; xrandr reports the panel, not the visible
+                  area, and the TV is recessed into the table)
+FULL SCREEN      ~35 x 20 grid squares (~175 x 100 ft)
+GRID MATH        position = round(i * 107.85)  -- do NOT step by 108
 
 SAFE AREA        3456 x 1944 centred (5% margin all round)
                  backgrounds may bleed to full frame
