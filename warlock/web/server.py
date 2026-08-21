@@ -205,7 +205,26 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _status(self) -> dict:
         st = self.controller.status()
-        out = {"subsystems": st["subsystems"], "scene": st["scene"]}
+        subs = dict(st["subsystems"])
+
+        # The controller only marks a subsystem unhealthy once a call has
+        # FAILED. A device that never started (no images, no Pixelblaze,
+        # no sound card) has failed nothing yet, so it would show green
+        # while being unusable. Where a device reports its own health, let
+        # that override - the strip exists to be trusted at a glance.
+        for key, dev in (("lights", self.runtime.lights),
+                          ("audio", self.controller.audio),
+                          ("display", self.controller.display)):
+            probe = getattr(dev, "status", None)
+            if callable(probe):
+                try:
+                    info = probe()
+                    if "healthy" in info:
+                        subs[key] = subs[key] and bool(info["healthy"])
+                except Exception:
+                    pass
+
+        out = {"subsystems": subs, "scene": st["scene"]}
 
         lights = getattr(self.runtime.lights, "status", None)
         if callable(lights):
