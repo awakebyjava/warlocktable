@@ -439,6 +439,101 @@ python run_table.py --real-lights --nfc      + real card taps (Pi only)
 
 ---
 
+### 4.7 Zones and per-zone lighting *(specced, not built)*
+
+**This is the prerequisite for player phones.** Seat claiming (§4.5) asks a
+player to "pick the colour of the lights you are sitting at" — which the
+table physically cannot do today, because the controller can only set *whole
+patterns*. There is no way to say "make this quarter green."
+
+Two pieces are missing: a **zone map** (which LEDs belong to which seat) and
+a **per-zone lighting capability**.
+
+#### The zone map
+
+Six seats: one at each end, two along each side (§ open questions, decided
+2026-08-20). Derived from the verified `segStart`/`segLen` data in
+`warlock-table-led-reference.md` — the short edges are the ends, the long
+edges halve into two seats each. Given in physical loop order:
+
+| Zone | Position | Start | Count | Indices |
+|---|---|---|---|---|
+| 1 | Top, first half | 502 | 101 | 502–602 |
+| 2 | Top, second half | 603 | 102 | 603–704 |
+| 3 | **Right end** (short edge) | 705 | 59 | 705–763 |
+| 4 | Bottom, first half | 240 | 101 | 240–340 |
+| 5 | Bottom, second half | 341 | 102 | 341–442 |
+| 6 | **Left end** (short edge) | 443 | 59 | 443–501 |
+
+524 zone LEDs. The remaining **240 are the four corner rings, deliberately
+assigned to no one** — they sit *between* seats, so giving them to a
+neighbour would misreport where somebody is. They keep showing the ambient
+scene colour, which also stops the table looking like six disconnected bars.
+
+**Not yet confirmed physically:** which half of each long edge is which seat
+from the GM's chair, and whether zone 1 is on the GM's left or right. Light
+each zone a distinct colour once and read it off the table — the same
+diagnostic that settled the `segStart` ordering (LED reference §9). Do not
+guess it from the numbers.
+
+#### Per-zone lighting
+
+The controller sets patterns by name; it cannot address regions. Adding a
+"light zone 3 green" action would need a new device method and a Pixelblaze
+pattern that can be told what to draw.
+
+**The mechanism:** a pattern holding exported arrays for per-zone colour,
+written from the controller with `setActiveVariables()`. Sketch:
+
+```javascript
+// zones.js - per-zone colour, driven from the controller
+export var zoneH = array(6)   // hue        0..1
+export var zoneS = array(6)   // saturation 0..1
+export var zoneV = array(6)   // value      0..1
+export var baseH, baseS, baseV        // the rings, and any unassigned pixel
+
+zoneStart = [502, 603, 705, 240, 341, 443]
+zoneCount = [101, 102,  59, 101, 102,  59]
+
+zoneOf = array(pixelCount)
+for (i = 0; i < pixelCount; i++) zoneOf[i] = -1
+for (z = 0; z < 6; z++)
+  for (k = 0; k < zoneCount[z]; k++)
+    zoneOf[zoneStart[z] + k] = z
+
+export function render(index) {
+  z = zoneOf[index]
+  if (z < 0) hsv(baseH, baseS, baseV)      // rings stay on the scene colour
+  else       hsv(zoneH[z], zoneS[z], zoneV[z])
+}
+```
+
+**Why exported variables rather than uploading a new pattern per change:**
+writing a variable is a single websocket message; recompiling and uploading
+a pattern takes seconds and wears flash. Per-seat initiative lighting will
+want to move the highlight every turn.
+
+**Controller side:** a `set_zone(zone, colour)` action plus a
+`show_seat_colours()` mode that lights all six distinctly for claiming. Both
+belong on `LightDevice` as optional capability, defaulting to no-op — same
+pattern as `set_overlay` on the display, so a Pixelblaze without the zones
+pattern loaded degrades quietly instead of failing.
+
+**Watch for:** the pattern must be *active* for variables to apply. Setting
+zone colours while a scene pattern is running will silently do nothing, so
+`show_seat_colours()` has to switch to the zones pattern first — and
+restore the previous pattern afterwards, the way Table Check does.
+
+#### What it unlocks
+
+- **Seat claiming**, and therefore player phones (§3.7)
+- **Per-seat initiative lighting** (§3.9), which was always going to ride on
+  a zone model
+- Per-seat effects generally: whispers, "you are being addressed", damage
+  flashes
+
+---
+
 ## 5. Reliability & Startup Behavior
 
 > **Verified end to end on 2026-08-20.** A cold reboot brought the table up
@@ -601,7 +696,8 @@ Stand up the core software on the Pi once hardware is trusted.
 - [ ] **§4.5 steps 3–4:** upload audio through the panel, and author scenes/interruptions from scratch.
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
-- [ ] Player phone second-screens (dice rolls, break requests, private whispers)
+- [ ] **Zone map + per-zone lighting** — specced in §4.7, not built. **Blocks player phones**, because seat claiming needs the table able to light six zones distinctly. Also unlocks per-seat initiative lighting.
+- [ ] Player phone second-screens (dice rolls, break requests, private whispers) — depends on §4.7
 - [ ] Soundscape library + light-scene coordination
 - [ ] Live-audio reactive effects
 - [ ] Spoken-trigger events

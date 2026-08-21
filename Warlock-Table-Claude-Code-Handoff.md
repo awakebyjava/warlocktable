@@ -63,7 +63,7 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 **Also built:** the operator panel (iPad PWA on :8080 — status strip, controls, brightness, overlays, **card editing** including registering an unknown tag by tapping it), the **TV status screen**, **Table Check** (pre-session self-test), headless mode, `install.sh` + systemd, and the full visual identity on both surfaces.
 
 **Not built yet:**
-- **Zones are not mapped to LEDs, and there is no per-zone lighting.** This blocks seat claiming, and therefore player phones. It is the next piece of work — see plan doc §6.
+- **Zones are not mapped to LEDs, and there is no per-zone lighting.** This blocks seat claiming, and therefore player phones. **Fully specced in plan doc §4.7** — zone table, the exported-variables mechanism, and the traps. It is the next piece of work.
 - Audio upload and scene authoring in the panel (§4.5 steps 3–4)
 - Govee, voice/personality, Overseer, dice, session recap — all still Phase 3+
 
