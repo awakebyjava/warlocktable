@@ -155,24 +155,37 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
     f_detail  = _font(BODY_FONT, px(30))
     f_mono    = _font(MONO_FONT, px(28))
 
-    # ---- branding / sigil -------------------------------------------------
-    top = px(150)
-    placed_branding = False
+    # ---- measure first, then centre the whole block ----------------------
+    # Top-anchoring left a third of the screen empty, which reads as
+    # unfinished rather than spacious.
+    logo_img = None
     if branding and os.path.exists(branding):
         try:
-            logo = Image.open(branding).convert("RGB")
-            target_w = px(1100)
-            ratio = target_w / logo.width
-            logo = logo.resize((target_w, int(logo.height * ratio)),
-                               Image.LANCZOS)
-            img.paste(logo, ((width - target_w) // 2, top))
-            top += logo.height + px(60)
-            placed_branding = True
+            logo_img = Image.open(branding).convert("RGB")
+            target_w = px(1000)
+            ratio = target_w / logo_img.width
+            logo_img = logo_img.resize((target_w, int(logo_img.height * ratio)),
+                                       Image.LANCZOS)
         except Exception:
-            pass
-    if not placed_branding:
+            logo_img = None
+
+    row_h = px(108)
+    block_h = ((logo_img.height + px(70)) if logo_img else px(360))         + px(56) + px(150) + px(80) + row_h * len(report.get("rows", []))
+    top = max(px(90), (height - px(240) - block_h) // 2)
+
+    # ---- branding / sigil -------------------------------------------------
+    if logo_img is not None:
+        from PIL import ImageChops
+        x0 = (width - logo_img.width) // 2
+        box = (x0, top, x0 + logo_img.width, top + logo_img.height)
+        # ImageChops.lighter keeps whichever pixel is brighter. The logo's
+        # own black background is darker than nothing, so it vanishes into
+        # the field and the artwork floats free of its rectangle.
+        img.paste(ImageChops.lighter(img.crop(box), logo_img), box)
+        top += logo_img.height + px(70)
+    else:
         _sigil(draw, width // 2, top + px(140), px(140))
-        top += px(340)
+        top += px(360)
 
     draw = ImageDraw.Draw(img)
 
@@ -210,7 +223,7 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
                   fill=BONE if state != "fail" else BAD)
         draw.text((detail_x, top + px(10)), row.get("detail", ""),
                   font=f_detail, fill=BONE_MID)
-        top += px(96)
+        top += px(108)
 
     # ---- footer -----------------------------------------------------------
     foot_y = height - px(190)
@@ -251,10 +264,14 @@ def build_report(rt) -> Dict[str, Any]:
     probe = getattr(rt.lights, "status", None)
     if callable(probe):
         i = probe()
-        add("Lights", i.get("healthy"),
-            "%s · %s%%" % (i.get("pattern") or "—",
-                                 i.get("effective_pct", "?"))
-            if i.get("healthy") else (i.get("error") or "not connected"))
+        if i.get("healthy"):
+            pat = i.get("pattern")
+            detail = ("%s · %s%%" % (pat, i.get("effective_pct", "?"))
+                      if pat else "%s%% · awaiting scene"
+                                  % i.get("effective_pct", "?"))
+        else:
+            detail = i.get("error") or "not connected"
+        add("Lights", i.get("healthy"), detail)
     else:
         add("Lights", False, "simulated", absent=True)
 
