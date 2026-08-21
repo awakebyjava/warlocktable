@@ -585,7 +585,7 @@ Stand up the core software on the Pi once hardware is trusted.
 
 **Reliability work (per §5) — fold in alongside the above, not after:**
 - [x] Status strip on the panel — done, and it reflects each device's own health, not just failed calls.
-- [ ] **Status screen on the TV** — not built. Still the best answer to "the table booted to a blank screen and I cannot tell why".
+- [x] **Status screen on the TV — done.** Rendered to a PNG and shown through the *same* feh instance as the artwork, so only one thing ever draws on the screen. Shows per-subsystem marks, current scene, the panel URL and the deployed version. Appears automatically at startup, and on demand via the `show_status_screen` action. Styled to `warlock-table-style-guide.html` — one substitution: Syne is not packaged for Debian, so IBM Plex Sans Bold stands in for display type.
 - [x] Config validation with last-known-good fallback — done, three levels (requested → `.last-good` → minimal built-in that still lights the table).
 - [x] mDNS — `raspberrypi.local` works (avahi).
 - [ ] **DHCP reservations** for the Pi and Pixelblaze — not done. Discovery covers the Pixelblaze; the Pi's address moving would still break a bookmarked IP.
