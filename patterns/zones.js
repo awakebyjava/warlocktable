@@ -1,6 +1,8 @@
 // ============================================================
 // Warlock Table - "zones"  (per-seat colour, driven by the controller)
 // ============================================================
+// ALGO: sliver-snap-v2      <- warlock/zones.py asserts this marker matches
+//
 // Plan doc 4.7. This is the pattern that makes seat claiming possible:
 // it paints each seat's arc of the perimeter in its own colour, so a
 // player can point at the table and say "I'm the green one".
@@ -12,6 +14,11 @@
 // warlock-table-led-reference.md section 7. Per that doc, the path
 // builder below is copied verbatim and ONLY the render logic differs.
 // Do not "tidy" segStart - it is verified physical ground truth.
+//
+// NOTE: this language is NOT JavaScript despite the extension. A
+// user-defined function needs the `function` keyword, and there is no
+// `break`. Compile against the device before believing anything here:
+//     python tools/upload_pattern.py zones
 
 // ===== Warlock Table perimeter path builder =====
 // skip = 0: the ring corner skip is for CHASE patterns only (reference
@@ -30,8 +37,17 @@ segIsRing = [  1,   0,  1,   0,   1,   0,   1,   0 ]
 pathPos = array(pixelCount)
 for (i = 0; i < pixelCount; i++) pathPos[i] = -1
 
+// Where each corner ring begins in PATH coordinates. Needed to keep seat
+// boundaries from stranding a sliver of a ring in a neighbour's colour.
+ringPathStart = array(4)
+ringCount = 0
+
 pathLen = 0
 for (s = 0; s < 8; s++) {
+  if (segIsRing[s]) {
+    ringPathStart[ringCount] = pathLen
+    ringCount = ringCount + 1
+  }
   for (local = 0; local < segLen[s]; local++) {
     skip = 0
     if (segIsRing[s]) skip = (local < skipStart) || (local >= RING - skipEnd)
@@ -63,19 +79,49 @@ export var playerCount = 0    // 0 until the controller says otherwise
 // writes; doing that every frame would cost more than the render itself.
 
 zoneOf = array(pixelCount)
+cuts = array(8)
 builtFor = -1                 // playerCount the current map was built for
 builtStart = -1
 builtLen = -1
+
+// A boundary may split a corner ring - two real arcs look deliberate. What
+// looks broken is a SLIVER: three or four stray pixels of a neighbour's
+// colour clinging to the edge of a ring, which reads as a wiring fault.
+// Seen on the table at six players, where the slivers were 3, 4, 10 and 11
+// pixels. A quarter of a ring is the line between an arc and stray pixels.
+MIN_RING_FRAGMENT = 15
+
+function snapCut(p) {
+  out = p
+  for (r = 0; r < ringCount; r++) {
+    a = ringPathStart[r]
+    b = a + RING
+    if (p > a && p < b) {
+      if (p - a < MIN_RING_FRAGMENT) out = a
+      if (b - p < MIN_RING_FRAGMENT) out = b
+    }
+  }
+  return out
+}
 
 function buildZones() {
   remaining = pathLen - gmLen
   base = floor(remaining / playerCount)
   extra = remaining % playerCount
-  // Where the run of longer zones ends, in positions past the GM's arc.
-  // The first `extra` zones get one pixel more so the remainder is spread
-  // instead of landing entirely on the last seat. This MUST match
-  // warlock/zones.py exactly or seat boundaries drift between the two.
-  bigSpan = extra * (base + 1)
+  gmEnd = (gmStart + gmLen) % pathLen
+
+  // Cut offsets measured from the first pixel after the GM's arc. The
+  // remainder is spread one pixel at a time across the first few seats
+  // rather than dumped on the last. This MUST match warlock/zones.py
+  // exactly, including the snapping, or boundaries drift between the two.
+  running = 0
+  for (k = 0; k < playerCount - 1; k++) {
+    inc = base
+    if (k < extra) inc = base + 1
+    running = running + inc
+    cuts[k] = (snapCut((gmEnd + running) % pathLen) - gmEnd + pathLen) % pathLen
+  }
+  cuts[playerCount - 1] = remaining
 
   for (i = 0; i < pixelCount; i++) {
     p = pathPos[i]
@@ -88,11 +134,13 @@ function buildZones() {
         zoneOf[i] = 0
       } else {
         r = d - gmLen
-        if (r < bigSpan) {
-          zoneOf[i] = 1 + floor(r / (base + 1))
-        } else {
-          zoneOf[i] = 1 + extra + floor((r - bigSpan) / base)
+        // Count how many cuts we are past. No `break` in this language, so
+        // the loop runs to the end rather than stopping at the match.
+        zone = 1
+        for (k = 0; k < playerCount - 1; k++) {
+          if (r >= cuts[k]) zone = k + 2
         }
+        zoneOf[i] = zone
       }
     }
   }

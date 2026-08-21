@@ -52,6 +52,18 @@ PIXEL_COUNT = 764
 GM_ZONE = 0                 # zone id reserved for the GM
 MAX_PLAYERS = 7
 
+# A corner ring is a physical circle of 60 LEDs. A seat boundary can land
+# inside one, which is fine when it cuts the ring into two real arcs -- but
+# a boundary a few pixels from the ring's edge leaves a SLIVER: three or four
+# stray pixels in a neighbouring seat's colour, which reads as a wiring fault
+# rather than a seat boundary. Observed on the table at six players, where
+# the slivers were 3, 4, 10 and 11 pixels (2026-08-21).
+#
+# A quarter of a ring is the line between "an arc" and "stray pixels". Below
+# it the boundary is pushed to the nearer edge and the ring stays whole.
+RING_LEN = 60
+MIN_RING_FRAGMENT = RING_LEN // 4
+
 # Strip density, confirmed 2026-08-21. Everything that converts a physical
 # measurement into a pixel count goes through this.
 DENSITY_PER_M = 96.0
@@ -101,6 +113,58 @@ def gm_span(gm_leds: int = GM_LEDS) -> Tuple[int, int]:
     return bottom_start + offset, gm_leds
 
 
+def _ring_spans() -> List[Tuple[int, int]]:
+    """Corner rings as (start, end) in PATH coordinates, end exclusive."""
+    out: List[Tuple[int, int]] = []
+    pos = 0
+    for name, _start, count in SEGMENTS:
+        if "ring" in name:
+            out.append((pos, pos + count))
+        pos += count
+    return out
+
+
+def _snap_out_of_sliver(position: int) -> int:
+    """Move a boundary off a ring's edge if it would leave stray pixels.
+
+    Only slivers move. A boundary near the middle of a ring is left alone:
+    splitting a ring into two substantial arcs looks deliberate, and forcing
+    every ring to stay whole would cost far more in seat evenness than it
+    buys -- at seven players it would drag one seat down to 55 pixels
+    against another's 117.
+    """
+    for start, end in _ring_spans():
+        if not start < position < end:
+            continue
+        if position - start < MIN_RING_FRAGMENT:
+            return start
+        if end - position < MIN_RING_FRAGMENT:
+            return end
+        break
+    return position
+
+
+def boundaries(players: int, gm_leds: int = GM_LEDS) -> List[int]:
+    """Offsets past the end of the GM's arc where each player's seat ends.
+
+    Returned in path space, measured from the first pixel after the GM, so
+    the last entry is always the full remaining perimeter.
+    """
+    _gm_start, gm_len = gm_span(gm_leds)
+    remaining = PIXEL_COUNT - gm_len
+    base, extra = divmod(remaining, players)
+
+    gm_end = (_gm_start + gm_len) % PIXEL_COUNT
+    cuts: List[int] = []
+    running = 0
+    for index in range(players - 1):
+        running += base + (1 if index < extra else 0)
+        snapped = _snap_out_of_sliver((gm_end + running) % PIXEL_COUNT)
+        cuts.append((snapped - gm_end) % PIXEL_COUNT)
+    cuts.append(remaining)
+    return cuts
+
+
 def assign(players: int, gm_leds: int = GM_LEDS) -> List[int]:
     """-> zone id per LED index. 0 = GM, 1..players = seats, -1 = unassigned.
 
@@ -120,19 +184,16 @@ def assign(players: int, gm_leds: int = GM_LEDS) -> List[int]:
     for k in range(gm_len):
         zone_of[path[(gm_start + k) % total]] = GM_ZONE
 
-    # Everything from the end of the GM's arc, round to its start.
-    remaining = total - gm_len
-    cursor = gm_start + gm_len
-
-    # Distribute the remainder one pixel at a time across the first few
-    # zones rather than letting the last zone absorb it -- with 7 players
-    # that would otherwise make one seat visibly longer than the rest.
-    base, extra = divmod(remaining, players)
-    for p in range(players):
-        length = base + (1 if p < extra else 0)
-        for k in range(length):
-            zone_of[path[(cursor + k) % total]] = p + 1
-        cursor += length
+    # Seats are cut at the offsets boundaries() chose. The remainder is
+    # spread one pixel at a time across the first few seats rather than
+    # dumped on the last, and any cut that would strand a sliver of a corner
+    # ring has already been nudged off it.
+    gm_end = gm_start + gm_len
+    previous = 0
+    for index, cut in enumerate(boundaries(players, gm_leds)):
+        for offset in range(previous, cut):
+            zone_of[path[(gm_end + offset) % total]] = index + 1
+        previous = cut
 
     return zone_of
 
@@ -277,6 +338,14 @@ def layout(players: int, gm_leds: int = GM_LEDS,
 
 PATTERN_PATH = "patterns/zones.js"
 
+# _as_pattern_computes() below is a TRANSLITERATION of the pattern, not the
+# pattern itself -- so editing one and not the other makes verify() compare
+# this module against a stale copy of itself and cheerfully pass. That very
+# nearly shipped. The pattern carries this marker in a comment; verify()
+# refuses to vouch for a file that does not, which turns a silent false pass
+# into a loud failure.
+PATTERN_ALGO = "sliver-snap-v2"
+
 
 def _as_pattern_computes(players: int, gm_start: int, gm_len: int) -> List[int]:
     """buildZones() from patterns/zones.js, transliterated."""
@@ -289,7 +358,15 @@ def _as_pattern_computes(players: int, gm_start: int, gm_len: int) -> List[int]:
     remaining = path_len - gm_len
     base = remaining // players
     extra = remaining % players
-    big_span = extra * (base + 1)
+
+    gm_end = (gm_start + gm_len) % path_len
+    cuts = []
+    running = 0
+    for k in range(players - 1):
+        running += base + (1 if k < extra else 0)
+        cuts.append((_snap_out_of_sliver((gm_end + running) % path_len)
+                     - gm_end) % path_len)
+    cuts.append(remaining)
 
     zone_of = [-1] * PIXEL_COUNT
     for i in range(PIXEL_COUNT):
@@ -299,13 +376,40 @@ def _as_pattern_computes(players: int, gm_start: int, gm_len: int) -> List[int]:
         d = (pos - gm_start + path_len) % path_len
         if d < gm_len:
             zone_of[i] = GM_ZONE
-        else:
-            r = d - gm_len
-            if r < big_span:
-                zone_of[i] = 1 + r // (base + 1)
-            else:
-                zone_of[i] = 1 + extra + (r - big_span) // base
+            continue
+        r = d - gm_len
+        # Count how many cuts we are past. No `break`: the pattern language
+        # is a subset of JavaScript and this loop is transliterated from it.
+        zone = 1
+        for k in range(players - 1):
+            if r >= cuts[k]:
+                zone = k + 2
+        zone_of[i] = zone
     return zone_of
+
+
+def _check_pattern_marker() -> List[str]:
+    """Confirm the pattern on disk implements the algorithm we transliterated.
+
+    Cheap, and the only thing standing between "verify() passes" and
+    "verify() compared this file to a copy of itself".
+    """
+    import os
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    pattern = os.path.join(os.path.dirname(here), *PATTERN_PATH.split("/"))
+    if not os.path.exists(pattern):
+        return ["%s is missing" % PATTERN_PATH]
+    try:
+        with open(pattern, encoding="utf-8") as fh:
+            source = fh.read()
+    except OSError as exc:
+        return ["%s could not be read: %s" % (PATTERN_PATH, exc)]
+    if ("ALGO: " + PATTERN_ALGO) not in source:
+        return ["%s does not declare 'ALGO: %s' -- it is a different "
+                "algorithm from the one checked here" % (PATTERN_PATH,
+                                                         PATTERN_ALGO)]
+    return []
 
 
 def verify(gm_leds: int = GM_LEDS) -> List[str]:
@@ -316,6 +420,8 @@ def verify(gm_leds: int = GM_LEDS) -> List[str]:
     """
     problems: List[str] = []
     path = build_path()
+
+    problems.extend(_check_pattern_marker())
 
     if sorted(path) != list(range(PIXEL_COUNT)):
         problems.append("perimeter path does not cover all %d LEDs exactly once"
@@ -332,10 +438,38 @@ def verify(gm_leds: int = GM_LEDS) -> List[str]:
             problems.append("%d players: %d LEDs belong to no zone"
                             % (n, zone_of.count(-1)))
 
+        # Seats are even to within a pixel UNLESS a boundary was nudged off
+        # a ring to avoid stranding a sliver. Each nudge moves a boundary by
+        # less than MIN_RING_FRAGMENT, and a seat has a boundary at each end
+        # which can move in opposite directions -- so twice that, plus the
+        # one-pixel remainder, is the most a seat can legitimately differ.
+        allowed = 2 * MIN_RING_FRAGMENT + 1
         sizes = [zone_of.count(z) for z in range(1, n + 1)]
-        if sizes and max(sizes) - min(sizes) > 1:
-            problems.append("%d players: seats differ by %d LEDs (max 1)"
-                            % (n, max(sizes) - min(sizes)))
+        if sizes and max(sizes) - min(sizes) > allowed:
+            problems.append("%d players: seats differ by %d LEDs (max %d)"
+                            % (n, max(sizes) - min(sizes), allowed))
+
+        # The whole point of the nudging: no stray fragments of a ring.
+        for start, end in _ring_spans():
+            owners = {zone_of[path[q % PIXEL_COUNT]]
+                      for q in range(start, end)}
+            if len(owners) < 2:
+                continue
+            runs = []
+            run_owner, run_len = None, 0
+            for q in range(start, end):
+                owner = zone_of[path[q % PIXEL_COUNT]]
+                if owner != run_owner:
+                    if run_owner is not None:
+                        runs.append(run_len)
+                    run_owner, run_len = owner, 0
+                run_len += 1
+            runs.append(run_len)
+            if min(runs) < MIN_RING_FRAGMENT:
+                problems.append(
+                    "%d players: a corner ring is split %s -- fragments "
+                    "under %d pixels read as stray LEDs"
+                    % (n, "/".join(str(r) for r in runs), MIN_RING_FRAGMENT))
 
         # Every zone must be ONE arc round the table. A zone in two pieces
         # would light two separate stretches for one player.
