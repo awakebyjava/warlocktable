@@ -449,80 +449,196 @@ patterns*. There is no way to say "make this quarter green."
 Two pieces are missing: a **zone map** (which LEDs belong to which seat) and
 a **per-zone lighting capability**.
 
-#### The zone map
+#### The zone map: GM + N players
 
-Six seats: one at each end, two along each side (§ open questions, decided
-2026-08-20). Derived from the verified `segStart`/`segLen` data in
-`warlock-table-led-reference.md` — the short edges are the ends, the long
-edges halve into two seats each. Given in physical loop order:
+An earlier draft fixed six seats at the edges. That is wrong. **The number of
+seats changes with who turned up** — the table takes a GM plus anywhere from
+one to seven players — so the zone map is *computed from a player count*, not
+configured. Implemented in [`warlock/zones.py`](warlock/zones.py).
 
-| Zone | Position | Start | Count | Indices |
-|---|---|---|---|---|
-| 1 | Top, first half | 502 | 101 | 502–602 |
-| 2 | Top, second half | 603 | 102 | 603–704 |
-| 3 | **Right end** (short edge) | 705 | 59 | 705–763 |
-| 4 | Bottom, first half | 240 | 101 | 240–340 |
-| 5 | Bottom, second half | 341 | 102 | 341–442 |
-| 6 | **Left end** (short edge) | 443 | 59 | 443–501 |
+Two fixed facts drive it:
 
-524 zone LEDs. The remaining **240 are the four corner rings, deliberately
-assigned to no one** — they sit *between* seats, so giving them to a
-neighbour would misreport where somebody is. They keep showing the ambient
-scene colour, which also stops the table looking like six disconnected bars.
+1. **The GM's section never moves.** It is the stretch of the bottom edge in
+   front of the television — from the middle of the TV out to its edges,
+   **38 inches** (**93 LEDs** at this strip's 96/m), centred on the TV.
+   That is the GM's seat at any player count.
+2. **Everyone else divides what is left equally.** The remaining perimeter —
+   the rest of the bottom edge, both short ends, the whole top edge, and all
+   four corner rings — splits into N contiguous arcs.
 
-**Not yet confirmed physically:** which half of each long edge is which seat
-from the GM's chair, and whether zone 1 is on the GM's left or right. Light
-each zone a distinct colour once and read it off the table — the same
-diagnostic that settled the `segStart` ordering (LED reference §9). Do not
-guess it from the numbers.
+Everything is computed in **path space**, walking the perimeter in physical
+loop order, *not* in LED index order:
+
+```
+TL ring 60-119 -> Top 502-704 -> TR ring 0-59 -> Right 705-763
+  -> BR ring 180-239 -> Bottom 240-442 -> BL ring 120-179 -> Left 443-501
+```
+
+Dividing raw indices instead would produce zones that are contiguous in
+memory and scattered around the table. A consequence: a zone is one unbroken
+arc physically but may be **two or three separate index ranges** in the
+strip, and anything consuming the map must handle that.
+
+**Corner rings are included in player zones**, unlike the six-seat draft that
+held them back. With a variable player count seats no longer line up with the
+physical edges — a boundary lands wherever the arithmetic puts it — so
+excluding the corners would leave 240 dark pixels scattered mid-seat and make
+the four- and six-player layouts look broken rather than deliberate.
+
+The remainder is spread one pixel at a time across the first few zones rather
+than dumped on the last, so no seat is visibly longer than its neighbours.
+**Verified for every player count: zones never differ by more than one LED,
+all 764 pixels are covered, none overlap, and each is a single unbroken arc.**
+
+#### Scale: 96 LEDs per metre
+
+Density confirmed 2026-08-21. Every conversion from a physical measurement to
+a pixel count goes through `leds_for_inches()`, so this constant lives in one
+place.
+
+| | Pixels | Inches |
+|---|---|---|
+| Long edge segment | 203 | 83.3 |
+| Short edge segment | 59 | 24.2 |
+| Corner ring | 60 | 24.6 |
+| **Whole perimeter** | **764** | **313.3** |
+| **GM section (38 in)** | **93** | **38.1** |
+
+The GM's 93-pixel arc sits inside the 203-pixel bottom edge with 45 inches to
+spare, so it never spills onto a corner ring at any player count.
+
+This also corroborates the recessed-TV finding from the HDMI work: if 38
+inches is the *visible* width of the television, a 16:9 panel is 21.4 inches
+tall, which fits inside the 24.2-inch short edge. The nominal panel figures
+are larger and describe the whole unit, not the part you can see.
+
+**An earlier draft of this section claimed 96/m was impossible.** It was
+wrong twice over: it measured the table's short side as the 59-pixel edge
+segment alone, ignoring that the two corner rings add physical length either
+side of it, and it compared that against the TV's *panel* dimensions rather
+than its visible area. Recorded here because the same two mistakes are easy
+to repeat when reasoning about this table from pixel counts.
+
+#### Seat sizes at each player count
+
+| Players | Seats (LEDs) | Inches each |
+|---|---|---|
+| 1 | 671 | 275.2 |
+| 2 | 336 / 335 | 137.8 |
+| 3 | 224 / 224 / 223 | 91.9 |
+| 4 | 168 / 168 / 168 / 167 | 68.9 |
+| 5 | 135 / 134 × 4 | 55.4 |
+| 6 | 112 × 5 / 111 | 45.9 |
+| 7 | 96 × 6 / 95 | 39.4 |
+
+**Seven players is the count the table was really built for.** At seven, each
+seat is 39.4 inches — almost exactly the GM's 38 — so the division lands on
+something physically honest, one seat per person's worth of table.
+
+**Below about six players, equal division stops describing where people
+actually sit.** A person occupies roughly 24–30 inches of table edge; at four
+players a "seat" is 69 inches, and at one it is 275 — nearly the whole table.
+The lights would be correct by the arithmetic and wrong about the room.
+
+Equal division is what is specified and built, because it is what was asked
+for and because it guarantees the zones tile the table with no dark gaps
+between seats. But the alternative is worth naming: **fixed ~38-inch seats
+placed where people actually sit**, with the leftover perimeter staying on
+the ambient scene colour — the same treatment the six-seat draft gave the
+corner rings. That needs someone to decide where the chairs go, which is a
+question about the physical table and not about the code.
+
+Do not resolve this from the numbers. Light the zones, sit people down, and
+look.
+
+**Not yet confirmed physically:** whether player 1 sits to the GM's left or
+right — that depends on which way the strip runs, and the numbers cannot tell
+you. Light each zone a distinct colour once and read it off the table, the
+same diagnostic that settled the `segStart` ordering (LED reference §9).
+
 
 #### Per-zone lighting
 
 The controller sets patterns by name; it cannot address regions. Adding a
-"light zone 3 green" action would need a new device method and a Pixelblaze
+"light zone 3 green" action needs a new device method and a Pixelblaze
 pattern that can be told what to draw.
 
 **The mechanism:** a pattern holding exported arrays for per-zone colour,
-written from the controller with `setActiveVariables()`. Sketch:
+written from the controller with `setActiveVariables()`. Because the map now
+depends on player count, the controller pushes **three scalars** — where the
+GM's arc starts, how long it is, and how many players — and the pattern
+derives the rest. Pushing a 764-entry map on every change would be far
+heavier.
 
 ```javascript
 // zones.js - per-zone colour, driven from the controller
-export var zoneH = array(6)   // hue        0..1
-export var zoneS = array(6)   // saturation 0..1
-export var zoneV = array(6)   // value      0..1
-export var baseH, baseS, baseV        // the rings, and any unassigned pixel
+export var zoneH = array(8)   // hue  0..1   [0] = GM, [1..7] = players
+export var zoneS = array(8)
+export var zoneV = array(8)
+export var gmStart, gmLen, playerCount   // written by the controller
 
-zoneStart = [502, 603, 705, 240, 341, 443]
-zoneCount = [101, 102,  59, 101, 102,  59]
+// The physical loop, from the LED reference. Verified; do not tidy.
+segStart = [ 60, 502,   0, 705, 180, 240, 120, 443]
+segLen   = [ 60, 203,  60,  59,  60, 203,  60,  59]
 
+path   = array(pixelCount)
 zoneOf = array(pixelCount)
-for (i = 0; i < pixelCount; i++) zoneOf[i] = -1
-for (z = 0; z < 6; z++)
-  for (k = 0; k < zoneCount[z]; k++)
-    zoneOf[zoneStart[z] + k] = z
+
+buildPath() {
+  p = 0
+  for (s = 0; s < 8; s++)
+    for (k = 0; k < segLen[s]; k++) path[p++] = segStart[s] + k
+}
+
+buildZones() {
+  for (i = 0; i < pixelCount; i++) zoneOf[i] = -1
+  for (k = 0; k < gmLen; k++) zoneOf[path[(gmStart + k) % pixelCount]] = 0
+  remaining = pixelCount - gmLen
+  base  = floor(remaining / playerCount)
+  extra = remaining % playerCount
+  cursor = gmStart + gmLen
+  for (z = 0; z < playerCount; z++) {
+    len = base + (z < extra ? 1 : 0)
+    for (k = 0; k < len; k++) zoneOf[path[(cursor + k) % pixelCount]] = z + 1
+    cursor = cursor + len
+  }
+}
 
 export function render(index) {
   z = zoneOf[index]
-  if (z < 0) hsv(baseH, baseS, baseV)      // rings stay on the scene colour
-  else       hsv(zoneH[z], zoneS[z], zoneV[z])
+  hsv(zoneH[z], zoneS[z], zoneV[z])
 }
 ```
 
-**Why exported variables rather than uploading a new pattern per change:**
-writing a variable is a single websocket message; recompiling and uploading
-a pattern takes seconds and wears flash. Per-seat initiative lighting will
-want to move the highlight every turn.
+**This duplicates the division arithmetic** — once in `warlock/zones.py`, once
+in the pattern — and the two must agree exactly, including the remainder rule
+(the first `extra` zones each get one pixel more). That is the price of not
+shipping a 764-entry array over the wire on every change. If they ever drift,
+the symptom is a seat boundary in the wrong place, so the acceptance test is:
+light each zone distinctly and check the panel's reported ranges against the
+table. `buildZones()` must re-run when `playerCount` or `gmLen` changes, not
+per-frame.
 
-**Controller side:** a `set_zone(zone, colour)` action plus a
-`show_seat_colours()` mode that lights all six distinctly for claiming. Both
-belong on `LightDevice` as optional capability, defaulting to no-op — same
-pattern as `set_overlay` on the display, so a Pixelblaze without the zones
-pattern loaded degrades quietly instead of failing.
+**Why exported variables rather than uploading a new pattern per change:**
+writing a variable is a single websocket message; recompiling and uploading a
+pattern takes seconds and wears flash. Per-seat initiative lighting will want
+to move the highlight every turn.
+
+**Controller side:** a `set_zone(zone, colour)` action, a `set_player_count(n)`
+action, and a `show_seat_colours()` mode that lights every seat distinctly for
+claiming. All belong on `LightDevice` as optional capability defaulting to
+no-op — the same pattern as `set_overlay` on the display — so a Pixelblaze
+without the zones pattern loaded degrades quietly instead of failing.
+
+**In the interface:** player count is a session-level setting on the panel,
+offered as 1-7 and defaulting to whatever was last used. Changing it
+re-divides the table immediately and re-lights the seats, because the only
+way to check it is right is to look at the table.
 
 **Watch for:** the pattern must be *active* for variables to apply. Setting
 zone colours while a scene pattern is running will silently do nothing, so
-`show_seat_colours()` has to switch to the zones pattern first — and
-restore the previous pattern afterwards, the way Table Check does.
+`show_seat_colours()` has to switch to the zones pattern first — and restore
+the previous pattern afterwards, the way Table Check does.
 
 #### What it unlocks
 
