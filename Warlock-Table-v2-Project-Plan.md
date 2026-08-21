@@ -153,24 +153,77 @@ Two distinct pieces, deliberately separated:
 
 **To expand:** how patterns get versioned/stored, whether the panel lists/manages existing patterns too, whether we want live preview.
 
-### 3.9 Virtual Tabletop Integration (Overseer Studio)
-Bridge the table's controller to a virtual tabletop app so on-screen game events drive real-world effects (and vice versa).
+### 3.9 Player Initiative Lighting *(built 2026-08-21)*
 
-- **The app:** **Overseer Studio** — note this is *not* a VTT itself, but a modular, offline-first **GM workspace** ("a tool for your tools") that embeds other apps (D&D Beyond, Roll20, Spotify, etc.) as tiles on a canvas. Desktop app for Windows/macOS/Linux, one-time purchase, in Early Access as of mid-2026. Made by the creator of Astral Tabletop and dddice.
-- **It has a real plugin SDK** — the key enabler:
-  - Extensions are **HTML/JS**, built/published via an official CLI (`@overseer-studio/sdk`).
-  - Runtime library exposes **events, toasts, shortcuts**, and a **keyed state store** that persists across sessions.
-  - You can define **named shortcuts** in the manifest and listen for them (e.g., `onShortcut('next-turn', ...)`).
-- **Integration shape:** build an **Overseer plugin that bridges Overseer ↔ the Pi controller.** A named shortcut or event in a session → plugin notifies the controller → controller drives lights/sound/voice. And the reverse: a card or panel button → triggers something in Overseer.
-- **Honest caveats:**
-  - The SDK's events look oriented around **Overseer's own tiles/shortcuts/state**, not deep hooks into whatever VTT is embedded inside it. So "GM fires a named shortcut → table reacts" is very likely; "react to a specific in-VTT combat event" may not be exposed.
-  - **Early Access = moving target.** The API will change. The full dev docs + their Discord are where to confirm the current event vocabulary.
-- **To expand:** confirm exact available events, decide the shortcut/event → effect mapping, how the plugin reaches the Pi (HTTP call to the controller over the LAN?).
+Whose turn it is, shown on the table itself. Player turns only — the seat
+of whoever is up flashes, and everyone else's seat drops back.
 
-**Per-seat initiative lighting (subtask — depends on Overseer):**
-- Each player gets a zone of the LED layout; the **active player's zone lights up on their turn**.
-- Only really practical if driven *by* Overseer — a "next turn" shortcut/event advances the highlight automatically, so there's nothing extra to manage by hand in-game.
-- Deliberately **not** a standalone feature (too fiddly to run manually); it rides on the VTT integration.
+**How it is driven: entirely by the GM, entirely on the table.** There is no
+integration with anything, nothing is fetched from another program, and
+nothing is sent out. The GM taps "Set Initiative Order", taps the players in
+the order they want, and taps Done. "Run Initiative" starts from the top,
+with arrows either side to step forward and back. The arrows wrap, so going
+round again is simply the next round.
+
+**Nothing is parsed, sorted or guessed.** The order is exactly the sequence
+of taps. There are no initiative scores, no dice, and no monsters: a monster
+has no seat, so the table has nothing to say about it and it belongs on the
+GM's own sheet.
+
+**The only notification is the table.** No phone alerts, no banners, no
+sounds. A seat flashing is the entire signal.
+
+There is also a **Flash** button per seat, separate from initiative: it
+flashes one player's lights three times and then puts the scene back. The
+"oi, you" button, for getting someone's attention without starting combat.
+
+An order entry is just a seat number. The player's name is looked up from
+their seat claim when something needs displaying, so re-claiming under a
+different name leaves no stale entry behind.
+
+Not persisted, deliberately — see the note at the top of
+`warlock/initiative.py`. It changes every turn, the SD card is the one
+component here with a wear limit, and it is a fact about the next twenty
+minutes rather than about the table.
+
+Built on the zone model in §4.7. Implementation: `warlock/initiative.py`,
+`patterns/zones.js` (`activeZone`), and the Initiative section of the panel.
+
+#### An earlier version of this section was wrong
+
+It said per-seat initiative was "deliberately **not** a standalone feature
+(too fiddly to run manually)" and that it "rides on the VTT integration".
+Both were wrong. Tapping players in order takes a few seconds, stepping
+through them is one button, and none of it needs another program. Recorded
+because the claim had already been sitting in this document long enough to
+look settled.
+
+#### Virtual tabletop integration (Overseer Studio) — *not planned*
+
+**Not needed and not a dependency of anything.** Kept only because the
+research was done and may be worth something later. If it ever happens it
+will be additive: a way to drive actions the table already has, not a thing
+the table waits on.
+
+- **The app:** **Overseer Studio** — not a VTT itself, but a modular,
+  offline-first **GM workspace** ("a tool for your tools") that embeds other
+  apps (D&D Beyond, Roll20, Spotify) as tiles on a canvas. Desktop app,
+  one-time purchase, Early Access as of mid-2026. By the creator of Astral
+  Tabletop and dddice.
+- **It has a real plugin SDK:** extensions are HTML/JS built via an official
+  CLI (`@overseer-studio/sdk`); the runtime exposes events, toasts,
+  shortcuts and a keyed state store that persists across sessions. Named
+  shortcuts can be declared in the manifest and listened for
+  (`onShortcut('next-turn', ...)`).
+- **Shape it would take:** an Overseer plugin bridging Overseer ↔ the
+  controller. A named shortcut in a session notifies the controller, which
+  drives lights/sound/voice; and the reverse, a card or panel button
+  triggering something in Overseer.
+- **Caveats, if it is ever revisited:** the SDK's events look oriented around
+  Overseer's own tiles and shortcuts, not deep hooks into whatever VTT is
+  embedded inside it — so "GM fires a named shortcut, table reacts" is
+  plausible while "react to a specific in-VTT combat event" may not be
+  exposed at all. And Early Access means the API will move.
 
 ### 3.10 Session Logging & Recap
 Turn the room mic into a session record and auto-generate recaps.
@@ -995,14 +1048,20 @@ Stand up the core software on the Pi once hardware is trusted.
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
 - [x] **Zone map + per-zone lighting** — built 2026-08-21 (§4.7). The perimeter divides between the GM and 1–7 players, each seat lit its own colour; `patterns/zones.js` is on the device and confirmed working. **Unblocks player phones.**
-- [ ] Player phone second-screens (dice rolls, break requests, private whispers) — depends on §4.7
+- [~] Player phones — join QR and seat claiming built 2026-08-21. The
+  phone page does exactly one thing: choose a seat. Dice, break requests
+  and private whispers are still to come, and are separate decisions
+  rather than one lump.
 - [ ] Soundscape library + light-scene coordination
 - [ ] Live-audio reactive effects
 - [ ] Spoken-trigger events
 - [ ] Table personality: write the character, record/render the voice-line library
 - [ ] Keyword-spotting → voice responses (plus panel-triggered lines)
-- [ ] Overseer Studio plugin bridging VTT events ↔ the controller
-  - [ ] Per-seat initiative lighting (rides on the Overseer integration)
+- [x] **Player initiative lighting** — built 2026-08-21 (§3.9). Order set
+  by the GM tapping players; the active seat flashes. Standalone, and
+  needs no integration with anything.
+- [ ] *(not planned)* Overseer Studio plugin bridging VTT events ↔ the
+  controller. Kept as a note in §3.9 only; nothing depends on it.
 - [ ] Session recording → AI transcription → recap
 - [ ] dddice integration (software dice on screen / player phones)
 - [ ] Expanded audio zones
