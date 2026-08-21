@@ -98,11 +98,27 @@ The table has a **character** — a personality expressed through a voice that c
 - Television embedded in the table, driven by the Pi.
 - Shows light/soundscape-linked background visuals.
 
-**Panel facts (measured, not assumed):** TCL, **1209 mm × 680 mm**, exactly 16:9, ≈ 54.6" diagonal. Now on the Pi's **HDMI0** (`HDMI-1` in xrandr, the primary port) and pinned to **3840×2160** via `/boot/cmdline.txt`. Full generation spec in `display-image-specifications.md`.
+**Panel facts (measured, not assumed):** TCL, **1209 mm × 680 mm**, exactly 16:9, ≈ 54.6" diagonal. Now on the Pi's **HDMI0** (`HDMI-1` in xrandr, the primary port) and pinned to **3840×2160** via `/boot/cmdline.txt`:
+`video=HDMI-A-1:3840x2160@30e`. Full generation spec in
+`display-image-specifications.md`.
 
-**Two traps, both hit for real:**
+**Three traps, all hit for real:**
 - The TV advertises **4096×2160**, which is DCI 4K at 17:9 and does *not* match the panel. EDID negotiation picked it and the desktop came up stretched. Never generate at that width.
 - `vc4-kms-v3d` **ignores** the legacy `hdmi_group`/`hdmi_mode` settings. The kernel `video=` parameter is the working lever.
+- **The trailing `e` on the mode string is load-bearing.** It forces the
+  connector enabled regardless of what detection says. Without it the
+  table booted to a black screen (2026-08-21): X starts ~14s in, the TV
+  was not yet asserting hotplug on a port receiving no signal, so X
+  logged `Unable to find connected outputs - setting 1024x768 initial
+  framebuffer` and disabled HDMI-1. When the TV woke a moment later
+  nothing told X to reconsider, and it stayed dark until someone ran
+  `xrandr` by hand.
+
+  A TV that boots *fast* is not the same as a TV that asserts EDID
+  early, and the two were confused while diagnosing this. `e` is the
+  KMS-era replacement for `hdmi_force_hotplug=1`, which the trap above
+  records as ignored. Backup of the previous line:
+  `/boot/cmdline.txt.bak-20260821`.
 
 **Where display artwork lives — same split as audio (§3.3):**
 - `map-sources/` in the repo: the small raw generator output (~1 MB each). Tracked, because they are the versioned originals.
@@ -848,7 +864,7 @@ Ready in about a minute, with no interaction required.
 | **Fixes made on the Pi getting lost** | Editing directly on the Pi puts the working version outside git. *This already happened:* V1's IP had a broken trailing slash (`"10.10.0.171/"` → malformed `ws://10.10.0.171/:81`). It was fixed by hand on the Pi and the fix sat there un-harvested; the repo carried the broken copy until it was spotted in Aug 2026. | Treat the Pi as consume-only (`pull.ff only` is set globally there). If a fix *must* be made at the table, port it back to the laptop the same session — otherwise the only working copy lives on an SD card. |
 | **Boot race** | Pi boots faster than Wi-Fi associates or the Pixelblaze powers up. Old code does `pb = Pixelblaze(ip)` at module level with no error handling — one raise and the table is dark forever. | Controller starts regardless; background retry per device; `Restart=always`. |
 | **Audio device roulette** | If the TV is off at boot, HDMI audio may not enumerate and the default output silently changes. | Pin the audio device explicitly in config. Never rely on "default." |
-| **HDMI handshake / wrong mode** | Boot with the TV off, or let EDID choose, and the display comes up wrong. Both happened: a power cut with the TV off left X at 1024×768 on the *disconnected* port; later, EDID negotiation picked **4096×2160** — DCI 4K at 17:9, which does **not** match this 16:9 panel, so everything was stretched. | **Fixed 2026-08-20.** The TCL was moved to **HDMI0** (nearest USB-C), which xrandr calls `HDMI-1` and is already flagged primary — one cable swap instead of a login-time xrandr workaround. Mode is pinned in `/boot/cmdline.txt` with `video=HDMI-A-1:3840x2160@30`, because **`vc4-kms-v3d` ignores the legacy `hdmi_group`/`hdmi_mode` settings** in favour of EDID. The old `hdmi_force_hotplug:1=1` was removed — with the port now empty it was conjuring a phantom 1920×1080 display. Backups: `/boot/*.bak-cableswap`. |
+| **HDMI handshake / wrong mode** | Boot with the TV off, or let EDID choose, and the display comes up wrong. Both happened: a power cut with the TV off left X at 1024×768 on the *disconnected* port; later, EDID negotiation picked **4096×2160** — DCI 4K at 17:9, which does **not** match this 16:9 panel, so everything was stretched. | **Fixed 2026-08-20.** The TCL was moved to **HDMI0** (nearest USB-C), which xrandr calls `HDMI-1` and is already flagged primary — one cable swap instead of a login-time xrandr workaround. Mode is pinned in `/boot/cmdline.txt` with `video=HDMI-A-1:3840x2160@30`, because **`vc4-kms-v3d` ignores the legacy `hdmi_group`/`hdmi_mode` settings** in favour of EDID. The old `hdmi_force_hotplug:1=1` was removed — with the port now empty it was conjuring a phantom 1920×1080 display. Backups: `/boot/*.bak-cableswap`. **Recurred 2026-08-21** in a third form: the mode was pinned but the connector was not *forced*, so a cold boot with the TV slow to assert hotplug left HDMI-1 connected with **no mode set** — signal absent, every subsystem green. Fixed by appending `e` to the mode string (§3.6), and Table Check now has a **Video output** check that asks the X server whether a mode is actually set, because nothing else in the system could tell. |
 | **SD card corruption** | The #1 killer of long-running Pi projects; usually caused by yanking power. | Physical GPIO shutdown button → `shutdown -h now`; keep a known-good SD image on the shelf so recovery is ~20 min. Booting from USB SSD instead is a genuine upgrade the Pi 4 supports. |
 | **Config typo bricks the table** | YAML edit the afternoon before a session. | Validate at startup; fall back to last-known-good; show the error on the panel. |
 | **Game-day deploy** | The Git bridge makes it trivially easy to `git pull` an hour before people arrive and break everything. | Run a **tagged known-good version** on the Pi, not raw `main`, so rollback is one command. Test on the laptop first — the fakes (§4.2) make this possible. |
