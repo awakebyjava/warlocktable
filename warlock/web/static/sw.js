@@ -9,10 +9,12 @@
  * dinosaur. That distinction matters mid-session - it tells you the iPad is
  * fine and the table is not.
  */
-const CACHE = "warlock-shell-v1";
+const CACHE = "warlock-shell-v2";
 const SHELL = [
   "/", "/style.css", "/app.js",
-  "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png"
+  "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png",
+  "/fonts/Syne.ttf", "/fonts/IBMPlexSans.ttf",
+  "/fonts/IBMPlexMono-Regular.ttf", "/fonts/IBMPlexMono-Medium.ttf"
 ];
 
 self.addEventListener("install", (e) => {

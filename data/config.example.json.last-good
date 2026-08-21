@@ -2,12 +2,15 @@
   "_comment": "Worked example for laptop development (plan doc 4.2/4.4). The Pi's REAL config lives outside the git repo, edited through the management panel — this file is a starting point to copy, not the production data. UIDs below are the actual card inventory, carried over from the V1 bytearrays in TarotWizard.py.",
 
   "settings": {
-    "_comment": "audio_paths is searched to turn a bare track name like 'forest' into a file. Config-driven per plan doc 3.3 — V1 hardcoded these paths into every card branch. audio_device pins the ALSA output so it can't move when the TV is off at boot (5.3); 'hw:0,0' is the Pi's 3.5mm jack, null lets SDL choose.",
+    "_comment": "audio_paths is searched to turn a bare track name like 'forest' into a file. Config-driven per plan doc 3.3 — V1 hardcoded these paths into every card branch. audio_device pins the ALSA output so it cannot move when the TV is off at boot (5.3). Pinned BY NAME, not number - hw:0,0 would still break if HDMI renumbers the cards, which is the very thing being defended against. If the device does not exist (e.g. on the dev laptop) the mixer falls back to the default and logs audio.pin_failed.",
     "audio_paths": [
       "~/Documents/MagicTarot/Ov",
       "~/Documents/MagicTarot/MagicCards"
     ],
-    "audio_device": null,
+    "audio_device": "plughw:CARD=Headphones,DEV=0",
+    "background_paths": [
+      "/var/lib/warlocktable/backgrounds"
+    ],
     "duck_level": 0.3,
     "duck_ramp_s": 0.25,
     "idle_scene": "idle",

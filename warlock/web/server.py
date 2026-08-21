@@ -74,6 +74,12 @@ class _Handler(BaseHTTPRequestHandler):
         ctype, _ = mimetypes.guess_type(path)
         if path.endswith(".webmanifest"):
             ctype = "application/manifest+json"
+        elif path.endswith(".ttf"):
+            # Not reliably in the system mimetypes db; Safari is fussy about
+            # font content types and will silently refuse to use them.
+            ctype = "font/ttf"
+        elif path.endswith(".woff2"):
+            ctype = "font/woff2"
         with open(path, "rb") as fh:
             body = fh.read()
         self.send_response(200)
@@ -83,6 +89,8 @@ class _Handler(BaseHTTPRequestHandler):
         # old app shell forever and the panel stops updating.
         if path.endswith("sw.js"):
             self.send_header("Cache-Control", "no-cache")
+        elif "/fonts/" in path.replace("\\", "/"):
+            self.send_header("Cache-Control", "public, max-age=604800")
         self.end_headers()
         self.wfile.write(body)
 
