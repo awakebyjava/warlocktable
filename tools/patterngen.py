@@ -97,13 +97,49 @@ class Waves:
 
     Speeds are SIGNED: the sign is the direction of travel, and opposing
     signs are what make two waves drift against each other rather than
-    together. Frequencies should stay incommensurate (3 and 7.3, not 3 and 6)
-    so the combined field never visibly repeats.
+    together.
+
+    FREQUENCIES MUST BE WHOLE NUMBERS. This is the loop, not a strip.
+    wave() has period 1, so wave(u * 7.3) completes 7.3 cycles as u goes
+    0 -> 1 and lands 0.3 of a cycle away from where it started. The loop
+    closes; the wave does not. That is a visible seam, measured at 0.31 to
+    0.51 on a 0..1 field across the five original scenes -- reported from
+    the table as "a weird seam at the split in the ring".
+
+    The non-repeating quality does NOT come from incommensurate
+    frequencies. It comes from incommensurate SPEEDS, which are
+    independent. So whole frequencies cost nothing.
+
+    They must also be COPRIME. Two frequencies sharing a factor make the
+    field repeat that many times around the ring -- 9 and 3 would give
+    three identical thirds of a table.
     """
 
     def __init__(self, a: Tuple[float, float, float],
                  b: Tuple[float, float, float], combine: str = "sum"):
-        self.a, self.b, self.combine = a, b, combine
+        self.a, self.b = self._whole(a, b)
+        self.combine = combine
+
+    @staticmethod
+    def _whole(a, b):
+        import math
+
+        fa, fb = int(round(a[0])), int(round(b[0]))
+        if fa < 1 or fb < 1:
+            raise ValueError("wave frequencies must be >= 1, got %s and %s"
+                             % (a[0], b[0]))
+        if math.gcd(fa, fb) != 1:
+            # Nudge the one that moved least, so the look stays closest to
+            # what was asked for.
+            for candidate in (fb - 1, fb + 1, fa - 1, fa + 1):
+                pair = (fa, candidate) if candidate in (fb - 1, fb + 1) else (candidate, fb)
+                if min(pair) >= 1 and math.gcd(*pair) == 1:
+                    fa, fb = pair
+                    break
+        if (fa, fb) != (a[0], b[0]):
+            print("    frequencies %g/%g -> %d/%d (whole and coprime: the "
+                  "loop has to close)" % (a[0], b[0], fa, fb))
+        return (fa, a[1], a[2]), (fb, b[1], b[2])
 
     def declare(self) -> List[str]:
         # wf/ws, not f/s: the palette uses sA/sB for saturation, and a

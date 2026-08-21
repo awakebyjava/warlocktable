@@ -11,9 +11,9 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
-wfA = 1.6
+wfA = 2
 wsA = 0.6
-wfB = 3.1
+wfB = 3
 wsB = 0.9
 hA = 0.76
 hB = 0.82

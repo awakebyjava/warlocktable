@@ -13,7 +13,7 @@ for (s = 0; s < 8; s++) {
 }
 wfA = 1
 wsA = 0.5
-wfB = 2.3
+wfB = 2
 wsB = 0.35
 hA = 0.13
 hB = 0.1
