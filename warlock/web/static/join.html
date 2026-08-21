@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join the Warlock Table</title>
+<meta name="theme-color" content="#0b0a08">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- The QR code on the table points here. Two doors, nothing else: anyone
+     arriving has just scanned a code and wants to be somewhere else within
+     one tap. The QR is on this page too, so the GM can hold up a tablet
+     instead of hunting for the printed one. -->
+<main class="join">
+  <header class="join-head">
+    <h1>Warlock Table</h1>
+    <p class="muted" id="join-count">&nbsp;</p>
+  </header>
+
+  <div class="join-choices">
+    <a class="join-card" href="/player">
+      <span class="join-role">Player</span>
+      <span class="join-why">Claim a seat and pick your colour</span>
+    </a>
+    <a class="join-card join-card-gm" href="/gm">
+      <span class="join-role">Game Master</span>
+      <span class="join-why">Scenes, sound, cards and initiative</span>
+    </a>
+  </div>
+
+  <section class="join-qr">
+    <div id="qr-holder" class="qr-holder"></div>
+    <p class="note">
+      Same Wi-Fi, then scan or type
+      <code id="join-url">this address</code>
+    </p>
+  </section>
+</main>
+
+<script>
+(async function () {
+  const holder = document.getElementById("qr-holder");
+  try {
+    const info = await (await fetch("/api/join", { cache: "no-store" })).json();
+    document.getElementById("join-url").textContent = info.url;
+    const n = info.players;
+    document.getElementById("join-count").textContent =
+      n + (n === 1 ? " seat" : " seats") + " at the table";
+  } catch (e) {
+    document.getElementById("join-count").textContent = "cannot reach the table";
+  }
+  try {
+    const res = await fetch("/api/qr.svg", { cache: "no-store" });
+    if (!res.ok) throw new Error("no encoder");
+    holder.innerHTML = await res.text();
+  } catch (e) {
+    // A missing QR encoder must not blank the page: the address below it
+    // is the part that actually gets people onto the table.
+    holder.remove();
+  }
+})();
+</script>
+
+</body>
+</html>

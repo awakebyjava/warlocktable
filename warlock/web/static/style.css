@@ -311,3 +311,183 @@ body.offline .chip  { opacity: 0.3; }
   font-size: .78rem;
   color: var(--bone-mid);
 }
+
+/* ---------- join + player pages (plan doc 3.7) ---------- */
+
+/* These are phone pages held at arm's length in a dim room, so everything
+   is bigger and higher-contrast than the operator panel, which is an iPad
+   propped in front of someone who is already looking at it. */
+
+.join, .player {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1.6rem 1.1rem 3rem;
+}
+
+.join-head { text-align: center; margin-bottom: 1.6rem; }
+.join-head h1 { margin: 0 0 .3rem; }
+
+.join-choices { display: grid; gap: .8rem; }
+
+.join-card {
+  display: block;
+  padding: 1.3rem 1.1rem;
+  background: var(--black-2);
+  border: 1px solid var(--brass-dim);
+  border-radius: 2px;
+  text-decoration: none;
+  color: var(--bone);
+}
+
+.join-card:active { background: var(--black-3); }
+.join-card-gm { border-color: var(--line); }
+
+.join-role {
+  display: block;
+  font-size: 1.25rem;
+  letter-spacing: .02em;
+  color: var(--brass);
+}
+
+.join-why { display: block; margin-top: .25rem; color: var(--bone-mid); font-size: .9rem; }
+
+.join-qr { margin-top: 2.2rem; text-align: center; }
+
+.qr-holder {
+  display: inline-block;
+  padding: .7rem;
+  background: var(--bone);
+  border-radius: 2px;
+  line-height: 0;
+}
+
+/* segno hard-codes stroke="#000"; override it here so one render works on
+   any background. Dark modules on bone keeps the contrast a camera wants. */
+.qr-holder .qr { width: 12rem; height: 12rem; }
+.qr-holder .qr-mod { stroke: var(--black); }
+
+.join-qr code { color: var(--brass-bright); word-break: break-all; }
+
+/* ---- player: name + colour ---- */
+
+.field { display: block; margin-bottom: 1.2rem; }
+.field span { display: block; margin-bottom: .35rem; color: var(--bone-mid); font-size: .9rem; }
+
+.field input {
+  width: 100%;
+  padding: .8rem .7rem;
+  font: inherit;
+  font-size: 1.05rem;          /* >=16px or iOS zooms the page on focus */
+  color: var(--bone);
+  background: var(--black-2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.field input:focus { outline: none; border-color: var(--brass); }
+
+.small { font-size: .85rem; }
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: .6rem;
+  margin: .8rem 0 1.4rem;
+}
+
+.swatch-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .45rem;
+  padding: .9rem .4rem;
+  background: var(--black-2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--bone-mid);
+  font: inherit;
+  font-size: .85rem;
+}
+
+/* The dot is the whole interface: it is what gets held up against the
+   actual lights on the table, so it gets real size and a flat fill. */
+.swatch-dot {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: var(--seat);
+  border: 1px solid rgba(0, 0, 0, .35);
+}
+
+.swatch-btn.chosen { border-color: var(--brass); color: var(--bone); }
+.swatch-btn.chosen .swatch-dot { box-shadow: 0 0 0 3px var(--brass); }
+.swatch-btn.taken { opacity: .4; }
+.swatch-btn.taken .swatch-dot { filter: grayscale(.6); }
+
+.claimed { text-align: center; padding-top: 1rem; }
+.claimed h2 { margin: .8rem 0 .2rem; }
+
+.claimed-swatch {
+  width: 6rem;
+  height: 6rem;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: var(--seat);
+  border: 2px solid var(--line);
+}
+
+button.ghost {
+  margin-top: 1.6rem;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--bone-mid);
+}
+
+/* ---------- initiative (plan doc 3.9) ---------- */
+
+#init-input {
+  width: 100%;
+  padding: .6rem;
+  font-family: var(--mono, monospace);
+  font-size: 1rem;
+  color: var(--bone);
+  background: var(--black-2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  resize: vertical;
+}
+
+#init-input:focus { outline: none; border-color: var(--brass); }
+
+.init-list { list-style: none; margin: 0 0 .9rem; padding: 0; }
+
+.init-list li {
+  display: grid;
+  grid-template-columns: 1rem 1fr auto;
+  align-items: center;
+  gap: .6rem;
+  padding: .5rem .6rem;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+
+/* The current combatant is marked with a border and a filled dot rather
+   than colour alone, so it survives being glanced at in a dark room. */
+.init-list li.now {
+  border-color: var(--brass);
+  background: var(--black-3);
+}
+
+.init-dot {
+  width: .85rem; height: .85rem;
+  border-radius: 50%;
+  background: var(--seat, var(--line));
+  border: 1px solid rgba(0,0,0,.4);
+}
+
+.init-list li.noseat .init-dot { background: none; border-style: dashed; }
+.init-score { font-variant-numeric: tabular-nums; color: var(--bone-mid); font-size: .82rem; }
+
+.init-controls { display: grid; grid-template-columns: 1fr 2fr; gap: .5rem; }
+.init-controls button { padding: .9rem; font-size: 1.05rem; }
+.init-end { width: 100%; margin-top: .5rem; }

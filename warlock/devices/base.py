@@ -81,6 +81,16 @@ class LightDevice(ABC):
         """
         return None
 
+    def set_active_zone(self, zone: int) -> None:
+        """Make one seat pulse and drop the rest back. -1 for nobody.
+
+        This is the initiative highlight (plan doc 3.9). Separate from
+        set_zone_colour because it does not change any seat's colour -- it
+        changes which seat is being pointed at, which is a different thing
+        and changes far more often.
+        """
+        return None
+
     def set_zone_colour(self, zone: int,
                         colour: Tuple[float, float, float]) -> None:
         """Repaint one zone, leaving the rest alone.

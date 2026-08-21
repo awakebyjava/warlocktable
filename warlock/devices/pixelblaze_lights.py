@@ -499,6 +499,16 @@ class PixelblazeLights(LightDevice):
         self.log.record("lights.show_zones", players=player_count,
                         gm_start=gm_start, gm_len=gm_len)
 
+    def set_active_zone(self, zone: int) -> None:
+        # Fires on every turn change, so it writes ONE scalar and nothing
+        # else. The pattern does the pulsing itself; sending frames from
+        # here would put an animation on the far side of a wifi link.
+        if self.current_pattern != self.ZONES_PATTERN:
+            self.set_pattern(self.ZONES_PATTERN)
+        self._write_vars({"activeZone": int(zone)},
+                         "set_active_zone(%d)" % zone)
+        self.log.record("lights.set_active_zone", zone=int(zone))
+
     def set_zone_colour(self, zone: int, colour) -> None:
         if self.current_pattern != self.ZONES_PATTERN:
             raise DeviceError(

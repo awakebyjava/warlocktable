@@ -23,6 +23,7 @@ from .devices.base import (AudioDevice, DeviceError, DisplayDevice,
                             LightDevice, UnknownAssetError)
 from .eventlog import EventLog
 from . import zones as zonemap
+from .initiative import Initiative
 from .registry import ParamSpec, action
 
 
@@ -38,6 +39,10 @@ class Controller:
         self.current_scene: Optional[Scene] = None
         self._revert_timer: Optional[threading.Timer] = None
         self._lock = threading.Lock()
+
+        # Combat order. In memory only, and deliberately so — see the note
+        # at the top of warlock/initiative.py.
+        self.initiative = Initiative()
 
         # Per-subsystem health, for the panel status strip and the TV status
         # screen (plan doc 5.1). A subsystem going unhealthy must never stop
@@ -432,6 +437,99 @@ class Controller:
             "supported": self.lights.supports_zones(),
             "zones": rows,
         }
+
+    # ---- initiative (plan doc 3.9) ---------------------------------------
+
+    def _push_active_zone(self) -> None:
+        """Tell the lights whose turn it is, if they can show it."""
+        if not self.lights.supports_zones():
+            return
+        zone = self.initiative.active_zone()
+        if zone > self.config.player_count:
+            # The order outlived the seating: someone reduced the player
+            # count mid-combat. Light nobody rather than a seat that is not
+            # there any more.
+            zone = -1
+        self._try("lights", self.lights.set_active_zone, zone)
+
+    def start_initiative(self, entries, sort: bool = True) -> dict:
+        """Replace the order and light whoever is first.
+
+        entries is a list of dicts: name, and optionally zone and score.
+        """
+        from .initiative import Entry
+        rows = []
+        for raw in entries:
+            name = str(raw.get("name", "")).strip()
+            if not name:
+                continue
+            zone = raw.get("zone")
+            zone = None if zone in (None, "", -1) else int(zone)
+            if zone is not None and not 1 <= zone <= self.config.player_count:
+                raise ValueError("seat %d does not exist with %d players"
+                                 % (zone, self.config.player_count))
+            score = raw.get("score")
+            score = None if score in (None, "") else float(score)
+            rows.append(Entry(name=name, zone=zone, score=score))
+        if not rows:
+            raise ValueError("initiative needs at least one combatant")
+
+        self.initiative.set_order(rows, sort=sort)
+        self.log.record("initiative.start", count=len(rows))
+        self._show_seats_if_possible()
+        self._push_active_zone()
+        return self.initiative_report()
+
+    @action(ParamSpec("step", "float"))
+    def advance_turn(self, step: float = 1) -> None:
+        """Move initiative on by one. Also bindable to a card.
+
+        A physical "next turn" card is the reason this is an action rather
+        than only an API call: passing a token round the table is a nicer
+        interaction than everyone waiting on the GM's tablet.
+        """
+        entry = self.initiative.advance(int(step))
+        if entry is None:
+            self.log.record("initiative.not_running")
+            return
+        self.log.record("initiative.turn", name=entry.name,
+                        zone=entry.zone,
+                        round=self.initiative.report()["round"])
+        self._push_active_zone()
+
+    @action()
+    def end_initiative(self) -> None:
+        """Combat over: clear the order and put the seats back to flat."""
+        self.initiative.clear()
+        self.log.record("initiative.end")
+        if self.lights.supports_zones():
+            self._try("lights", self.lights.set_active_zone, -1)
+
+    def goto_turn(self, index: int) -> dict:
+        self.initiative.go_to(int(index))
+        self._push_active_zone()
+        return self.initiative_report()
+
+    def initiative_report(self) -> dict:
+        report = self.initiative.report()
+        seat_names = {p.zone_id: p.name for p in self.config.players
+                      if p.zone_id is not None}
+        for row in report["order"]:
+            row["player"] = seat_names.get(row["zone"])
+        return report
+
+    def _show_seats_if_possible(self) -> None:
+        """Make sure the zones pattern is up, without disturbing a scene.
+
+        Initiative needs the zones pattern active for its highlight to be
+        visible at all, but starting combat should not silently throw away
+        the scene the GM had running. So this only switches when the lights
+        are already showing zones; otherwise the GM chooses.
+        """
+        if not self.lights.supports_zones():
+            return
+        if getattr(self.lights, "current_pattern", None) != "zones":
+            self.log.record("initiative.lights_not_showing_seats")
 
     # ---- seats (plan doc 4.5) --------------------------------------------
 

@@ -67,6 +67,31 @@
     <p class="note" id="display-note"></p>
   </section>
 
+  <!-- Initiative (plan doc 3.9). Sits directly above Seats because the two
+       are read together: the order is written in terms of who is in which
+       seat, and the lights are how the table answers "whose go is it". -->
+  <section id="initiative-section">
+    <h2>Initiative <span class="muted" id="init-round"></span></h2>
+
+    <div id="init-idle">
+      <p class="note">One combatant per line. <code>Name 18</code> to give a
+         score, or just names to keep the order you typed. Anyone without a
+         seat still takes a turn &mdash; the lights simply show nobody.</p>
+      <textarea id="init-input" rows="6" spellcheck="false"
+                placeholder="Ada 18&#10;Bo 15&#10;Goblins 12"></textarea>
+      <button id="init-start">Start Combat</button>
+    </div>
+
+    <div id="init-running" hidden>
+      <ol id="init-list" class="init-list"></ol>
+      <div class="init-controls">
+        <button id="init-prev" class="ghost">Back</button>
+        <button id="init-next">Next Turn</button>
+      </div>
+      <button id="init-end" class="ghost init-end">End Combat</button>
+    </div>
+  </section>
+
   <!-- Seats: how many players are at the table, which is what divides the
        perimeter into zones (plan doc 4.7). Placed next to Table Screen
        rather than with the cards because it is session setup - something

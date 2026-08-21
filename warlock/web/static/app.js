@@ -154,6 +154,7 @@ async function buildUI() {
 
   await refreshCards();
   await refreshSeats();
+  await refreshInitiative();
 }
 
 /* ---------- cards: view + edit (plan doc 4.5 step 2) ---------- */
@@ -359,6 +360,109 @@ function renderOverlayButtons(dd) {
     b.classList.toggle("active", b.dataset.mode === current);
   });
 }
+
+/* ---------- initiative (plan doc 3.9) ---------- */
+
+// "Ada 18" -> {name:"Ada", score:18}. A trailing number is a score; anything
+// else is part of the name, so "Goblin 2" without a score still works as a
+// name as long as the GM does not also use scores on that line.
+function parseInitiative(text) {
+  return text.split("\n").map(l => l.trim()).filter(Boolean).map(line => {
+    const m = line.match(/^(.*?)[\s]+(-?\d+(?:\.\d+)?)$/);
+    if (m) return { name: m[1].trim(), score: Number(m[2]) };
+    return { name: line };
+  });
+}
+
+// Names are matched to seats by the claim a player already made, so the GM
+// types "Ada" and the table knows which lights are hers.
+function withSeats(rows, zones) {
+  const byName = {};
+  zones.zones.forEach(z => { if (z.player) byName[z.player.toLowerCase()] = z.zone; });
+  rows.forEach(r => {
+    const seat = byName[r.name.toLowerCase()];
+    if (seat !== undefined) r.zone = seat;
+  });
+  return rows;
+}
+
+function renderInitiative(rep, zones) {
+  const running = rep.running;
+  $("#init-idle").hidden = running;
+  $("#init-running").hidden = !running;
+  $("#init-round").textContent = running ? ("round " + rep.round) : "";
+  if (!running) return;
+
+  const colours = {};
+  if (zones) zones.zones.forEach(z => { colours[z.zone] = z.colour; });
+
+  const list = $("#init-list");
+  list.innerHTML = "";
+  rep.order.forEach((row, i) => {
+    const li = el("li", (i === rep.index ? "now " : "") + (row.zone === null ? "noseat" : ""));
+    const dot = el("span", "init-dot");
+    if (row.zone !== null && colours[row.zone]) dot.style.setProperty("--seat", colours[row.zone]);
+    const name = el("div");
+    name.append(document.createTextNode(row.name));
+    const score = el("span", "init-score");
+    score.append(document.createTextNode(row.score === null ? "" : String(row.score)));
+    li.append(dot, name, score);
+    // Tapping a line jumps to it: mis-clicking "next" mid-combat is common
+    // and hunting back through the order with Back is worse.
+    li.addEventListener("click", async () => {
+      try { await postJSON("/api/initiative/goto", { index: i }); }
+      catch (err) { showError(err.message); }
+      refreshInitiative();
+    });
+    list.append(li);
+  });
+}
+
+async function postJSON(path, body) {
+  const res = await api(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  return res;
+}
+
+async function refreshInitiative() {
+  try {
+    const [rep, zones] = await Promise.all([
+      api("/api/initiative"), api("/api/zones")
+    ]);
+    renderInitiative(rep, zones);
+  } catch (e) { /* the status strip already reports an unreachable table */ }
+}
+
+$("#init-start").addEventListener("click", async () => {
+  const rows = parseInitiative($("#init-input").value);
+  if (!rows.length) { showError("nothing to put in initiative"); return; }
+  try {
+    const zones = await api("/api/zones");
+    await postJSON("/api/initiative", { order: withSeats(rows, zones) });
+    refreshInitiative();
+  } catch (e) { showError(e.message); }
+});
+
+$("#init-next").addEventListener("click", async () => {
+  try { await postJSON("/api/initiative/advance", { step: 1 }); }
+  catch (e) { showError(e.message); }
+  refreshInitiative();
+});
+
+$("#init-prev").addEventListener("click", async () => {
+  try { await postJSON("/api/initiative/advance", { step: -1 }); }
+  catch (e) { showError(e.message); }
+  refreshInitiative();
+});
+
+$("#init-end").addEventListener("click", async () => {
+  try { await postJSON("/api/initiative/end", {}); }
+  catch (e) { showError(e.message); }
+  refreshInitiative();
+});
 
 /* ---------- seats (plan doc 4.7) ---------- */
 

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your Seat</title>
+<meta name="theme-color" content="#0b0a08">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- A player's phone. Deliberately one job: say who you are and which
+     lights are yours. Dice, whispers and break requests come later (plan
+     doc 3.7); adding them now would bury the only thing that has to work
+     at the start of a session. -->
+<main class="player">
+  <header class="join-head">
+    <h1>Take a Seat</h1>
+    <p class="muted" id="seat-hint">Pick the colour of the lights in front of you</p>
+  </header>
+
+  <form id="claim" autocomplete="off">
+    <label class="field">
+      <span>Your name</span>
+      <!-- No autofocus: on iOS it throws the keyboard up over the colours,
+           which are the part you are meant to be comparing to the table. -->
+      <input id="pname" name="name" maxlength="24" required
+             placeholder="What everyone calls you">
+    </label>
+
+    <p class="muted small">Look at the table. Which colour is lit at your place?</p>
+    <div id="swatches" class="swatches"></div>
+
+    <button id="claim-go" type="submit" disabled>Claim this seat</button>
+    <p class="note" id="claim-msg">&nbsp;</p>
+  </form>
+
+  <section id="claimed" class="claimed" hidden>
+    <div id="claimed-swatch" class="claimed-swatch"></div>
+    <h2 id="claimed-name">&nbsp;</h2>
+    <p class="muted" id="claimed-seat">&nbsp;</p>
+    <p class="note">Leave this page open. It will show you when it is your turn.</p>
+    <button id="claim-again" class="ghost">That is not my seat</button>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let chosen = null;
+let mine = null;
+
+function paint(zones) {
+  const box = $("#swatches");
+  box.innerHTML = "";
+  zones.zones.filter(z => z.zone > 0).forEach(z => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "swatch-btn" + (z.player ? " taken" : "");
+    b.dataset.colour = z.colour;
+    b.style.setProperty("--seat", z.colour);
+    const dot = document.createElement("span");
+    dot.className = "swatch-dot";
+    const label = document.createElement("span");
+    label.className = "swatch-label";
+    // A taken seat stays visible rather than disappearing: someone whose
+    // friend claimed the wrong colour needs to see that it is taken, not
+    // wonder why the table has fewer seats than chairs.
+    label.textContent = z.player ? z.player : z.colour;
+    b.append(dot, label);
+    if (z.player) {
+      b.disabled = true;
+    } else {
+      b.addEventListener("click", () => {
+        chosen = z.colour;
+        [...box.children].forEach(c => c.classList.toggle(
+          "chosen", c.dataset.colour === chosen));
+        $("#claim-go").disabled = !$("#pname").value.trim();
+      });
+    }
+    box.append(b);
+  });
+}
+
+async function refresh() {
+  try {
+    const info = await (await fetch("/api/join", { cache: "no-store" })).json();
+    paint(info.zones);
+    if (!info.zones.supported) {
+      $("#seat-hint").textContent =
+        "The table cannot light seats right now — pick any free colour.";
+    }
+  } catch (e) {
+    $("#claim-msg").textContent = "Cannot reach the table.";
+  }
+}
+
+$("#pname").addEventListener("input", () => {
+  $("#claim-go").disabled = !($("#pname").value.trim() && chosen);
+});
+
+$("#claim").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const name = $("#pname").value.trim();
+  if (!name || !chosen) return;
+  $("#claim-go").disabled = true;
+  $("#claim-msg").textContent = "Claiming…";
+  try {
+    const res = await fetch("/api/seats/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name, colour: chosen })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      // 409 is two people tapping the same colour at once, which will
+      // happen every session. Repaint so they can see what is left.
+      $("#claim-msg").textContent = data.error || "Could not claim that seat.";
+      if (data.zones) paint(data.zones);
+      chosen = null;
+      return;
+    }
+    mine = { name: name, colour: chosen };
+    localStorage.setItem("warlock-seat", JSON.stringify(mine));
+    showClaimed();
+  } catch (e) {
+    $("#claim-msg").textContent = "Could not reach the table.";
+    $("#claim-go").disabled = false;
+  }
+});
+
+function showClaimed() {
+  $("#claim").hidden = true;
+  $("#claimed").hidden = false;
+  $("#claimed-name").textContent = mine.name;
+  $("#claimed-seat").textContent = "You are the " + mine.colour + " lights";
+  $("#claimed-swatch").style.setProperty("--seat", mine.colour);
+}
+
+$("#claim-again").addEventListener("click", () => {
+  localStorage.removeItem("warlock-seat");
+  mine = null; chosen = null;
+  $("#claimed").hidden = true;
+  $("#claim").hidden = false;
+  $("#claim-msg").textContent = " ";
+  refresh();
+});
+
+// Coming back to a page you already used should not make you re-claim: a
+// phone that locked and woke should still know whose it is.
+try {
+  const saved = JSON.parse(localStorage.getItem("warlock-seat") || "null");
+  if (saved && saved.name && saved.colour) { mine = saved; showClaimed(); }
+} catch (e) { /* corrupt storage is not worth a broken page */ }
+
+refresh();
+setInterval(() => { if (!mine) refresh(); }, 4000);
+</script>
+
+</body>
+</html>

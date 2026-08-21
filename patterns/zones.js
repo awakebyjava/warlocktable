@@ -74,6 +74,19 @@ export var gmStart = 497      // 38in section centred on the bottom edge
 export var gmLen = 93         // 38in at 96 LEDs/m
 export var playerCount = 0    // 0 until the controller says otherwise
 
+// Whose turn it is. -1 means nobody, and every seat shows flat, which is
+// the seat-claiming state. Set it and that seat breathes while the others
+// drop back, so "it is your go" is readable from across the table without
+// anyone having to look at a screen.
+export var activeZone = -1
+
+// How far the resting seats fall back, and how deep the active one
+// breathes. The active seat never dims below the resting level: a turn
+// indicator that goes darker than its neighbours reads as a fault.
+DIM_OTHERS = 0.30
+PULSE_FLOOR = 0.55
+PULSE_SPEED = 0.5             // seconds-ish per breath; slow enough to read
+
 // ===== Zone map =====
 // Rebuilt only when the layout changes, not per frame. It is ~800 array
 // writes; doing that every frame would cost more than the render itself.
@@ -150,6 +163,8 @@ function buildZones() {
   builtLen = gmLen
 }
 
+pulse = 1
+
 export function beforeRender(delta) {
   // Watch for the controller changing the layout underneath us. Comparing
   // all three matters: changing only the player count while the GM's arc
@@ -159,6 +174,10 @@ export function beforeRender(delta) {
       (playerCount != builtFor || gmStart != builtStart || gmLen != builtLen)) {
     buildZones()
   }
+  // Once per frame, not once per pixel: every pixel of the active seat
+  // shares one brightness, so the seat breathes as a block rather than
+  // rippling along its length.
+  pulse = PULSE_FLOOR + (1 - PULSE_FLOOR) * wave(time(PULSE_SPEED))
 }
 
 export function render(index) {
@@ -175,5 +194,14 @@ export function render(index) {
     rgb(0, 0, 0)
     return
   }
-  hsv(zoneH[z], zoneS[z], zoneV[z])
+
+  v = zoneV[z]
+  if (activeZone >= 0) {
+    // Someone is up. Their seat breathes; everyone else falls back so the
+    // contrast does the work rather than colour alone - which also keeps
+    // this readable for anyone who cannot separate red from green.
+    if (z == activeZone) v = v * pulse
+    else                 v = v * DIM_OTHERS
+  }
+  hsv(zoneH[z], zoneS[z], v)
 }

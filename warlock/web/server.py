@@ -108,8 +108,21 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]
 
+        # Three front doors. The QR code on the table points at "/", which
+        # asks who you are; the GM's iPad goes straight to "/gm" (the PWA's
+        # start_url), and a player lands on "/player" after choosing.
         if path == "/":
+            self._send_static("join.html")
+        elif path == "/gm":
             self._send_static("index.html")
+        elif path == "/player":
+            self._send_static("player.html")
+        elif path == "/api/join":
+            self._send_json(self._join_info())
+        elif path == "/api/qr.svg":
+            self._send_qr()
+        elif path == "/api/initiative":
+            self._send_json(self.controller.initiative_report())
         elif path == "/api/status":
             self._send_json(self._status())
         elif path == "/api/vocabulary":
@@ -152,6 +165,69 @@ class _Handler(BaseHTTPRequestHandler):
             return
         self._send_json({"error": "unknown endpoint"}, 404)
 
+    # ---- join, QR and seat persistence -----------------------------------
+
+    def _table_url(self) -> str:
+        """The address to put on the QR code.
+
+        Built from the address the CLIENT used to reach us, not from a
+        lookup of our own hostname. That is the one address known to work
+        from a phone on this network -- .local names need mDNS, and picking
+        an interface ourselves guesses wrong on a machine with several.
+        """
+        host = self.headers.get("Host")
+        if host:
+            return "http://%s/" % host
+        return "http://%s:%d/" % (self.server.server_address[0],
+                                  self.server.server_address[1])
+
+    def _join_info(self) -> dict:
+        return {
+            "url": self._table_url(),
+            "players": self.controller.config.player_count,
+            "zones": self.controller.zone_report(),
+        }
+
+    def _send_qr(self) -> None:
+        """QR for the table's URL, as SVG.
+
+        SVG rather than PNG because it needs no image library and scales to
+        whatever the page wants. If the encoder is not installed the page
+        falls back to showing the URL as text, which is worse but still
+        gets people onto the table -- the same degrade-quietly rule the
+        device layer follows.
+        """
+        try:
+            from ..qr import qr_svg
+            svg = qr_svg(self._table_url())
+        except Exception as exc:   # noqa: BLE001
+            self._send_json({"error": "no QR encoder: %s" % exc}, 501)
+            return
+        body = svg.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _persist_players(self) -> None:
+        """Save seat claims, but never let a failed write break the claim.
+
+        A player who has claimed a seat and can see their colour has
+        succeeded as far as they are concerned. Losing that on a restart is
+        an annoyance; refusing the claim because the disk was busy would be
+        a failure they cannot do anything about.
+        """
+        store = getattr(self.runtime, "store", None)
+        if store is None:
+            return
+        try:
+            from ..config import save_config
+            save_config(store.config, store.path, store.backup_dir)
+        except Exception as exc:   # noqa: BLE001
+            self.runtime.log.record("seat.persist_failed", error=str(exc))
+
     def do_POST(self):
         path = self.path.split("?", 1)[0]
 
@@ -191,6 +267,61 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
                 return
             self._send_json(report)
+            return
+
+        # --- Seats: what a player's phone posts (plan doc 4.5) ---
+        if path == "/api/seats/claim":
+            body = self._read_json()
+            name = str(body.get("name", "")).strip()
+            colour = str(body.get("colour", "")).strip()
+            if not name:
+                self._send_json({"error": "a name is needed"}, 400)
+                return
+            try:
+                ok = self.controller.claim_seat(name, colour)
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            if not ok:
+                # The commonest case by far is two people picking the same
+                # colour, so say which seat rather than just refusing.
+                self._send_json({"error": "that seat is already taken",
+                                  "zones": self.controller.zone_report()}, 409)
+                return
+            self._persist_players()
+            self._send_json({"ok": True, "name": name, "colour": colour,
+                              "zones": self.controller.zone_report()})
+            return
+
+        # --- Initiative (plan doc 3.9): GM only ---
+        if path == "/api/initiative":
+            body = self._read_json()
+            try:
+                report = self.controller.start_initiative(
+                    body.get("order") or [], sort=bool(body.get("sort", True)))
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json(report)
+            return
+
+        if path == "/api/initiative/advance":
+            body = self._read_json()
+            self.controller.advance_turn(int(body.get("step", 1)))
+            self._send_json(self.controller.initiative_report())
+            return
+
+        if path == "/api/initiative/goto":
+            body = self._read_json()
+            self._send_json(self.controller.goto_turn(int(body.get("index", 0))))
+            return
+
+        if path == "/api/initiative/end":
+            self.controller.end_initiative()
+            self._send_json(self.controller.initiative_report())
             return
 
         # --- Action surface: does something NOW ---

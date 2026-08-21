@@ -6,3 +6,8 @@
 #                ARM wheel and tries to build V8 from source.
 
 pixelblaze-client>=1.1.8
+
+# QR code for the join page. Pure Python, no dependencies, so unlike most of
+# the imaging stack it installs on the Pi without incident. Optional at
+# runtime: warlock/qr.py degrades to printing the URL if it is absent.
+segno>=1.5

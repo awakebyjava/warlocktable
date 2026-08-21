@@ -9,9 +9,12 @@
  * dinosaur. That distinction matters mid-session - it tells you the iPad is
  * fine and the table is not.
  */
-const CACHE = "warlock-shell-v2";
+const CACHE = "warlock-shell-v3";
 const SHELL = [
-  "/", "/style.css", "/app.js",
+  // "/" is now the join chooser and "/gm" is the panel. Both are cached:
+  // the GM's installed app opens /gm, and a player who scanned the code
+  // gets a real page rather than a browser error if the Pi blinks.
+  "/", "/gm", "/player", "/style.css", "/app.js",
   "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png",
   "/fonts/Syne.ttf", "/fonts/IBMPlexSans.ttf",
   "/fonts/IBMPlexMono-Regular.ttf", "/fonts/IBMPlexMono-Medium.ttf"

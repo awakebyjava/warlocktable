@@ -43,6 +43,7 @@ class FakeLightDevice(LightDevice):
         self.brightness = 1.0
         self.zone_layout = None
         self.zone_colours: List[Tuple[float, float, float]] = []
+        self.active_zone = -1
 
     def set_pattern(self, name: str) -> None:
         self.current_pattern = name
@@ -74,6 +75,10 @@ class FakeLightDevice(LightDevice):
         self.log.record("lights.show_zones", players=player_count,
                         gm_start=gm_start, gm_len=gm_len,
                         colours=len(colours))
+
+    def set_active_zone(self, zone: int) -> None:
+        self.active_zone = int(zone)
+        self.log.record("lights.set_active_zone", zone=self.active_zone)
 
     def set_zone_colour(self, zone: int,
                         colour: Tuple[float, float, float]) -> None:
