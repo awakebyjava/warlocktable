@@ -246,6 +246,14 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     else:
         audio = FakeAudioDevice(log)
 
+    # Apply the saved level. Persisting it and then coming up at full volume
+    # is worse than not persisting at all: the panel would show one number
+    # while the room heard another.
+    try:
+        audio.set_volume(config.volume)
+    except Exception as exc:   # noqa: BLE001
+        log.record("audio.volume_restore_failed", error=str(exc))
+
     if getattr(args, "real_display", False):
         from .devices.feh_display import FehDisplay
         display = FehDisplay(log, search_paths=config.background_paths)

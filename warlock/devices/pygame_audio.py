@@ -422,6 +422,15 @@ class PygameAudio(AudioDevice):
                     self.healthy = True
                 except Exception:   # noqa: BLE001
                     pass
+                # Put the soundscape back on the device we reverted to.
+                # Reverting the setting but leaving the table silent would
+                # be a failure the operator has to notice and fix by hand,
+                # which is the opposite of degrading gracefully.
+                if playing:
+                    try:
+                        self.play_soundscape(playing, 1.0)
+                    except Exception:   # noqa: BLE001
+                        pass
                 raise DeviceError("could not open %s: %s" % (device, exc))
 
             self.healthy = True
