@@ -140,6 +140,12 @@ class Config:
     # /home/pi/Documents/MagicTarot/... in every single card branch.
     audio_paths: List[str] = field(default_factory=list)
 
+    # Where to look for display artwork. Scenes reference a background by
+    # bare name ("forest.png"); these directories resolve it to a file.
+    # Same split as audio (plan doc 3.3): finished renders are media, they
+    # live outside the repo and arrive by rsync, not git.
+    background_paths: List[str] = field(default_factory=list)
+
     # ALSA device for audio output, e.g. "hw:0,0" for the 3.5mm jack.
     # Pinned explicitly rather than trusting the default: plan doc 5.3 —
     # if the TV is off at boot, HDMI may not enumerate and the default
@@ -266,6 +272,7 @@ def load_config(path: str) -> Config:
         fallback_interruption_s=float(
             raw.get("settings", {}).get("fallback_interruption_s", 5.0)),
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
+        background_paths=list(raw.get("settings", {}).get("background_paths", [])),
         audio_device=raw.get("settings", {}).get("audio_device"),
         duck_level=float(raw.get("settings", {}).get("duck_level", 0.3)),
         duck_ramp_s=float(raw.get("settings", {}).get("duck_ramp_s", 0.25)),

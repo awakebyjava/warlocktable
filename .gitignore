@@ -22,6 +22,19 @@ env/
 # only the log is excluded.
 data/events.log
 
+# Finished display artwork — same rule as audio, one order of magnitude down.
+#
+# `map-sources/` holds the small raw generator output (~1MB each) and IS
+# tracked: those are the versioned originals worth keeping.
+#
+# `backgrounds/` holds the finished 3840x2160 renders, which run 5-15MB each
+# as PNG and grow with every map. Media goes to the Pi by rsync, not through
+# git — see deploy/README.md. Committing them would repeat the 1.08GB audio
+# mistake at a slower rate.
+backgrounds/
+*-4k.png
+*-4k.jpg
+
 # Editor / OS cruft
 .vscode/
 .DS_Store

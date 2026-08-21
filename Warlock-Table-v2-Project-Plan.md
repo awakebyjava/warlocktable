@@ -97,7 +97,20 @@ The table has a **character** — a personality expressed through a voice that c
 ### 3.6 Display (Embedded TV)
 - Television embedded in the table, driven by the Pi.
 - Shows light/soundscape-linked background visuals.
-- **To expand:** what the visuals are (generative? video files? a custom app?), resolution/orientation, how visuals stay in sync with lights and audio.
+
+**Panel facts (measured, not assumed):** TCL, **1209 mm × 680 mm**, exactly 16:9, ≈ 54.6" diagonal. Now on the Pi's **HDMI0** (`HDMI-1` in xrandr, the primary port) and pinned to **3840×2160** via `/boot/cmdline.txt`. Full generation spec in `display-image-specifications.md`.
+
+**Two traps, both hit for real:**
+- The TV advertises **4096×2160**, which is DCI 4K at 17:9 and does *not* match the panel. EDID negotiation picked it and the desktop came up stretched. Never generate at that width.
+- `vc4-kms-v3d` **ignores** the legacy `hdmi_group`/`hdmi_mode` settings. The kernel `video=` parameter is the working lever.
+
+**Where display artwork lives — same split as audio (§3.3):**
+- `map-sources/` in the repo: the small raw generator output (~1 MB each). Tracked, because they are the versioned originals.
+- **Finished 3840×2160 renders are NOT in git.** At 5–15 MB each and growing with every map, they are the audio problem one order of magnitude down. They live at `/var/lib/warlocktable/backgrounds/` on the Pi and arrive by **rsync**, resolved via `settings.background_paths` in config.
+
+**Note on the first batch (2026-08-20):** generated at 1376×768, aspect 1.7917 vs the panel's 1.7778. Close, but they need a **×2.81 upscale and a 30 px width crop** — crop rather than stretch, or circles become ovals. A plain resize will look soft at 80 px/inch; this wants a model-based upscaler.
+
+- **To expand:** what drives the display (a fullscreen viewer? a custom app?), whether content is oriented to the GM's seat or orientation-neutral, and how visuals stay in sync with lights and audio.
 
 ### 3.7 Control Surfaces (Two-Tier Control)
 The table is controlled through two deliberately separate surfaces:
