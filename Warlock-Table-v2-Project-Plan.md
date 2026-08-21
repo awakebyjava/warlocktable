@@ -814,6 +814,80 @@ Real techniques, but they're for appliances you can't physically reach — this 
 - Restoring exact scene state after a crash-restart
 
 Revisit only if a specific problem actually shows up.
+### 5.7 Responsiveness — where the lag actually is *(observed, not yet fixed)*
+
+**Observed on the real table, 2026-08-21.** Tapping a card produces a visible
+stagger: the lights change, then the audio, then the picture, in that order
+and far enough apart to notice. The table works; it just does not feel
+*immediate*, and immediacy is most of the effect.
+
+Two separate problems, and the smaller one is the more visible.
+
+#### The NFC read is the single biggest delay
+
+It is also the worst place for a delay, because it sits **upstream of
+everything else** — whatever the rest of the chain costs, this is added to
+all of it. Nothing happens until the card is recognised.
+
+The knob is `poll_timeout` (default **0.5 s**) in
+[`warlock/inputs/nfc.py`](warlock/inputs/nfc.py), passed to
+`read_passive_target()`. Things worth trying, cheapest first:
+
+- **Shorten `poll_timeout`.** A tighter loop detects sooner at the cost of
+  more SPI traffic. Cheap to try, and the effect is measurable in minutes.
+- **SPI clock speed** in the vendored PN532 driver (`warlock/vendor/pn532`).
+- **`InAutoPoll`** — the PN532 has a dedicated autopoll command that lets the
+  chip watch for targets itself rather than being asked repeatedly. The
+  vendored driver does not use it.
+- **A different reader.** The PN532 is a 2011-era part and may simply be the
+  floor here. Worth benchmarking alternatives — but only *after* measuring,
+  because replacing hardware to fix a software poll interval would be an
+  expensive way to learn nothing.
+
+#### The display trails the lights and sound
+
+Two causes, very unequal:
+
+1. **The picture is asked for last.** `apply_scene` calls lights, then audio,
+   then display, sequentially (§4.6). The display does not start until the
+   other two return. Worth perhaps 50 ms.
+2. **feh polls.** It runs with `--reload 1`, so it re-stats the file **once a
+   second**. The swap itself is a ~50 ms copy; the rest is feh not having
+   looked yet. **This dominates** — reordering the calls would barely help.
+
+Candidate fixes, neither yet tested on the Pi:
+
+- **Signal feh instead of waiting for its poll.** feh acts on `SIGUSR1`. The
+  doubt: in single-image mode that is documented as "next image", and it is
+  unclear whether it forces a re-read from disk or reuses a cached pixbuf.
+  One test on the Pi settles it.
+- **Fractional `--reload`.** Some builds accept `--reload 0.2`; older ones
+  parse it as an integer, and `0` may busy-loop. Depends on the build.
+
+**Do not abandon feh over this.** The polling is a property of the approach,
+and the approach was chosen for a good reason: feh survives running headless
+under systemd, where pygame did not (§4.6). Fix the poll, keep the process
+model.
+
+#### Measure before optimising
+
+**Nothing here has been timed.** The ordering above is what a person
+perceived, which is enough to know something is wrong and not enough to know
+what to fix. Before changing anything, instrument the chain end to end:
+
+| From | To |
+|---|---|
+| card enters the field | UID decoded |
+| UID decoded | controller dispatches |
+| dispatch | each device call returns |
+| device call returns | pixels / audio / picture actually change |
+
+That last row is the one that matters and the one no log currently captures:
+every device call can return promptly while the table still looks slow, which
+is exactly the situation here. The event log already timestamps most of the
+middle rows, so this is mostly a matter of reading it rather than building
+something new.
+
 
 ---
 
@@ -868,12 +942,13 @@ Stand up the core software on the Pi once hardware is trusted.
 ### Phase 3+ — Feature Build-Out
 - [x] Operator web panel — done. iPad PWA, status strip, scene/interruption/table buttons built from the controller's vocabulary, brightness, grid toggle, card editing. *Apple TV hand-off is stubbed — it logs intent, HDMI-CEC not implemented.*
 - [ ] Build the table's Pixelblaze pixel map (one-time)
-- [ ] Pattern authoring loop + "upload pattern" via the web panel
+- [ ] Pattern authoring loop + "upload pattern" via the web panel — `tools/upload_pattern.py` does it from the command line already; the panel cannot, and the Pi cannot compile (no ARM wheel for V8).
 - [x] Card management — reassign/create/delete from the panel, plus registering an unknown tag by tapping it (§4.5 steps 1–2).
 - [ ] **§4.5 steps 3–4:** upload audio through the panel, and author scenes/interruptions from scratch.
+- [ ] **Cut input-to-effect latency** (§5.7) — the NFC read is the biggest single delay and sits upstream of everything; the picture also trails the lights and sound by up to a second. Measure the chain first.
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
-- [ ] **Zone map + per-zone lighting** — specced in §4.7, not built. **Blocks player phones**, because seat claiming needs the table able to light six zones distinctly. Also unlocks per-seat initiative lighting.
+- [x] **Zone map + per-zone lighting** — built 2026-08-21 (§4.7). The perimeter divides between the GM and 1–7 players, each seat lit its own colour; `patterns/zones.js` is on the device and confirmed working. **Unblocks player phones.**
 - [ ] Player phone second-screens (dice rolls, break requests, private whispers) — depends on §4.7
 - [ ] Soundscape library + light-scene coordination
 - [ ] Live-audio reactive effects
