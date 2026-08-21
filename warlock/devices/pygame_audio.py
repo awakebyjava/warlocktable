@@ -103,17 +103,54 @@ class PygameAudio(AudioDevice):
     def _init_mixer(self) -> None:
         import pygame
 
-        # Pin the output device BEFORE mixer init. Plan doc 5.3: the Pi has
-        # 3.5mm on card 0 and HDMI on cards 2/3, and if the TV is off at boot
-        # the default can silently move. SDL reads these at init time.
-        if self.device:
-            os.environ.setdefault("SDL_AUDIODRIVER", "alsa")
-            os.environ["AUDIODEV"] = self.device
-
         # Modest buffer: too small crackles on a Pi, too large adds latency
         # between a card tap and the sound starting.
-        pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=1024)
+        settings = dict(frequency=44100, size=-16, channels=2, buffer=1024)
+
+        # Pin the output device BEFORE mixer init. Plan doc 5.3: the Pi has
+        # 3.5mm on card 0 and HDMI on cards 2/3, and if the TV is off at boot
+        # the default can silently move to a different card. SDL reads these
+        # env vars at init time.
+        #
+        # Pinned BY NAME, not by number: `hw:0,0` would still break if HDMI
+        # enumerates differently and renumbers the cards, which is the very
+        # scenario being defended against.
+        if self.device:
+            # Remember whether WE set the driver, so the fallback can undo it.
+            set_driver = "SDL_AUDIODRIVER" not in os.environ
+            if set_driver:
+                os.environ["SDL_AUDIODRIVER"] = "alsa"
+            os.environ["AUDIODEV"] = self.device
+            try:
+                pygame.mixer.pre_init(**settings)
+                pygame.mixer.init()
+                self.log.record("audio.device_pinned", device=self.device)
+                self._finish_mixer_setup(pygame)
+                return
+            except Exception as exc:   # noqa: BLE001
+                # The configured device does not exist here — most likely the
+                # config was written for the Pi and this is the laptop. Fall
+                # back rather than leaving the table silent, but say so
+                # loudly: a silent fallback is how you end up wondering why
+                # sound is coming out of the wrong place.
+                self.log.record("audio.pin_failed", device=self.device,
+                                error="%s: %s" % (type(exc).__name__, exc))
+                os.environ.pop("AUDIODEV", None)
+                if set_driver:
+                    # Must also undo SDL_AUDIODRIVER=alsa, or the retry fails
+                    # for a second, unrelated reason (there is no ALSA on the
+                    # laptop) and the fallback never actually gets a chance.
+                    os.environ.pop("SDL_AUDIODRIVER", None)
+                try:
+                    pygame.mixer.quit()   # clear any half-initialised state
+                except Exception:
+                    pass
+
+        pygame.mixer.pre_init(**settings)
         pygame.mixer.init()
+        self._finish_mixer_setup(pygame)
+
+    def _finish_mixer_setup(self, pygame) -> None:
         pygame.mixer.set_num_channels(self.TOTAL_CHANNELS)
         # Reserve the bed channels so effects can never steal them.
         pygame.mixer.set_reserved(self.BED_CHANNELS)
@@ -121,6 +158,7 @@ class PygameAudio(AudioDevice):
         self._mixer = pygame.mixer
         self._bed_channels = [pygame.mixer.Channel(i)
                               for i in range(self.BED_CHANNELS)]
+        self.actual_device = os.environ.get("AUDIODEV") or "(sdl default)"
 
     def _scan_library(self) -> None:
         """Build track-name -> path. Name is the filename without extension,
@@ -163,7 +201,8 @@ class PygameAudio(AudioDevice):
     def status(self) -> dict:
         return {
             "healthy": self.healthy,
-            "device": self.device or "(sdl default)",
+            "device": getattr(self, "actual_device", None) or self.device or "(sdl default)",
+            "device_requested": self.device,
             "tracks": len(self._library),
             "soundscape": self.soundscape,
             "error": self.last_error,
