@@ -73,9 +73,12 @@ fi
 
 say "Code"
 install -d -m 755 "$CODE_DIR"
-rm -rf "$CODE_DIR/warlock" "$CODE_DIR/patterns"
+rm -rf "$CODE_DIR/warlock" "$CODE_DIR/patterns" "$CODE_DIR/branding"
 cp -r "$SRC/warlock"        "$CODE_DIR/"
 cp -r "$SRC/patterns"       "$CODE_DIR/" 2>/dev/null || true
+# branding/ is small and versioned with the code (unlike backgrounds/,
+# which is media and syncs separately) - the status screen needs it.
+cp -r "$SRC/branding"       "$CODE_DIR/" 2>/dev/null || true
 cp    "$SRC/run_service.py" "$CODE_DIR/"
 cp    "$SRC/run_table.py"   "$CODE_DIR/"
 find "$CODE_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
