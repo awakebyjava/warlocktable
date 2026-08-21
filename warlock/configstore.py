@@ -26,6 +26,7 @@ import threading
 from typing import Dict, List, Optional, Tuple
 
 from .config import Card, Config, ConfigError, Target, save_config
+from .zones import MAX_PLAYERS
 
 
 class ConfigStore:
@@ -61,6 +62,55 @@ class ConfigStore:
                 self.config.cards = snapshot
                 self.log.record("config.save_failed", change=what, error=str(exc))
                 raise
+
+    # ----------------------------------------------------------------- seats
+
+    def set_player_count(self, count: int) -> int:
+        """Change how many players are seated, and persist it.
+
+        Has its own rollback rather than going through _with_rollback,
+        which snapshots config.cards specifically. Restoring cards would
+        not restore this, and quietly leaving the count changed in memory
+        after a refused write is the exact failure _with_rollback exists
+        to prevent.
+        """
+        count = int(count)
+        if not 1 <= count <= MAX_PLAYERS:
+            raise ValueError("player count must be between 1 and %d"
+                             % MAX_PLAYERS)
+        with self._lock:
+            previous = self.config.player_count
+            if count == previous:
+                return count
+            self.config.player_count = count
+
+            # Anyone sitting in a seat that no longer exists is unseated
+            # rather than left pointing at nothing: a stale zone_id would
+            # send whispers to a zone the table is not lighting.
+            displaced = [p.name for p in self.config.players
+                         if p.zone_id is not None and p.zone_id > count]
+            # Snapshot the seat assignments themselves, not just the list.
+            # list() is shallow: it would hand back the very Player objects
+            # whose zone_id had already been cleared, so a failed write
+            # would roll back the count and silently keep everyone unseated.
+            seated = {id(p): p.zone_id for p in self.config.players}
+            for player in self.config.players:
+                if player.zone_id is not None and player.zone_id > count:
+                    player.zone_id = None
+            try:
+                self._commit("player_count", count=count,
+                             displaced=len(displaced))
+            except Exception as exc:
+                self.config.player_count = previous
+                for player in self.config.players:
+                    player.zone_id = seated.get(id(player), player.zone_id)
+                self.log.record("config.save_failed", change="player_count",
+                                error=str(exc))
+                raise
+            if displaced:
+                self.log.record("seat.displaced", players=displaced,
+                                new_count=count)
+            return count
 
     # ---------------------------------------------------------------- cards
 

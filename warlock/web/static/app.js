@@ -153,6 +153,7 @@ async function buildUI() {
   if (!v.random_tables.length) $("#tables-section").style.display = "none";
 
   await refreshCards();
+  await refreshSeats();
 }
 
 /* ---------- cards: view + edit (plan doc 4.5 step 2) ---------- */
@@ -358,6 +359,70 @@ function renderOverlayButtons(dd) {
     b.classList.toggle("active", b.dataset.mode === current);
   });
 }
+
+/* ---------- seats (plan doc 4.7) ---------- */
+
+// Every seat colour name in warlock/zones.py is also a valid CSS colour
+// keyword, so the swatch needs no lookup table that could drift from the
+// palette the table actually lights.
+function renderSeats(z) {
+  const row = $("#seat-count-row");
+  if (row.dataset.max !== String(z.max_players)) {
+    row.dataset.max = String(z.max_players);
+    row.innerHTML = "";
+    for (let n = 1; n <= z.max_players; n++) {
+      const b = el("button");
+      b.dataset.count = String(n);
+      b.append(document.createTextNode(String(n)));
+      b.addEventListener("click", async () => {
+        await fire("set_player_count", { count: n }, b);
+        refreshSeats();
+      });
+      row.append(b);
+    }
+  }
+  row.querySelectorAll("button").forEach(b => {
+    b.classList.toggle("active", b.dataset.count === String(z.player_count));
+  });
+
+  const list = $("#seat-list");
+  list.innerHTML = "";
+  z.zones.forEach(seat => {
+    const line = el("div", "seat");
+    const sw = el("div", "swatch");
+    sw.style.background = seat.colour;
+    const name = el("div");
+    name.append(document.createTextNode(seat.label));
+    const who = el("span", "who" + (seat.player ? "" : " empty"));
+    who.append(document.createTextNode(seat.player || "unclaimed"));
+    name.append(document.createTextNode(" "));
+    name.append(who);
+    const size = el("div", "size");
+    size.append(document.createTextNode(seat.inches + " in"));
+    line.append(sw, name, size);
+    list.append(line);
+  });
+
+  // Say plainly when the control is inert. A button that silently does
+  // nothing is the failure mode the status strip exists to prevent.
+  $("#seat-note").textContent = z.supported
+    ? "The GM's section is fixed at 38 in; players divide the rest, "
+      + "numbered clockwise from the GM."
+    : "No 'zones' pattern on the Pixelblaze \u2014 seat colours will not "
+      + "light until patterns/zones.js is uploaded.";
+}
+
+async function refreshSeats() {
+  try {
+    renderSeats(await api("/api/zones"));
+  } catch (e) {
+    $("#seat-note").textContent = "could not read seats: " + e.message;
+  }
+}
+
+$("#seat-show").addEventListener("click", (ev) => {
+  fire("show_seat_colours", {}, ev.currentTarget);
+});
 
 const bright = $("#bright");
 bright.addEventListener("input", () => {

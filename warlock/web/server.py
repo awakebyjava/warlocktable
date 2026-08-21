@@ -117,6 +117,11 @@ class _Handler(BaseHTTPRequestHandler):
         elif path == "/api/actions":
             from ..registry import describe_actions
             self._send_json({"actions": describe_actions(self.controller)})
+        elif path == "/api/zones":
+            # Read-only view of the seat layout. The zone ACTIONS go through
+            # /api/action like everything else — this is just what the panel
+            # needs to draw them.
+            self._send_json(self.controller.zone_report())
         elif path == "/api/config/cards":
             self._send_json({"cards": self.runtime.store.list_cards()})
         elif path == "/api/config/targets":

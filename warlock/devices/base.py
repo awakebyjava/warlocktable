@@ -11,7 +11,7 @@ anything above it.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 class DeviceError(Exception):
@@ -49,6 +49,48 @@ class LightDevice(ABC):
         action registry self-describing (plan doc 4.5) — the management UI
         asks the device, not a hardcoded list, so you can never assign a
         pattern that doesn't exist."""
+
+    # ---- zones (plan doc 4.7) -------------------------------------------
+    #
+    # Optional capability, the same shape as set_overlay() on DisplayDevice
+    # below: NOT abstract, defaulting to no-op. A light device that cannot
+    # address regions is still a valid light device, and a Pixelblaze whose
+    # zones pattern has not been uploaded must degrade quietly rather than
+    # taking the lighting subsystem down.
+    #
+    # Colours are passed as HSV triples on the device's 0..1 scale, not as
+    # names. Name-to-colour is a presentation decision and belongs above
+    # this seam; the device just paints what it is told.
+
+    def supports_zones(self) -> bool:
+        """Whether per-zone colour will actually do anything here."""
+        return False
+
+    def show_zones(self, player_count: int,
+                   colours: List[Tuple[float, float, float]],
+                   gm_start: int, gm_len: int) -> None:
+        """Switch to per-zone colour and paint every seat at once.
+
+        gm_start/gm_len are in PATH coordinates — position around the
+        physical perimeter loop, not LED index. The strip does not run in
+        index order round the table, so this is the only coordinate system
+        in which a seat is one contiguous run. See warlock/zones.py.
+
+        colours is indexed by zone id: [0] is the GM, [1..player_count] are
+        the seats clockwise from them.
+        """
+        return None
+
+    def set_zone_colour(self, zone: int,
+                        colour: Tuple[float, float, float]) -> None:
+        """Repaint one zone, leaving the rest alone.
+
+        Separate from show_zones() because per-seat initiative lighting
+        moves a highlight every turn, and re-sending the whole layout to
+        change one seat would be wasteful for the commonest zone operation
+        the table will ever do.
+        """
+        return None
 
 
 class AudioDevice(ABC):

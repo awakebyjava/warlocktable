@@ -57,6 +57,7 @@ warlock/
   registry.py      the self-describing action registry
   tablecheck.py    the pre-session self-test
   statusscreen.py  renders the TV status screen
+  zones.py         divides the table perimeter into GM + N player seats
   devices/         things the controller CALLS (real + fake, same interface)
   inputs/          things that CALL the controller (the NFC reader)
   web/             the operator panel, served from the controller process
@@ -94,6 +95,8 @@ the failure mode that matters at a session.
 `v0.1.0` — first working table (card tap → real lights and sound).
 `v0.2.0` — all four subsystems real; panel, status screen, Table Check,
 card editing, visual identity.
+`v0.3.0` — seat zones: the perimeter divides between the GM and 1–7 players,
+each seat lit its own colour.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.

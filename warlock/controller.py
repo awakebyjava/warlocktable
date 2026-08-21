@@ -22,6 +22,7 @@ from .config import Config, Interruption, Scene, Target
 from .devices.base import (AudioDevice, DeviceError, DisplayDevice,
                             LightDevice, UnknownAssetError)
 from .eventlog import EventLog
+from . import zones as zonemap
 from .registry import ParamSpec, action
 
 
@@ -335,6 +336,102 @@ class Controller:
                    idle.transition.crossfade_s)
         if idle.background:
             self._try("display", self.display.set_background, idle.background)
+
+    # ---- zones (plan doc 4.7) --------------------------------------------
+
+    def zone_colours(self) -> List[tuple]:
+        """HSV per zone id, [0] the GM then each seat, ready for the device.
+
+        Colour NAMES live in config so the panel can offer them and a player
+        can claim one; the device only ever sees HSV. Translating here keeps
+        that split at the controller, where every other config-to-device
+        decision already happens.
+        """
+        out = [zonemap.hsv_for(zonemap.GM_COLOUR)]
+        by_id = {z.id: z.colour for z in self.config.zones}
+        for zone_id in range(1, self.config.player_count + 1):
+            out.append(zonemap.hsv_for(
+                by_id.get(zone_id, zonemap.seat_colour(zone_id))))
+        return out
+
+    @action()
+    def show_seat_colours(self) -> None:
+        """Light every seat in its own colour, for claiming.
+
+        A mode, not a flash: it stays up while people pick their seats, and
+        is left by applying any scene or going idle. Deliberately does NOT
+        restore the previous pattern on its own — Table Check flashes and
+        restores because it interrupts a running session, whereas this is
+        the thing the operator wants to look at until they are done with it.
+        """
+        if not self.lights.supports_zones():
+            self.log.record("lights.zones_unsupported")
+            return
+        gm_start, gm_len = zonemap.gm_span()
+        self._supersede()
+        self._try("lights", self.lights.show_zones,
+                  self.config.player_count, self.zone_colours(),
+                  gm_start, gm_len)
+
+    @action(ParamSpec("count", "float"))
+    def set_player_count(self, count: int) -> None:
+        """How many players are seated, 1-7. The GM is not counted.
+
+        Changing this re-divides the whole table, so it re-lights the seats
+        immediately: the only way to confirm the division is right is to
+        look at the table, and a setting that changes nothing visible is
+        one nobody can check.
+        """
+        count = int(count)
+        if not 1 <= count <= zonemap.MAX_PLAYERS:
+            raise ValueError("player count must be between 1 and %d"
+                             % zonemap.MAX_PLAYERS)
+
+        store = getattr(getattr(self, "_runtime", None), "store", None)
+        if store is not None:
+            store.set_player_count(count)      # persists, or raises
+        else:
+            # No store: an interactive CLI session with nothing to save to.
+            # Still honour the change in memory rather than refusing it.
+            self.config.player_count = count
+        self.log.record("zones.player_count", count=count)
+
+        if self.lights.supports_zones():
+            self.show_seat_colours()
+
+    @action(ParamSpec("zone", "float"),
+            ParamSpec("colour", "str",
+                      choices=lambda c: sorted(zonemap.COLOUR_HSV)))
+    def set_zone(self, zone: int, colour: str) -> None:
+        """Recolour one seat, leaving the others alone.
+
+        The per-turn operation: initiative lighting moves a highlight round
+        the table every turn, so this must not resend the whole layout.
+        """
+        zone = int(zone)
+        if not 0 <= zone <= self.config.player_count:
+            raise ValueError("zone %d does not exist with %d players"
+                             % (zone, self.config.player_count))
+        if not self.lights.supports_zones():
+            self.log.record("lights.zones_unsupported")
+            return
+        self._try("lights", self.lights.set_zone_colour,
+                  zone, zonemap.hsv_for(colour))
+
+    def zone_report(self) -> dict:
+        """What the panel renders: every zone, its colour, size and occupant."""
+        by_id = {z.id: z.colour for z in self.config.zones}
+        seated = {p.zone_id: p.name for p in self.config.players
+                  if p.zone_id is not None}
+        rows = zonemap.layout(self.config.player_count, colours=by_id)
+        for row in rows:
+            row["player"] = seated.get(int(row["zone"]))
+        return {
+            "player_count": self.config.player_count,
+            "max_players": zonemap.MAX_PLAYERS,
+            "supported": self.lights.supports_zones(),
+            "zones": rows,
+        }
 
     # ---- seats (plan doc 4.5) --------------------------------------------
 

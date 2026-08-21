@@ -82,6 +82,35 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 
 **SD card image:** `~/Documents/warlocktable-backups/` on the laptop, verified. See its README.
 
+## Zones and seats (added 2026-08-21)
+
+The table perimeter divides between the GM and 1–7 players. The GM's section
+is fixed — 38 inches (93 LEDs at 96/m) centred on the bottom edge in front of
+the television — and the rest splits into equal arcs, numbered **clockwise
+from the GM**.
+
+The map is computed, never configured: `warlock/zones.py` is the only place
+the division lives on this side. Set the count from the panel's **Seats**
+section, or:
+
+```bash
+python -m warlock.zones 5        # what 5 players looks like
+python -m warlock.zones verify   # the maths, and agreement with the pattern
+```
+
+**The one thing that will catch you out:** the arithmetic exists twice. The
+Pixelblaze pattern `patterns/zones.js` derives the map on-device from three
+numbers rather than being sent all 764, because per-turn initiative lighting
+will move a highlight every turn and shipping the whole array each time is
+wasteful. `zones.verify()` compares the two and Table Check runs it before
+every session — if you change the division rule, change it in **both** files
+and let the check tell you if you got it wrong.
+
+**Before any of it lights:** `patterns/zones.js` has to be uploaded to the
+Pixelblaze by hand. Until then `supports_zones()` reports false, the panel
+says so, and the seat actions no-op instead of failing.
+
+
 ## Working-style reminders
 
 - Small increments; confirm each works before the next.

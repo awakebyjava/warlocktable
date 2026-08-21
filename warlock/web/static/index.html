@@ -67,6 +67,21 @@
     <p class="note" id="display-note"></p>
   </section>
 
+  <!-- Seats: how many players are at the table, which is what divides the
+       perimeter into zones (plan doc 4.7). Placed next to Table Screen
+       rather than with the cards because it is session setup - something
+       you set once when people sit down, not during play. -->
+  <section id="seats-section">
+    <h2>Seats <span class="muted">who is at the table</span></h2>
+    <div id="seat-count-row" class="check-row"
+         style="grid-template-columns:repeat(7,1fr)"></div>
+    <div class="bright-row" style="margin-top:.7rem">
+      <button id="seat-show">Show Seat Colours</button>
+    </div>
+    <div id="seat-list" class="seats"></div>
+    <p class="note" id="seat-note"></p>
+  </section>
+
   <section>
     <h2>Brightness</h2>
     <div class="bright-row">

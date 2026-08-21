@@ -439,15 +439,32 @@ python run_table.py --real-lights --nfc      + real card taps (Pi only)
 
 ---
 
-### 4.7 Zones and per-zone lighting *(specced, not built)*
+### 4.7 Zones and per-zone lighting *(built 2026-08-21)*
 
-**This is the prerequisite for player phones.** Seat claiming (§4.5) asks a
-player to "pick the colour of the lights you are sitting at" — which the
-table physically cannot do today, because the controller can only set *whole
-patterns*. There is no way to say "make this quarter green."
+**This was the prerequisite for player phones.** Seat claiming (§4.5) asks a
+player to "pick the colour of the lights you are sitting at", which the table
+could not do while the controller could only set *whole patterns* — there was
+no way to say "make this quarter green."
 
-Two pieces are missing: a **zone map** (which LEDs belong to which seat) and
-a **per-zone lighting capability**.
+Two pieces were needed, and both now exist: a **zone map** (which LEDs belong
+to which seat) in [`warlock/zones.py`](warlock/zones.py), and a **per-zone
+lighting capability** spanning [`patterns/zones.js`](patterns/zones.js), the
+`LightDevice` contract, the controller and the panel.
+
+| Piece | Where |
+|---|---|
+| Zone map, palette, self-check | `warlock/zones.py` |
+| On-device rendering | `patterns/zones.js` |
+| Optional device capability | `warlock/devices/base.py` (`supports_zones`, `show_zones`, `set_zone_colour`) |
+| Real + fake implementations | `pixelblaze_lights.py`, `fake.py` |
+| Actions | `show_seat_colours`, `set_player_count`, `set_zone` |
+| Persistence | `settings.player_count`, `ConfigStore.set_player_count` |
+| Panel | Seats section; `GET /api/zones` |
+| Pre-session check | Table Check — "Zone model", "Seats", "Zone lighting" |
+
+**One manual step remains:** `patterns/zones.js` has to be uploaded to the
+Pixelblaze by hand. Until it is, `supports_zones()` reports false, the panel
+says so in plain words, and the seat actions no-op rather than failing.
 
 #### The zone map: GM + N players
 
@@ -551,10 +568,11 @@ question about the physical table and not about the code.
 Do not resolve this from the numbers. Light the zones, sit people down, and
 look.
 
-**Not yet confirmed physically:** whether player 1 sits to the GM's left or
-right — that depends on which way the strip runs, and the numbers cannot tell
-you. Light each zone a distinct colour once and read it off the table, the
-same diagnostic that settled the `segStart` ordering (LED reference §9).
+**Player 1 is clockwise from the GM** (confirmed physically 2026-08-21).
+That falls out of the loop order above: walking `Top → Right → Bottom →
+Left` is clockwise seen from above, seats are numbered forward from the end
+of the GM's arc, and forward along the bottom edge runs right to left. So
+player 1 continues past the GM into the BL ring and up the left side.
 
 
 #### Per-zone lighting
@@ -613,11 +631,16 @@ export function render(index) {
 **This duplicates the division arithmetic** — once in `warlock/zones.py`, once
 in the pattern — and the two must agree exactly, including the remainder rule
 (the first `extra` zones each get one pixel more). That is the price of not
-shipping a 764-entry array over the wire on every change. If they ever drift,
-the symptom is a seat boundary in the wrong place, so the acceptance test is:
-light each zone distinctly and check the panel's reported ranges against the
-table. `buildZones()` must re-run when `playerCount` or `gmLen` changes, not
-per-frame.
+shipping a 764-entry array over the wire on every change.
+
+**This is enforced, not just documented.** `zones.verify()` reimplements the
+pattern's arithmetic and compares it against this module's for every player
+count, and Table Check runs it before every session. It is pure arithmetic:
+no device, no network. If the two ever drift the symptom would otherwise be a
+seat boundary in the wrong place, found by a confused player mid-session.
+
+`buildZones()` re-runs when `playerCount`, `gmStart` or `gmLen` changes, not
+per-frame — it is ~800 array writes, more than the render it feeds.
 
 **Why exported variables rather than uploading a new pattern per change:**
 writing a variable is a single websocket message; recompiling and uploading a
@@ -642,11 +665,25 @@ the previous pattern afterwards, the way Table Check does.
 
 #### What it unlocks
 
-- **Seat claiming**, and therefore player phones (§3.7)
+- **Seat claiming**, and therefore player phones (§3.7). `claim_seat()`
+  already matches a player to a zone by colour; what it lacked was any way
+  for the table to *show* those colours. It has one now.
 - **Per-seat initiative lighting** (§3.9), which was always going to ride on
-  a zone model
+  a zone model. `set_zone()` is the per-turn call it needs — one seat, one
+  websocket message, no layout resend.
 - Per-seat effects generally: whispers, "you are being addressed", damage
-  flashes
+  flashes.
+
+#### Still open
+
+- **Upload `patterns/zones.js` to the Pixelblaze.** Nothing lights until
+  this is done. Table Check warns rather than fails, because a table with
+  no zones pattern is a normal state, not a fault.
+- **Confirm the division feels right below six players** — see the seat
+  sizes above. Equal division is what is built; whether a solo player wants
+  275 inches of table is a question for the room, not the code.
+- **Seat claiming from a phone** still needs the player-facing surface
+  (§3.7). The table side of it is done.
 
 ---
 

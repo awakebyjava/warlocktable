@@ -77,6 +77,7 @@ def run_check(rt, physical: bool = False) -> Dict[str, Any]:
     results.extend(_check_light_patterns(rt, config))
     results.extend(_check_audio_tracks(rt, config))
     results.extend(_check_backgrounds(rt, config))
+    results.extend(_check_zones(rt, config))
 
     # ---------------------------------------------------------- devices
 
@@ -134,6 +135,70 @@ def _check_light_patterns(rt, config) -> List[Dict[str, Any]]:
                    % (len(missing), len(wanted), ", ".join(missing)))]
     return [_r("Light patterns", PASS,
                "all %d referenced patterns exist on the device" % len(wanted))]
+
+
+def _check_zones(rt, config) -> List[Dict[str, Any]]:
+    """Seat zones: the maths, and whether the device can actually draw them.
+
+    The first half is pure arithmetic and needs no hardware. It exists
+    because the zone division is implemented TWICE — in warlock/zones.py
+    and again inside patterns/zones.js, which derives the map on-device
+    from three numbers instead of being sent all 764. That is the right
+    trade for a value that changes every turn, but it means the two can
+    drift, and the symptom would be a seat boundary in the wrong place,
+    noticed by a confused player mid-session. Cheaper to catch here.
+    """
+    from . import zones as zonemap
+
+    out: List[Dict[str, Any]] = []
+
+    problems = zonemap.verify()
+    if problems:
+        out.append(_r("Zone model", FAIL, "; ".join(problems)))
+    else:
+        out.append(_r("Zone model", PASS,
+                      "1-%d players divide cleanly, and %s agrees"
+                      % (zonemap.MAX_PLAYERS, zonemap.PATTERN_PATH)))
+
+    count = config.player_count
+    if not 1 <= count <= zonemap.MAX_PLAYERS:
+        out.append(_r("Seats", FAIL,
+                      "player_count is %r, outside 1-%d"
+                      % (count, zonemap.MAX_PLAYERS)))
+        return out
+
+    seats = [row for row in zonemap.layout(count) if row["zone"]]
+    out.append(_r("Seats", PASS,
+                  "%d players + GM; each seat %d-%d LEDs (%.0f in)"
+                  % (count,
+                     min(int(r["leds"]) for r in seats),
+                     max(int(r["leds"]) for r in seats),
+                     seats[0]["inches"])))
+
+    # Anyone claiming a seat that no longer exists gets whispers sent to a
+    # zone the table is not lighting.
+    stranded = sorted(p.name for p in config.players
+                      if p.zone_id is not None and p.zone_id > count)
+    if stranded:
+        out.append(_r("Seat claims", FAIL,
+                      "%s claimed seats above the current count of %d"
+                      % (", ".join(stranded), count)))
+
+    # Whether per-zone lighting will do anything is a real question, not a
+    # fault: the pattern has to be uploaded to the Pixelblaze by hand.
+    try:
+        supported = rt.lights.supports_zones()
+    except Exception as exc:   # noqa: BLE001
+        out.append(_r("Zone lighting", FAIL, "could not ask the device: %s" % exc))
+        return out
+
+    if supported:
+        out.append(_r("Zone lighting", PASS, "the zones pattern is on the device"))
+    else:
+        out.append(_r("Zone lighting", WARN,
+                      "no 'zones' pattern on the Pixelblaze — seat colours "
+                      "will do nothing until patterns/zones.js is uploaded"))
+    return out
 
 
 def _check_audio_tracks(rt, config) -> List[Dict[str, Any]]:

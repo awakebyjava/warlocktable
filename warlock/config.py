@@ -128,6 +128,12 @@ class Config:
     # than hardcoded in the controller, so the management UI can change what
     # the table falls back to.
     idle_scene_name: str = "idle"
+    # How many players are seated, which is what divides the table into
+    # zones (plan doc 4.7). The GM is always present and is not counted
+    # here; 4 players means five zones. Stored rather than computed because
+    # it is a fact about the room that nothing in software can observe.
+    player_count: int = 4
+
     # How long an interruption holds if the audio device can't tell us the
     # real duration (because it failed, or the file is missing). Without this
     # a broken audio device would strand the table in the interruption's
@@ -269,6 +275,7 @@ def load_config(path: str) -> Config:
         scenes=scenes, interruptions=interruptions, random_tables=random_tables,
         cards=cards, zones=zones, players=players,
         idle_scene_name=raw.get("settings", {}).get("idle_scene", "idle"),
+        player_count=int(raw.get("settings", {}).get("player_count", 4)),
         fallback_interruption_s=float(
             raw.get("settings", {}).get("fallback_interruption_s", 5.0)),
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
@@ -310,6 +317,7 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "duck_level": config.duck_level,
         "duck_ramp_s": config.duck_ramp_s,
         "idle_scene": config.idle_scene_name,
+        "player_count": config.player_count,
         "fallback_interruption_s": config.fallback_interruption_s,
     }
 

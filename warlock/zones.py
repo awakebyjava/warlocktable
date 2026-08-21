@@ -175,12 +175,186 @@ def summarise(players: int, gm_leds: int = GM_LEDS) -> List[Dict[str, object]]:
     return out
 
 
+# ---------------------------------------------------------------- colours
+
+# Seat colours, as hue/saturation on the Pixelblaze's 0..1 scale.
+#
+# Deliberately a rainbow rather than the project's brass/purple identity:
+# these exist to be told apart by a player pointing at the table in a dim
+# room, so maximum separation beats house style. Hues are spaced to stay
+# distinguishable on an SK6812 -- notably orange and yellow sit closer
+# together in hue than they look, hence 0.07/0.13 rather than even steps.
+COLOUR_HSV: Dict[str, Tuple[float, float]] = {   # name -> (hue, saturation)
+    "red":     (0.00, 1.0),
+    "orange":  (0.07, 1.0),
+    "yellow":  (0.13, 1.0),
+    "green":   (0.33, 1.0),
+    "cyan":    (0.50, 1.0),
+    "blue":    (0.62, 1.0),
+    "purple":  (0.78, 1.0),
+    "magenta": (0.88, 1.0),
+    "pink":    (0.94, 0.6),
+    "white":   (0.00, 0.0),
+}
+
+# The GM is white: unsaturated, so it cannot be confused with any seat
+# colour however the player palette is later reshuffled.
+GM_COLOUR = "white"
+
+# Default seat colours in zone order, matching the ids in config.zones.
+SEAT_COLOURS: List[str] = [
+    "red", "orange", "yellow", "green", "cyan", "blue", "magenta",
+]
+
+# Brightness for seat display. The device's persisted brightness limit is
+# the power safety mechanism and is not touched from here; this is scene
+# content sitting underneath it, kept moderate because seat claiming runs
+# with the room lights up and does not need to be blinding.
+SEAT_VALUE = 0.6
+
+
+def hsv_for(colour: str, value: float = SEAT_VALUE) -> Tuple[float, float, float]:
+    """Colour name -> (hue, saturation, value). Unknown names go white."""
+    hue, sat = COLOUR_HSV.get(colour.lower().strip(), COLOUR_HSV["white"])
+    return hue, sat, max(0.0, min(1.0, float(value)))
+
+
+def seat_colour(zone: int) -> str:
+    """Default colour for a zone id. 0 is the GM; players wrap the palette."""
+    if zone == GM_ZONE:
+        return GM_COLOUR
+    return SEAT_COLOURS[(zone - 1) % len(SEAT_COLOURS)]
+
+
+def layout(players: int, gm_leds: int = GM_LEDS,
+           colours: Optional[Dict[int, str]] = None) -> List[Dict[str, object]]:
+    """The full zone description a UI or API would render.
+
+    Each entry carries the zone's id, label, colour and LED runs. `colours`
+    overrides the defaults per zone id, so a claimed seat keeps the colour
+    the player picked.
+    """
+    colours = colours or {}
+    rows = summarise(players, gm_leds)
+    for row in rows:
+        z = int(row["zone"])
+        row["colour"] = colours.get(z, seat_colour(z))
+        row["inches"] = round(int(row["leds"]) / DENSITY_PER_M * 39.3701, 1)
+    return rows
+
+
+# ------------------------------------------------- agreement with the pattern
+
+# The Pixelblaze pattern derives the map on-device from three scalars rather
+# than being sent a 764-entry array on every change. That is the right
+# trade -- one websocket message instead of a large one, many times a
+# session -- but it means the division exists TWICE, here and in
+# patterns/zones.js.
+#
+# If the two ever drift, the symptom is a seat boundary in the wrong place
+# on a real table, noticed by a confused player mid-session. So the pattern's
+# arithmetic is reimplemented below and compared against this module's, and
+# Table Check runs it before every session. It is pure arithmetic: no device,
+# no network, microseconds.
+#
+# If you change the division rule in either file, change it in BOTH and let
+# this fail if you got it wrong.
+
+PATTERN_PATH = "patterns/zones.js"
+
+
+def _as_pattern_computes(players: int, gm_start: int, gm_len: int) -> List[int]:
+    """buildZones() from patterns/zones.js, transliterated."""
+    path = build_path()
+    path_len = len(path)
+    path_pos = [-1] * PIXEL_COUNT
+    for position, led in enumerate(path):
+        path_pos[led] = position
+
+    remaining = path_len - gm_len
+    base = remaining // players
+    extra = remaining % players
+    big_span = extra * (base + 1)
+
+    zone_of = [-1] * PIXEL_COUNT
+    for i in range(PIXEL_COUNT):
+        pos = path_pos[i]
+        if pos < 0:
+            continue
+        d = (pos - gm_start + path_len) % path_len
+        if d < gm_len:
+            zone_of[i] = GM_ZONE
+        else:
+            r = d - gm_len
+            if r < big_span:
+                zone_of[i] = 1 + r // (base + 1)
+            else:
+                zone_of[i] = 1 + extra + (r - big_span) // base
+    return zone_of
+
+
+def verify(gm_leds: int = GM_LEDS) -> List[str]:
+    """-> list of problems, empty when everything agrees.
+
+    Checks the invariants the whole zone model rests on, plus agreement
+    with the on-device pattern.
+    """
+    problems: List[str] = []
+    path = build_path()
+
+    if sorted(path) != list(range(PIXEL_COUNT)):
+        problems.append("perimeter path does not cover all %d LEDs exactly once"
+                        % PIXEL_COUNT)
+        return problems      # nothing below is meaningful if this is wrong
+
+    pos_of = {led: i for i, led in enumerate(path)}
+    gm_start, gm_len = gm_span(gm_leds)
+
+    for n in range(1, MAX_PLAYERS + 1):
+        zone_of = assign(n, gm_leds)
+
+        if -1 in zone_of:
+            problems.append("%d players: %d LEDs belong to no zone"
+                            % (n, zone_of.count(-1)))
+
+        sizes = [zone_of.count(z) for z in range(1, n + 1)]
+        if sizes and max(sizes) - min(sizes) > 1:
+            problems.append("%d players: seats differ by %d LEDs (max 1)"
+                            % (n, max(sizes) - min(sizes)))
+
+        # Every zone must be ONE arc round the table. A zone in two pieces
+        # would light two separate stretches for one player.
+        for z in range(0, n + 1):
+            ps = sorted(pos_of[i] for i, v in enumerate(zone_of) if v == z)
+            breaks = sum(1 for a, b in zip(ps, ps[1:]) if b != a + 1)
+            if breaks > 1:          # 1 is the wrap past position 0
+                problems.append("%d players: zone %d is in %d pieces"
+                                % (n, z, breaks + 1))
+
+        if zone_of != _as_pattern_computes(n, gm_start, gm_len):
+            problems.append("%d players: %s computes a different map"
+                            % (n, PATTERN_PATH))
+
+    return problems
+
+
 if __name__ == "__main__":  # python -m warlock.zones [players] [gm_leds]
     import sys
 
+    if len(sys.argv) > 1 and sys.argv[1] == "verify":
+        issues = verify()
+        for line in issues:
+            print("  FAIL " + line)
+        print("%s: %d problems" % (PATTERN_PATH, len(issues))
+              if issues else "zone model consistent, and agrees with %s"
+              % PATTERN_PATH)
+        raise SystemExit(1 if issues else 0)
+
     players = int(sys.argv[1]) if len(sys.argv) > 1 else 4
     gm_leds = int(sys.argv[2]) if len(sys.argv) > 2 else GM_LEDS
-    print("%d players, GM = %d LEDs" % (players, gm_leds))
-    for row in summarise(players, gm_leds):
+    print("%d players, GM = %d LEDs (%.0f in)"
+          % (players, gm_leds, gm_leds / DENSITY_PER_M * 39.3701))
+    for row in layout(players, gm_leds):
         runs = " | ".join("%d-%d" % (a, b) for a, b in row["runs"])
-        print("  %-9s %3d px  %s" % (row["label"], row["leds"], runs))
+        print("  %-9s %-8s %3d px %5.1f in  %s"
+              % (row["label"], row["colour"], row["leds"], row["inches"], runs))

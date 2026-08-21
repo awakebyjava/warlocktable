@@ -117,6 +117,10 @@ class PixelblazeLights(LightDevice):
         self._brightness = None
         self._brightness_at = 0.0
 
+        # Last zone palette written, so one seat can be recoloured without
+        # reading all eight back off the device first (see set_zone_colour).
+        self._zone_colours = [(0.0, 0.0, 0.0)] * 8
+
     @contextlib.contextmanager
     def _bounded(self):
         """Bound every socket operation inside this block.
@@ -434,6 +438,88 @@ class PixelblazeLights(LightDevice):
         self._patterns = {name: pid for pid, name in listing.items()}
         self._patterns_fetched_at = now
         return sorted(self._patterns.keys(), key=str.lower)
+
+    # ---- zones (plan doc 4.7) --------------------------------------------
+
+    ZONES_PATTERN = "zones"
+
+    def supports_zones(self) -> bool:
+        """True only if the zones pattern is actually on the device.
+
+        Reported rather than assumed. Uploading a pattern is a manual step,
+        so a Pixelblaze that has never had zones.js put on it is a normal
+        state, not a fault — and the panel needs to be able to say so
+        instead of offering a control that silently does nothing.
+        """
+        try:
+            return self.ZONES_PATTERN in self.available_patterns()
+        except DeviceError:
+            return False
+
+    @_synchronized
+    def _write_vars(self, values: Dict[str, object], what: str) -> None:
+        pb = self._ensure()
+        try:
+            with self._bounded():
+                pb.setActiveVariables(values)
+        except Exception as exc:
+            self._drop(exc)
+            raise DeviceError("%s failed: %s" % (what, exc))
+
+    def show_zones(self, player_count: int, colours, gm_start: int,
+                   gm_len: int) -> None:
+        # The pattern must be ACTIVE for its variables to exist. Writing
+        # zoneH while a scene pattern is running is silently discarded by
+        # the Pixelblaze — no error, no light change — so switching first
+        # is not an optimisation, it is the difference between working and
+        # failing invisibly.
+        if self.current_pattern != self.ZONES_PATTERN:
+            self.set_pattern(self.ZONES_PATTERN)
+
+        # Pad to 8 so the arrays always match the pattern's array(8).
+        # setActiveVariables on a short list leaves the tail at whatever the
+        # previous layout wrote, which would strand a stale seat colour on
+        # the table when the player count drops.
+        padded = list(colours) + [(0.0, 0.0, 0.0)] * (8 - len(colours))
+        padded = [tuple(float(x) for x in c) for c in padded[:8]]
+        self._zone_colours = padded
+
+        self._write_vars({
+            "zoneH": [c[0] for c in padded],
+            "zoneS": [c[1] for c in padded],
+            "zoneV": [c[2] for c in padded],
+            # Layout last: the pattern rebuilds its map when these change,
+            # so writing them after the colours means the rebuild and the
+            # first frame that uses it both see the new palette.
+            "gmStart": int(gm_start),
+            "gmLen": int(gm_len),
+            "playerCount": int(player_count),
+        }, "show_zones(%d players)" % player_count)
+
+        self.log.record("lights.show_zones", players=player_count,
+                        gm_start=gm_start, gm_len=gm_len)
+
+    def set_zone_colour(self, zone: int, colour) -> None:
+        if self.current_pattern != self.ZONES_PATTERN:
+            raise DeviceError(
+                "set_zone_colour needs the %r pattern active (currently %r)"
+                % (self.ZONES_PATTERN, self.current_pattern))
+        if not 0 <= zone < 8:
+            raise DeviceError("zone %d out of range 0-7" % zone)
+        h, sat, v = (float(c) for c in colour)
+
+        # An exported array cannot be written one element at a time, so the
+        # whole array goes every time. Rather than reading the current
+        # values back over the wire, keep what was last written: this is
+        # the per-turn initiative path, and a round-trip per highlight move
+        # is exactly the cost the variable-writing design exists to avoid.
+        self._zone_colours[zone] = (h, sat, v)
+        self._write_vars({"zoneH": [c[0] for c in self._zone_colours],
+                          "zoneS": [c[1] for c in self._zone_colours],
+                          "zoneV": [c[2] for c in self._zone_colours]},
+                         "set_zone_colour(%d)" % zone)
+        self.log.record("lights.set_zone_colour", zone=zone,
+                        hsv=[round(h, 3), round(sat, 3), round(v, 3)])
 
     @_synchronized
     def close(self) -> None:

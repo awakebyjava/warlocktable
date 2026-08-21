@@ -11,7 +11,7 @@ nothing in warlock/controller.py changes.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .base import AudioDevice, DisplayDevice, LightDevice
 
@@ -23,6 +23,7 @@ FAKE_PATTERNS = [
     "green ripple reflections", "glitch bands", "sparkfire",
     "spin cycle", "opposites",
     "Forest", "Plains", "Swamp", "Island", "Mountain",
+    "zones",
 ]
 
 # name -> fake duration in seconds. Real files will report real duration;
@@ -40,6 +41,8 @@ class FakeLightDevice(LightDevice):
         self.log = log
         self.current_pattern: Optional[str] = None
         self.brightness = 1.0
+        self.zone_layout = None
+        self.zone_colours: List[Tuple[float, float, float]] = []
 
     def set_pattern(self, name: str) -> None:
         self.current_pattern = name
@@ -51,6 +54,34 @@ class FakeLightDevice(LightDevice):
 
     def available_patterns(self) -> List[str]:
         return list(FAKE_PATTERNS)
+
+    # ---- zones (plan doc 4.7) --------------------------------------------
+    # The fake reports zones as supported and records what it was told.
+    # That is the point of the fakes-first approach (4.2): the whole seat
+    # model — dividing the table, claiming seats, the panel's controls —
+    # can be built and exercised with no Pixelblaze attached, and the log
+    # shows exactly what the real device would have been sent.
+
+    def supports_zones(self) -> bool:
+        return True
+
+    def show_zones(self, player_count: int,
+                   colours: List[Tuple[float, float, float]],
+                   gm_start: int, gm_len: int) -> None:
+        self.current_pattern = "zones"
+        self.zone_layout = (player_count, gm_start, gm_len)
+        self.zone_colours = list(colours)
+        self.log.record("lights.show_zones", players=player_count,
+                        gm_start=gm_start, gm_len=gm_len,
+                        colours=len(colours))
+
+    def set_zone_colour(self, zone: int,
+                        colour: Tuple[float, float, float]) -> None:
+        while len(self.zone_colours) <= zone:
+            self.zone_colours.append((0.0, 0.0, 0.0))
+        self.zone_colours[zone] = colour
+        self.log.record("lights.set_zone_colour", zone=zone,
+                        hsv=[round(c, 3) for c in colour])
 
 
 class FakeAudioDevice(AudioDevice):
