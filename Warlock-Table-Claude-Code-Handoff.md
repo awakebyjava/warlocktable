@@ -106,9 +106,26 @@ wasteful. `zones.verify()` compares the two and Table Check runs it before
 every session — if you change the division rule, change it in **both** files
 and let the check tell you if you got it wrong.
 
-**Before any of it lights:** `patterns/zones.js` has to be uploaded to the
-Pixelblaze by hand. Until then `supports_zones()` reports false, the panel
-says so, and the seat actions no-op instead of failing.
+**Patterns go up through the API**, from the laptop:
+
+```bash
+python tools/upload_pattern.py zones      # --activate to switch to it
+python tools/upload_pattern.py --list     # what is on the device
+```
+
+Compiling needs V8, which the client gets by downloading the compiler from
+the Pixelblaze's own web UI and running it under `py_mini_racer`. That has
+no ARM wheel, so it is stubbed on the Pi — **upload from the laptop, not the
+Pi.** Saving does not activate, so it is safe mid-session.
+
+`zones` is already on the device and confirmed working. If it ever goes
+missing, `supports_zones()` reports false, the panel says so, and the seat
+actions no-op instead of failing.
+
+**The language is not JavaScript, whatever the `.js` extension suggests.**
+User-defined functions need the `function` keyword. Compile against the
+device before believing any pattern is correct — it is the only thing that
+knows.
 
 
 ## Working-style reminders

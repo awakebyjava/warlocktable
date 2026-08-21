@@ -462,9 +462,32 @@ lighting capability** spanning [`patterns/zones.js`](patterns/zones.js), the
 | Panel | Seats section; `GET /api/zones` |
 | Pre-session check | Table Check — "Zone model", "Seats", "Zone lighting" |
 
-**One manual step remains:** `patterns/zones.js` has to be uploaded to the
-Pixelblaze by hand. Until it is, `supports_zones()` reports false, the panel
-says so in plain words, and the seat actions no-op rather than failing.
+**Uploaded and working on the table** (2026-08-21). Patterns go up through the
+API with `tools/upload_pattern.py`; there is no manual step. If the pattern is
+ever missing, `supports_zones()` reports false, the panel says so in plain
+words, and the seat actions no-op rather than failing.
+
+```bash
+python tools/upload_pattern.py zones      # laptop only - compiling needs V8
+```
+
+**Two things only the device could tell us**, both found by uploading:
+
+1. **The Pixelblaze language is not JavaScript.** A user-defined function
+   needs the `function` keyword — `buildZones() {` is a syntax error, which
+   no pattern already in `patterns/` would have revealed, because none of
+   them defines one. The firmware's own compiler caught it.
+2. **`setActiveVariables()` does write exported arrays.** This was the load-
+   bearing assumption of the whole design and had no precedent on this table:
+   every other pattern exports only a scalar. Confirmed by writing all three
+   colour arrays and reading them back.
+
+Compilation happens **against the live device** — the client pulls the
+compiler out of the Pixelblaze's own web UI and runs it under V8. So the
+bytecode is always built by the compiler belonging to the firmware that will
+run it, and syntax is checked by the real thing rather than by assumption.
+It also means uploading needs a reachable device, and cannot be done from
+the Pi (`py_mini_racer` has no ARM wheel and is stubbed there).
 
 #### The zone map: GM + N players
 
@@ -676,8 +699,9 @@ the previous pattern afterwards, the way Table Check does.
 
 #### Still open
 
-- **Upload `patterns/zones.js` to the Pixelblaze.** Nothing lights until
-  this is done. Table Check warns rather than fails, because a table with
+- ~~Upload `patterns/zones.js` to the Pixelblaze.~~ Done — uploaded through
+  the API and confirmed lighting seven seats on the table. Table Check
+  still warns rather than fails if it goes missing, because a table with
   no zones pattern is a normal state, not a fault.
 - **Confirm the division feels right below six players** — see the seat
   sizes above. Equal division is what is built; whether a solo player wants

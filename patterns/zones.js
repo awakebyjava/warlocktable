@@ -67,7 +67,7 @@ builtFor = -1                 // playerCount the current map was built for
 builtStart = -1
 builtLen = -1
 
-buildZones() {
+function buildZones() {
   remaining = pathLen - gmLen
   base = floor(remaining / playerCount)
   extra = remaining % playerCount
