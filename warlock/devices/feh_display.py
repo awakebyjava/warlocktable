@@ -50,9 +50,18 @@ from .base import DeviceError, DisplayDevice, UnknownAssetError
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 CURRENT = ".current.png"
 
-# "forest_3840x2160_grid.png" -> base "forest", grid True
-_SUFFIX = re.compile(r"^(?P<base>.+?)(?:[_-]\d{3,5}x\d{3,5})?(?P<grid>[_-]grid)?$",
-                     re.IGNORECASE)
+# Overlays a background can carry. "" is the plain artwork.
+#   forest_3840x2160.png       -> base "forest", overlay ""
+#   forest_3840x2160_grid.png  -> base "forest", overlay "grid"
+#   forest_3840x2160_hex.png   -> base "forest", overlay "hex"
+OVERLAYS = ("grid", "hex")
+
+# Deliberately data-driven off OVERLAYS rather than hardcoding the two
+# names: adding a third overlay later should be a filename convention, not
+# a code change.
+_SUFFIX = re.compile(
+    r"^(?P<base>.+?)(?:[_-]\d{3,5}x\d{3,5})?(?:[_-](?P<overlay>%s))?$"
+    % "|".join(OVERLAYS), re.IGNORECASE)
 
 
 class FehDisplay(DisplayDevice):
@@ -70,7 +79,8 @@ class FehDisplay(DisplayDevice):
         self._lock = threading.RLock()
         self._current_dir: Optional[str] = None
 
-        self.grid = False
+        # "" = plain artwork, otherwise one of OVERLAYS.
+        self.overlay = ""
         self.background: Optional[str] = None
         self.healthy = False
         self.last_error: Optional[str] = None
@@ -162,10 +172,11 @@ class FehDisplay(DisplayDevice):
 
     @staticmethod
     def _split(stem: str):
+        """-> (base, overlay). overlay is "" for the plain artwork."""
         m = _SUFFIX.match(stem)
         if not m:
-            return stem.lower(), False
-        return m.group("base").lower(), bool(m.group("grid"))
+            return stem.lower(), ""
+        return m.group("base").lower(), (m.group("overlay") or "").lower()
 
     def _scan(self) -> None:
         found: Dict[str, Dict[str, str]] = {}
@@ -179,29 +190,34 @@ class FehDisplay(DisplayDevice):
                 stem, ext = os.path.splitext(fn)
                 if ext.lower() not in IMAGE_EXTENSIONS:
                     continue
-                base, is_grid = self._split(stem)
+                base, overlay = self._split(stem)
                 entry = found.setdefault(base, {})
-                entry["grid" if is_grid else "plain"] = os.path.join(base_dir, fn)
-        # A base with only a gridded render should still be usable.
+                entry[overlay or "plain"] = os.path.join(base_dir, fn)
+        # Any missing variant falls back to the plain artwork (or to
+        # whatever exists), so a background with only one render is still
+        # usable and asking for an overlay it lacks degrades quietly.
         for base, variants in found.items():
-            variants.setdefault("plain", variants.get("grid"))
-            variants.setdefault("grid", variants.get("plain"))
+            fallback = variants.get("plain") or next(iter(variants.values()))
+            variants.setdefault("plain", fallback)
+            for ov in OVERLAYS:
+                variants.setdefault(ov, fallback)
         self._library = found
 
     def available_backgrounds(self) -> List[str]:
         return sorted(self._library.keys())
 
     def _resolve(self, name: str) -> str:
-        base, wanted_grid = self._split(os.path.splitext(name)[0])
+        base, wanted = self._split(os.path.splitext(name)[0])
         variants = self._library.get(base)
         if variants is None:
             raise UnknownAssetError(
                 "no background named %r (%d available: %s)"
                 % (name, len(self._library),
                    ", ".join(sorted(self._library)[:6])))
-        # An explicit _grid in the name wins; otherwise follow the toggle.
-        use_grid = wanted_grid or self.grid
-        return variants["grid" if use_grid else "plain"]
+        # An overlay named explicitly in the request wins; otherwise follow
+        # the current mode.
+        overlay = wanted or self.overlay
+        return variants.get(overlay or "plain", variants["plain"])
 
     # -------------------------------------------------------------- interface
 
@@ -228,7 +244,7 @@ class FehDisplay(DisplayDevice):
             self.background = name
             self.log.record("display.background", name=name,
                             file=os.path.basename(path),
-                            grid=self.grid,
+                            overlay=self.overlay or "none",
                             swap_ms=round((time.monotonic() - t0) * 1000),
                             real=True)
 
@@ -252,19 +268,29 @@ class FehDisplay(DisplayDevice):
             self.background = "(status screen)"
             self.log.record("display.status_screen", overall=report.get("overall"))
 
-    def set_grid(self, on: bool) -> None:
-        """Toggle the gridded variant, and re-show the current background.
+    def set_overlay(self, mode: str) -> None:
+        """Choose the map overlay and re-show the current background.
 
-        Kept as a toggle rather than baked into scene names: a grid under an
-        ambient forest looks wrong when nobody is running a combat, and
-        duplicating every scene into gridded/gridless would double the
-        config for one boolean.
+        A mode rather than a boolean, because there are now three states
+        (none / square grid / hex) and there may be more. Kept out of scene
+        names deliberately: an overlay under an ambient forest looks wrong
+        when nobody is running a combat, and duplicating every scene per
+        overlay would multiply the config for what is one setting.
         """
+        mode = (mode or "").lower()
+        if mode in ("none", "off", "plain"):
+            mode = ""
+        if mode and mode not in OVERLAYS:
+            raise UnknownAssetError(
+                "unknown overlay %r (have: none, %s)" % (mode, ", ".join(OVERLAYS)))
         with self._lock:
-            self.grid = bool(on)
-            self.log.record("display.grid", on=self.grid)
-            if self.background:
+            self.overlay = mode
+            self.log.record("display.overlay", mode=mode or "none")
+            if self.background and self.background != "(status screen)":
                 self.set_background(self.background)
+
+    def available_overlays(self) -> List[str]:
+        return ["none"] + list(OVERLAYS)
 
     def handoff(self, target: str) -> None:
         # HDMI-CEC (plan doc 3.7) is not built yet. Log the intent so the
@@ -280,7 +306,8 @@ class FehDisplay(DisplayDevice):
         return {
             "healthy": self.healthy,
             "background": self.background,
-            "grid": self.grid,
+            "overlay": self.overlay or "none",
+            "overlays": ["none"] + list(OVERLAYS),
             "images": len(self._library),
             "error": self.last_error,
         }

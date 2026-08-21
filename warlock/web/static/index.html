@@ -60,10 +60,10 @@
 
   <section id="display-section">
     <h2>Table Screen</h2>
-    <button id="grid-toggle" class="wide-toggle">
-      Battle Grid
-      <span class="kind" id="grid-state">off</span>
-    </button>
+    <!-- Three explicit buttons rather than one cycling toggle: mid-session
+         in low light you should be able to hit the state you want, not
+         guess where a cycle will land. -->
+    <div id="overlay-row" class="check-row" style="grid-template-columns:repeat(3,1fr)"></div>
     <p class="note" id="display-note"></p>
   </section>
 

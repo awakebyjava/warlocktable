@@ -286,15 +286,19 @@ class Controller:
         self._try("display", shower, build_report(rt),
                    getattr(self, "_branding_path", None))
 
-    @action(ParamSpec("on", "bool"))
-    def set_grid(self, on: bool) -> None:
-        """Show or hide the battle-map grid on the table screen.
+    @action(ParamSpec("mode", "str",
+                       choices=lambda c: (c.display.available_overlays()
+                                          if hasattr(c.display, "available_overlays")
+                                          else ["none", "grid", "hex"])))
+    def set_overlay(self, mode: str) -> None:
+        """Choose the map overlay on the table screen: none, grid, or hex.
 
-        Deliberately NOT a _supersede action: this is a display preference,
-        not a scene change. Toggling the grid mid-combat must not cancel a
-        pending interruption revert.
+        A mode rather than a boolean because there are three states now and
+        may be more. Deliberately NOT a _supersede action: this is a display
+        preference, not a scene change, so changing it mid-combat must not
+        cancel a pending interruption revert.
         """
-        self._try("display", self.display.set_grid, bool(on))
+        self._try("display", self.display.set_overlay, mode)
 
     @action(ParamSpec("player", "str"), ParamSpec("text", "str"))
     def whisper(self, player: str, text: str) -> None:

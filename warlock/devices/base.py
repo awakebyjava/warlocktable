@@ -99,11 +99,11 @@ class DisplayDevice(ABC):
     def handoff(self, target: str) -> None:
         """target is 'pi' or 'appletv' (plan doc 3.7, HDMI-CEC)."""
 
-    def set_grid(self, on: bool) -> None:
-        """Show or hide the battle-map grid overlay.
+    def set_overlay(self, mode: str) -> None:
+        """Choose the map overlay: "none", "grid", "hex", ...
 
-        Deliberately NOT abstract: a display that has no gridded artwork is
-        still a valid display. The default is to do nothing rather than to
-        make every implementation carry a stub.
+        Deliberately NOT abstract: a display with no overlay artwork is
+        still a valid display. The default does nothing rather than making
+        every implementation carry a stub.
         """
         return None

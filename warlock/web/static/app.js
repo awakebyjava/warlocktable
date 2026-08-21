@@ -94,20 +94,18 @@ function render(s) {
   });
 
   // Table screen: reflect the device's own state rather than what we last
-  // asked for, so the button cannot drift out of sync with reality.
+  // asked for, so the controls cannot drift out of sync with reality.
   const dd = s.display_device;
-  const gt = $("#grid-toggle");
   if (dd) {
     $("#display-section").style.display = "";
-    gt.classList.toggle("on", !!dd.grid);
-    $("#grid-state").textContent = dd.grid ? "on" : "off";
+    renderOverlayButtons(dd);
     $("#display-note").textContent = dd.healthy
       ? `${dd.images} background${dd.images === 1 ? "" : "s"}` +
         (dd.background ? ` · showing ${dd.background}` : "")
       : (dd.error || "display unavailable");
   } else {
-    // No real display attached - hide the section rather than show a
-    // control that silently does nothing.
+    // No real display attached - hide the section rather than show
+    // controls that silently do nothing.
     $("#display-section").style.display = "none";
   }
 
@@ -335,10 +333,31 @@ async function runCheck(physical, btn) {
 $("#check-run").addEventListener("click", (e) => runCheck(false, e.currentTarget));
 $("#check-full").addEventListener("click", (e) => runCheck(true, e.currentTarget));
 
-$("#grid-toggle").addEventListener("click", (e) => {
-  const btn = e.currentTarget;
-  fire("set_grid", { on: !btn.classList.contains("on") }, btn);
-});
+const OVERLAY_LABEL = { none: "No Overlay", grid: "Square Grid", hex: "Hex Grid" };
+
+function renderOverlayButtons(dd) {
+  const row = $("#overlay-row");
+  const modes = dd.overlays || ["none", "grid", "hex"];
+  const current = dd.overlay || "none";
+
+  // Rebuild only when the set of modes changes; otherwise just move the
+  // highlight, so a poll mid-tap does not tear the row out from under a
+  // finger.
+  if (row.dataset.modes !== modes.join(",")) {
+    row.dataset.modes = modes.join(",");
+    row.innerHTML = "";
+    modes.forEach(m => {
+      const b = el("button");
+      b.dataset.mode = m;
+      b.append(document.createTextNode(OVERLAY_LABEL[m] || m));
+      b.addEventListener("click", () => fire("set_overlay", { mode: m }, b));
+      row.append(b);
+    });
+  }
+  row.querySelectorAll("button").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === current);
+  });
+}
 
 const bright = $("#bright");
 bright.addEventListener("input", () => {
