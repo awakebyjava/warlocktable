@@ -54,6 +54,32 @@ def is_ours(name: str) -> bool:
     return name in OURS_EXACT or name.startswith(OURS_PREFIX) or "+" in name
 
 
+def in_git_history(name: str) -> bool:
+    """Did patterns/generated/<name>.js ever exist in this repo?
+
+    A pattern retired ON PURPOSE gets deleted from the working tree in the
+    same commit that stops generating it -- which then makes it look
+    unarchived to the check above, even though the commit before it holds
+    the source and `git show <rev>^:patterns/generated/<name>.js` brings it
+    straight back. History is an archive; a file being absent from the
+    working tree is not the same as it being gone.
+
+    Deliberately does NOT consult the index or the remote: if it is in this
+    repo's history it can be recovered offline, which is the property that
+    matters at the bench.
+    """
+    import subprocess
+
+    rel = "patterns/generated/%s.js" % name
+    try:
+        out = subprocess.run(
+            ["git", "-C", REPO, "log", "--all", "--oneline", "-1", "--", rel],
+            capture_output=True, text=True, timeout=15)
+    except Exception:      # noqa: BLE001 -- no git, or not a checkout
+        return False
+    return out.returncode == 0 and bool(out.stdout.strip())
+
+
 def address() -> str:
     try:
         with io.open(STATE, encoding="utf-8") as fh:
@@ -142,7 +168,8 @@ def main() -> int:
             # device. Only stock patterns depend on the device-archive.
             recoverable = (
                 os.path.exists(os.path.join(ARCHIVE, safe_filename(name) + ".js"))
-                or os.path.exists(os.path.join(GENERATED, name + ".js")))
+                or os.path.exists(os.path.join(GENERATED, name + ".js"))
+                or in_git_history(name))
             if not recoverable:
                 print("  %-34s NOT ARCHIVED - skipping" % name[:34], flush=True)
                 continue

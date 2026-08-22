@@ -64,7 +64,7 @@ warlock/
   web/             the operator panel, served from the controller process
 deploy/            install.sh, update.sh, the systemd unit
 tools/             laptop-side, for the Pixelblaze and the live config:
-                     patterngen.py       generate all 70 patterns
+                     patterngen.py       generate all 30 patterns
                      upload_watched.py   upload one at a time, verifying each
                      upload_pattern.py   upload a single named pattern
                      archive_patterns.py copy sources off before deleting

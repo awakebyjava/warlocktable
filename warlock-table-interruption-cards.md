@@ -63,7 +63,23 @@ A Person card announces that a **specific character/NPC has entered the scene**.
 
 ### 2.3 Aura
 
-An Aura card **modifies the ongoing scene** — it's a temporary flourish layered on top of whatever the table is currently doing (lighting, and eventually screen/audio), rather than replacing it.
+An Aura card is a temporary flourish over whatever the table is currently
+doing, which plays for a fixed duration and then returns to the base scene.
+
+> **AS BUILT (2026-08-22): an Aura REPLACES the scene for its duration, it
+> does not tint it.** This section originally specified layering, and that
+> is what the implementation attempted: since the Pixelblaze cannot
+> composite two patterns at runtime, every aura×scene pairing was
+> pre-rendered as its own pattern. That produced 40 patterns — 65% of the
+> generated set — and **none was ever used**, because the code to select
+> one was never written. Covering the matrix properly meant 72 patterns on
+> a device whose flash had already been filled once, which is what wedged
+> it and cost the whole LED configuration.
+>
+> So the forest goes away for those 60 seconds and comes back. **This is a
+> real reduction against the spec above**, recorded here rather than
+> quietly dropped, and it is not recoverable without rebuilding the
+> combos. See plan doc §3.2 before reviving the idea.
 
 - **Trigger type:** timed flourish. Plays for a fixed duration, then automatically fades back to whatever the base scene was. It is **not** persistent — it doesn't need to be manually cleared.
 - **Default duration:** 60 seconds for all 12 cards (a single shared default, no per-card override for now — keep it simple until we have reason to differentiate).

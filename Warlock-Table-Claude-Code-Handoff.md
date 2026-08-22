@@ -69,9 +69,11 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Volume and output switching** — including the `hdmi:` vs `plughw:` trap. §3.3.
 
 **Built 2026-08-22:**
-- **All patterns generated** from `tools/patterngen.py` — 70 of them, on the device. The five terrain scenes were compared against the hand-written originals on the table before replacing them; originals kept in `patterns/legacy/`.
-- **The tarot system** — 26 cards with config entries pointing at their own patterns. Wheel of Fortune now draws a random Aura. Silent for now: `Interruption.audio` is optional so the cards work before the clips exist.
-- **Stock patterns pruned** — 39 removed after archiving, device storage 82% → 62%.
+- **All patterns generated** from `tools/patterngen.py` — 30 of them, on the device. The five terrain scenes were compared against the hand-written originals on the table before replacing them; originals kept in `patterns/legacy/`.
+- **The tarot system** — 26 cards with config entries pointing at their own patterns, and all 32 physical cards enrolled. Wheel of Fortune draws a random Aura. Silent for now: `Interruption.audio` is optional so the cards work before the clips exist.
+- **Stock patterns pruned** — 39 removed after archiving, then the 40 aura×scene combos on top: 42 patterns on the device, 730KB free.
+- **Aura-over-scene layering was ABANDONED**, not deferred. The combos existed but nothing ever selected one, and finishing the feature meant 72 patterns on flash that had already been filled once. An Aura now replaces the scene and reverts. Do not rebuild the combos without reading plan doc §3.2 first — the reasons are recorded there and the memory is better spent elsewhere.
+- **`idle` is hand-written**, `patterns/idle.js` — not from the generator. It is the state the table sits in longest and it was running a stock pattern called `breathing`. Deep unlit-warlock-eye violet, eyes opening into neon, a surge every ~20s.
 
 **Not built yet:**
 - **Audio for the 26 tarot cards**, and **enrolling the remaining 22 physical cards** (`tools/enrol_cards.py`, with the table running).

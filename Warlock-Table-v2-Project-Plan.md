@@ -1308,12 +1308,25 @@ Stand up the core software on the Pi once hardware is trusted.
   Master volume in software, and a switch between the 3.5mm jack and the
   television.
 - [x] **The tarot interruption system** — built 2026-08-22 (§3.2). All 26
-  cards have entries pointing at their own generated patterns, and all 70
-  patterns are on the device. Layering was solved by pre-rendering the
-  aura×scene combinations rather than compositing at runtime.
+  cards have entries pointing at their own patterns, all 32 physical cards
+  are enrolled, and the card→target→pattern chain was traced end to end
+  with zero dangling references.
+  - [x] ~~**Layering an Aura over a Scene.**~~ **ABANDONED 2026-08-22.**
+    The Pixelblaze cannot composite two patterns at runtime, so this was
+    built as 40 pre-rendered aura×scene combinations — 65% of everything
+    the generator emitted. **Not one was ever used:** `play_interruption()`
+    sets the interruption's pattern verbatim, so nothing ever asked for
+    `Forest+Chariot`, and the selection code was never written. Covering
+    the matrix honestly meant 72 patterns on a device whose flash had
+    already been filled once, and filling it was what wedged the
+    Pixelblaze and cost the LED configuration. **An Aura now replaces the
+    scene for its duration and reverts** — which is what the four
+    `replaces` auras always did. The loss is real and is not recoverable
+    without the combos: the forest is gone for those 60 seconds rather
+    than tinted.
   - [ ] **Audio for the 26 cards.** They are silent by design for now;
-    `Interruption.audio` is optional so they work until clips exist.
-  - [ ] **Enrol the remaining 22 physical cards** — `tools/enrol_cards.py`.
+    `Interruption.audio` is optional so they work until clips exist. With
+    no audio the revert is driven entirely by `duration_s`.
   - [ ] **NPC binding editor** for the 9 Person cards (`npc_binding` is
     defined in the spec and null on every card; nothing edits it yet).
 - [ ] Phone-tag NFC support
