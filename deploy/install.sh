@@ -57,6 +57,9 @@ say "Data directory"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/audio"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/backups"
+# Session recordings (plan doc 3.10). Owned by the service user like the
+# rest of $DATA_DIR, and never touched again by install.
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/recordings"
 
 if [[ -f "$DATA_DIR/config.json" ]]; then
     echo "  config.json exists - LEFT ALONE (this is your live data)"

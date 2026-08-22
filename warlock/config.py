@@ -167,6 +167,11 @@ class Config:
     # failure 5.3 records.
     audio_outputs: Dict[str, str] = field(default_factory=dict)
 
+    # Room microphone, for session recording (plan doc 3.10). Named by CARD
+    # like every other audio device here, for the same reason.
+    mic_device: str = "plughw:CARD=microphone,DEV=0"
+    recording_dir: str = "/var/lib/warlocktable/recordings"
+
     # How long an interruption holds if the audio device can't tell us the
     # real duration (because it failed, or the file is missing). Without this
     # a broken audio device would strand the table in the interruption's
@@ -312,6 +317,10 @@ def load_config(path: str) -> Config:
         volume=float(raw.get("settings", {}).get("volume", 0.8)),
         audio_outputs=dict(raw.get("settings", {}).get("audio_outputs")
                             or DEFAULT_AUDIO_OUTPUTS),
+        mic_device=raw.get("settings", {}).get(
+            "mic_device", "plughw:CARD=microphone,DEV=0"),
+        recording_dir=raw.get("settings", {}).get(
+            "recording_dir", "/var/lib/warlocktable/recordings"),
         fallback_interruption_s=float(
             raw.get("settings", {}).get("fallback_interruption_s", 5.0)),
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
@@ -356,6 +365,8 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "player_count": config.player_count,
         "volume": config.volume,
         "audio_outputs": dict(config.audio_outputs),
+        "mic_device": config.mic_device,
+        "recording_dir": config.recording_dir,
         "fallback_interruption_s": config.fallback_interruption_s,
     }
 

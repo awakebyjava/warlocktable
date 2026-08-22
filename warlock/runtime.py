@@ -161,8 +161,9 @@ class Runtime:
 
     def __init__(self, controller: Controller, log: EventLog,
                  audio, lights, reader=None, config_source: str = "",
-                 web=None, store=None, unassigned=None):
+                 web=None, store=None, unassigned=None, mic=None):
         self.controller = controller
+        self.mic = mic
         self.log = log
         self.audio = audio
         self.lights = lights
@@ -193,6 +194,12 @@ class Runtime:
             except Exception as exc:   # noqa: BLE001
                 print("  shutdown: %s failed: %s: %s"
                       % (label, type(exc).__name__, exc), flush=True)
+
+        # Before anything else. A dropped web panel or LED connection costs
+        # nothing; a recording killed mid-write leaves a WAV whose header
+        # still claims the placeholder length.
+        if self.mic is not None and getattr(self.mic, "recording", False):
+            _timed("recording", self.mic.close)
 
         if self.web is not None:
             web = self.web
@@ -254,6 +261,18 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     except Exception as exc:   # noqa: BLE001
         log.record("audio.volume_restore_failed", error=str(exc))
 
+    # The recorder follows --real-audio: if the sound hardware is real, the
+    # microphone attached to it is too.
+    if getattr(args, "real_audio", False):
+        from .devices.mic import MicRecorder
+        mic = MicRecorder(log, device=config.mic_device,
+                          out_dir=config.recording_dir)
+        if not mic.available():
+            log.record("mic.unavailable", device=config.mic_device)
+    else:
+        from .devices.mic import FakeMicRecorder
+        mic = FakeMicRecorder(log)
+
     if getattr(args, "real_display", False):
         from .devices.feh_display import FehDisplay
         display = FehDisplay(log, search_paths=config.background_paths)
@@ -284,7 +303,7 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
         controller._nfc_status = reader.status
 
     rt = Runtime(controller, log, audio, lights, reader, source,
-                 store=store, unassigned=unassigned)
+                 store=store, unassigned=unassigned, mic=mic)
     # Back-reference so show_status_screen() can read live device status.
     controller._runtime = rt
     for candidate in ("/opt/warlocktable/branding/warlockandtext.jpg",

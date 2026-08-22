@@ -519,3 +519,15 @@ button.wide { width: 100%; }
 }
 
 .seat { grid-template-columns: 1.1rem 1fr auto auto; }
+
+/* ---------- session recording (plan doc 3.10) ---------- */
+
+/* Red only while actually recording. A button that looks armed when it is
+   not is how you get a session nobody captured. */
+#rec-toggle.on {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--bone);
+}
+
+#rec-note.warn { color: var(--bad); }

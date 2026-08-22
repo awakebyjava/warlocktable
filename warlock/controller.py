@@ -510,6 +510,41 @@ class Controller:
             "zones": rows,
         }
 
+    # ---- recording (plan doc 3.10) ---------------------------------------
+
+    def _mic(self):
+        return getattr(getattr(self, "_runtime", None), "mic", None)
+
+    @action()
+    def start_recording(self) -> None:
+        """Begin recording the room. Transcription is a later problem.
+
+        NOT a _supersede action: recording is orthogonal to what the table
+        is showing, and starting it must not cancel a pending interruption
+        revert.
+        """
+        mic = self._mic()
+        if mic is None:
+            self.log.record("mic.unavailable")
+            return
+        mic.start()
+
+    @action()
+    def stop_recording(self) -> None:
+        mic = self._mic()
+        if mic is None:
+            return
+        mic.stop()
+
+    def recording_report(self) -> dict:
+        mic = self._mic()
+        if mic is None:
+            return {"recording": False, "available": False,
+                    "error": "no recorder"}
+        out = dict(mic.status())
+        out["available"] = True
+        return out
+
     # ---- initiative (plan doc 3.9) ---------------------------------------
     #
     # Player turns only. No monsters, no scores, no sorting: the GM taps the

@@ -156,6 +156,9 @@ async function buildUI() {
   await refreshSeats();
   await refreshInitiative();
   await refreshAudio();
+  await refreshRecording();
+  // The only thing here that changes on its own, so it gets its own tick.
+  setInterval(refreshRecording, 5000);
 }
 
 /* ---------- cards: view + edit (plan doc 4.5 step 2) ---------- */
@@ -564,6 +567,47 @@ async function refreshSeats() {
 
 $("#seat-show").addEventListener("click", (ev) => {
   fire("show_seat_colours", {}, ev.currentTarget);
+});
+
+/* ---------- session recording (plan doc 3.10) ---------- */
+
+function renderRecording(r) {
+  const btn = $("#rec-toggle");
+  const note = $("#rec-note");
+  btn.classList.toggle("on", !!r.recording);
+  btn.disabled = !r.available;
+
+  if (!r.available) {
+    btn.textContent = "Record Session";
+    note.textContent = "No recorder on this build.";
+    return;
+  }
+  if (r.recording) {
+    const m = Math.floor(r.seconds / 60), sec = Math.floor(r.seconds % 60);
+    btn.textContent = "Stop Recording";
+    note.textContent = "Recording " + (r.file || "") + " \u2014 " +
+      m + "m " + (sec < 10 ? "0" : "") + sec + "s";
+    note.classList.remove("warn");
+  } else {
+    btn.textContent = "Record Session";
+    // Hours remaining, not gigabytes: nobody converts GB to session length
+    // in their head at the start of a game.
+    note.textContent = r.error
+      ? r.error
+      : "Room mic. About " + r.hours_left + " hours of space left.";
+    note.classList.toggle("warn", !!r.error || r.hours_left < 3);
+  }
+}
+
+async function refreshRecording() {
+  try { renderRecording(await api("/api/recording")); }
+  catch (e) { $("#rec-note").textContent = "could not read recorder: " + e.message; }
+}
+
+$("#rec-toggle").addEventListener("click", async (ev) => {
+  const on = ev.currentTarget.classList.contains("on");
+  await fire(on ? "stop_recording" : "start_recording", {}, ev.currentTarget);
+  refreshRecording();
 });
 
 /* ---------- sound ---------- */

@@ -128,7 +128,7 @@ if they differ.
 
 ### 3.4 Voice / Live Audio Input
 - Two related but distinct ideas:
-  1. **Live-audio reactive effects** — lights/visuals respond to ambient room sound (Pixelblaze sound input, and/or Pi mic).
+  1. **Live-audio reactive effects** — lights/visuals respond to ambient room sound (Pixelblaze sound input, and/or Pi mic). **Backlogged 2026-08-21** — see §6.
   2. **Spoken triggers** — the Pi listens on a microphone, recognizes speech, and fires events when someone says something.
 - **To expand:** on-device vs. cloud speech recognition, wake-word vs. always-listening, privacy considerations, what phrases trigger what.
 
@@ -1194,10 +1194,12 @@ Stand up the core software on the Pi once hardware is trusted.
   and private whispers are still to come, and are separate decisions
   rather than one lump.
 - [ ] Soundscape library + light-scene coordination
-- [ ] Live-audio reactive effects
-- [ ] Spoken-trigger events
+- [x] **Session recording** — built 2026-08-21 (§3.10). One button on the
+  panel; the room mic to a WAV in `/var/lib/warlocktable/recordings/`.
+  Transcription and recaps deliberately deferred: the one thing that cannot
+  be done retrospectively is the recording itself.
 - [ ] Table personality: write the character, record/render the voice-line library
-- [ ] Keyword-spotting → voice responses (plus panel-triggered lines)
+- [ ] Panel-triggered voice lines
 - [x] **Player initiative lighting** — built 2026-08-21 (§3.9). Order set
   by the GM tapping players; the active seat flashes. Standalone, and
   needs no integration with anything.
@@ -1208,6 +1210,24 @@ Stand up the core software on the Pi once hardware is trusted.
 - [ ] Expanded audio zones
 - [ ] (Later) Pixels physical dice support
 - [ ] (Stretch) Virtual desktop / iPad remote access
+
+### Backlog — deliberately not now
+
+Parked 2026-08-21. Not abandoned, and not blocked by anything: judged more
+work than is wanted at this stage. Listed so their absence reads as a
+decision rather than an oversight.
+
+- **Live-audio reactive effects** — lights and visuals responding to room
+  sound, via the Pixelblaze's own sound input and/or the Pi mic.
+- **Spoken-trigger events** — the table acting on what it hears.
+- **Keyword spotting** for the table's voice (§3.5). The voice itself can
+  still be driven from the panel; it is the *listening* half that is
+  parked.
+
+All three want always-on audio analysis, which is a different problem from
+recording: recording writes a file and stops, whereas these need continuous
+low-latency processing and a wake-word strategy. The microphone is already
+attached and working, so none of this is gated on hardware.
 
 **Separate / not table-run:** fog machine (mentioned, but handled independently — not driven by the table).
 
