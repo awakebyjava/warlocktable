@@ -81,15 +81,10 @@ def main() -> int:
     # What already has a card, so the same tag is never asked for twice.
     assigned = {(c.get("target_kind"), c.get("target_name")) for c in cards}
 
-    # The idle scene is where the table returns by itself when nothing else
-    # is happening. A card for it would be a card that does nothing you
-    # could not do by waiting.
-    skip = {("scene", "idle")}
-
     todo = []
     for kind in ("interruption", "random_table", "scene"):
         for name in sorted(targets.get(kind, [])):
-            if (kind, name) in assigned or (kind, name) in skip:
+            if (kind, name) in assigned:
                 continue
             if args.only and args.only.lower() not in name.lower():
                 continue
