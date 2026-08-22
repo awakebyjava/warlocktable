@@ -90,7 +90,97 @@ A limit is still required: at 100% the worst case (~61 A) would exceed the 40 A 
 
 **Future: a second supply.** The plan is to add another supply and split the load. When that happens, split by *channel group* (e.g. rings on one, edges on the other), tie all grounds together, and do **not** join the 5 V rails of the two supplies.
 
-**To actually get a brighter table**, the fix is a bigger supply, not a higher limit. Full brightness on 764 RGBW pixels wants something in the 200 W+ / 40 A class, plus power injection at multiple points along the runs so the far end isn't starved.
+**To actually get a brighter table**, the fix is a bigger supply, not a higher limit.
+
+### Sizing for 100% — worked out 2026-08-22, not yet built
+
+| | Draw | Power |
+|---|---|---|
+| 764 px, RGB full white (W channel off) | 45.8 A | 229 W |
+| 764 px, **all four channels** | 61.1 A | **306 W** |
+
+Nobody runs a supply at its rating continuously; 80% is the usual derating.
+So true full capability wants **~76 A / 382 W** — call it an 80 A / 400 W
+class. A 60 A unit alone gets you full RGB white and nothing spare the
+moment the white channel joins in.
+
+**Supplies on hand: one 60 A and one 40 A.** Together that is 100 A against
+a 61 A worst case, which is enough for 100%.
+
+### The split, if both are fitted
+
+Split by channel group, per the note above. The expander is already divided
+this way: channels 0–3 are the four rings, 4–5 are the two edges.
+
+| Supply | Segments | Draw at 100% | Load |
+|---|---|---|---|
+| **60 A** | 2 long edges (406 px) | 32.5 A | 54% |
+| **40 A** | 2 short edges + 4 rings (358 px) | 28.6 A | 72% |
+
+**Do not reverse it.** The long edges alone draw 41.9 A, which is 105% of
+the 40 A supply. That is the intuitive way round if you mis-remember which
+group is larger.
+
+A more evenly balanced arrangement exists (one short edge on each supply,
+62%/60%) but it splits a matched pair across two rails, so a supply sagging
+would light one short edge and not the other — a fault that reads as a bug
+rather than as a power problem. Keeping pairs together makes any failure
+symmetrical and legible.
+
+### Voltage drop is the harder half, and it is a wiring problem
+
+Two supplies fix total capacity. They do nothing about drop along a
+203-pixel run, and **at full brightness that gets worse, not better.**
+
+Feeding position, as a multiple of the worst case — this ratio holds
+whatever the strip's copper turns out to be:
+
+| Fed from | Worst-case drop |
+|---|---|
+| one end | 1.00× (dim at the far end) |
+| the other end | 1.00× — the *same*, just mirrored |
+| both ends, or the midpoint | **0.25×** |
+
+So feeding the far end instead of the near end is not an improvement; it
+moves which end is dim. Both ends is 4× better. Only the data line is
+directional — the 5 V and ground rails are continuous copper, so power can
+enter anywhere.
+
+**Both ends is still not enough at 100%.** Each long edge draws 16.2 A over
+2.1 m. Holding droop under 0.25 V needs roughly **4–7 injection points per
+long edge**, depending on the strip's copper:
+
+| Strip copper | Spacing | Points per long edge |
+|---|---|---|
+| 0.5 Ω/m | 0.72 m | 4 |
+| 1.0 Ω/m | 0.51 m | 6 |
+| 2.0 Ω/m | 0.36 m | 7 |
+
+In practice that means a **power bus alongside the strip** — 14–16 AWG
+carrying the current the length of the run with little loss, tapped into
+the strip's rails every 30–70 cm, so the strip's own thin copper only ever
+carries a short section's worth.
+
+**Measure before trusting the table above.** Copper weight varies several
+fold between products and every number here scales with it. With the strip
+unpowered, read resistance across the +5 V pads at each end of one long
+edge: that is the one-way rail resistance for 2.1 m, and double it for the
+round trip. Under about 1 Ω and the table sits at the optimistic end.
+
+**None of this is urgent at the present 50% ceiling** — half the current
+relaxes the spacing by about 1.4×, and the table has been fine. It becomes
+a real constraint exactly when the ceiling goes up.
+
+### Order of work, and this matters
+
+1. Wire both supplies. Grounds tied together; **5 V rails NOT joined.**
+2. Add injection points along the long edges.
+3. Verify each supply is carrying what is expected.
+4. **Only then** raise the brightness ceiling, redoing the arithmetic above.
+
+The ceiling is what keeps the table inside a single 40 A supply today.
+Raising it before the wiring exists is the one step here that can damage
+something rather than merely disappoint.
 
 ---
 
