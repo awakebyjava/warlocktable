@@ -135,6 +135,28 @@ def main() -> int:
             name = os.path.basename(path)[:-3]
             src = io.open(path, encoding="utf-8").read()
 
+            # savePattern APPENDS. Saving over a name that already exists
+            # leaves TWO patterns with that name, and the verify below
+            # picks the first id matching the name -- which can be the old
+            # one, so a perfectly good upload reports "source read back
+            # does not match". Worse, the controller resolves patterns by
+            # name too, so a duplicate means the table may keep playing the
+            # stale copy. Replacing means deleting first.
+            stale = [pid for pid, n in existing.items() if n == name]
+            for pid in stale:
+                try:
+                    pb.deletePattern(pid)
+                    print("  %-24s removing old copy %s" % (name, pid),
+                          flush=True)
+                    time.sleep(PAUSE_S)
+                except Exception as exc:   # noqa: BLE001
+                    print("  %-24s could not remove old copy: %s"
+                          % (name, str(exc)[:40]), flush=True)
+                    print("  STOPPING.", flush=True)
+                    return 1
+            if stale:
+                existing = {k: v for k, v in existing.items() if v != name}
+
             if free < FLOOR_BYTES:
                 print("STOPPING: %d bytes free, floor %d" % (free, FLOOR_BYTES),
                       flush=True)
