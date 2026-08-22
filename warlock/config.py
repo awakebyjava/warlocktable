@@ -89,7 +89,12 @@ class Scene:
 @dataclass
 class Interruption:
     name: str
-    audio: str
+    # None = no sound, lights only. The tarot cards (plan doc 3.2) are
+    # specified with placeholder audio that does not exist yet, and a card
+    # that flashes the table silently is a legitimate state -- better than
+    # 25 entries that fail referential integrity until someone records 25
+    # clips. When audio is None the revert is driven by duration_s.
+    audio: Optional[str] = None
     lights: Optional[str] = None       # None = leave current lights alone
     background: Optional[str] = None
     duck: bool = True
@@ -279,7 +284,7 @@ def load_config(path: str) -> Config:
     for name, i in raw.get("interruptions", {}).items():
         interruptions[name] = Interruption(
             name=name,
-            audio=i["audio"],
+            audio=i.get("audio") or None,
             lights=i.get("lights"),
             background=i.get("background"),
             duck=i.get("duck", True),
@@ -385,7 +390,9 @@ def to_dict(config: Config) -> Dict[str, Any]:
 
     out["interruptions"] = {}
     for name, i in config.interruptions.items():
-        entry = {"audio": i.audio, "duck": i.duck}
+        entry = {"duck": i.duck}
+        if i.audio:
+            entry["audio"] = i.audio
         if i.duration_s is not None:
             entry["duration_s"] = i.duration_s
         if i.lights is not None:

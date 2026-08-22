@@ -157,6 +157,12 @@ class Controller:
         # broken audio device would strand the table in the interruption's
         # lighting with nothing to bring it back.
         duration = 0.0
+        if not interruption.audio:
+            # Lights-only. duration_s is the whole timing story, so an
+            # interruption without it would never revert.
+            duration = interruption.duration_s or self.config.fallback_interruption_s
+            self._schedule_revert(interruption_name, duration)
+            return
         try:
             duration = self.audio.play_effect(interruption.audio,
                                                duck=interruption.duck,

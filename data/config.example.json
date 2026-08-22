@@ -1,8 +1,7 @@
 {
-  "_comment": "Worked example for laptop development (plan doc 4.2/4.4). The Pi's REAL config lives outside the git repo, edited through the management panel — this file is a starting point to copy, not the production data. UIDs below are the actual card inventory, carried over from the V1 bytearrays in TarotWizard.py.",
-
+  "_comment": "Worked example for laptop development (plan doc 4.2/4.4). The Pi's REAL config lives outside the git repo, edited through the management panel \u2014 this file is a starting point to copy, not the production data. UIDs below are the actual card inventory, carried over from the V1 bytearrays in TarotWizard.py.",
   "settings": {
-    "_comment": "audio_paths is searched to turn a bare track name like 'forest' into a file. Config-driven per plan doc 3.3 — V1 hardcoded these paths into every card branch. audio_device pins the ALSA output so it cannot move when the TV is off at boot (5.3). Pinned BY NAME, not number - hw:0,0 would still break if HDMI renumbers the cards, which is the very thing being defended against. If the device does not exist (e.g. on the dev laptop) the mixer falls back to the default and logs audio.pin_failed.",
+    "_comment": "audio_paths is searched to turn a bare track name like 'forest' into a file. Config-driven per plan doc 3.3 \u2014 V1 hardcoded these paths into every card branch. audio_device pins the ALSA output so it cannot move when the TV is off at boot (5.3). Pinned BY NAME, not number - hw:0,0 would still break if HDMI renumbers the cards, which is the very thing being defended against. If the device does not exist (e.g. on the dev laptop) the mixer falls back to the default and logs audio.pin_failed.",
     "audio_paths": [
       "~/Documents/MagicTarot/Ov",
       "~/Documents/MagicTarot/MagicCards"
@@ -22,136 +21,343 @@
     "player_count": 4,
     "fallback_interruption_s": 5.0
   },
-
   "zones": [
-    { "id": 1, "colour": "red" },
-    { "id": 2, "colour": "yellow" },
-    { "id": 3, "colour": "green" },
-    { "id": 4, "colour": "cyan" },
-    { "id": 5, "colour": "blue" },
-    { "id": 6, "colour": "purple" },
-    { "id": 7, "colour": "magenta" }
+    {
+      "id": 1,
+      "colour": "red"
+    },
+    {
+      "id": 2,
+      "colour": "yellow"
+    },
+    {
+      "id": 3,
+      "colour": "green"
+    },
+    {
+      "id": 4,
+      "colour": "cyan"
+    },
+    {
+      "id": 5,
+      "colour": "blue"
+    },
+    {
+      "id": 6,
+      "colour": "purple"
+    },
+    {
+      "id": 7,
+      "colour": "magenta"
+    }
   ],
-
   "scenes": {
     "idle": {
       "lights": "breathing",
       "soundscape": null,
-      "transition": { "crossfade_s": 1.5, "duck": false }
+      "transition": {
+        "crossfade_s": 1.5,
+        "duck": false
+      }
     },
     "forest": {
       "lights": "Forest",
       "soundscape": "forest",
       "background": "forest.png",
-      "transition": { "crossfade_s": 2.0, "duck": false }
+      "transition": {
+        "crossfade_s": 2.0,
+        "duck": false
+      }
     },
     "plains": {
       "lights": "Plains",
       "soundscape": "plains",
       "background": "plains.png",
-      "transition": { "crossfade_s": 2.0, "duck": false }
+      "transition": {
+        "crossfade_s": 2.0,
+        "duck": false
+      }
     },
     "swamp": {
       "lights": "Swamp",
       "soundscape": "swamp",
       "background": "swamp.png",
-      "transition": { "crossfade_s": 2.0, "duck": false }
+      "transition": {
+        "crossfade_s": 2.0,
+        "duck": false
+      }
     },
     "island": {
       "lights": "Island",
       "soundscape": "island",
       "background": "island.png",
-      "transition": { "crossfade_s": 2.0, "duck": false }
+      "transition": {
+        "crossfade_s": 2.0,
+        "duck": false
+      }
     },
     "mountain": {
       "lights": "Mountain",
       "soundscape": "mountain",
       "background": "mountain.png",
-      "transition": { "crossfade_s": 2.0, "duck": false }
-    },
-    "test1": {
-      "lights": "blink fade",
-      "soundscape": "outre",
-      "transition": { "crossfade_s": 1.0, "duck": false }
-    },
-    "test2": {
-      "lights": "fireflies",
-      "soundscape": "cigarette",
-      "transition": { "crossfade_s": 1.0, "duck": false }
+      "transition": {
+        "crossfade_s": 2.0,
+        "duck": false
+      }
     }
   },
-
   "interruptions": {
-    "magician_reveal": {
-      "audio": "crowley2",
-      "duration_s": 12.0,
-      "lights": "green ripple reflections",
-      "duck": true
+    "ace_of_cups": {
+      "lights": "Boon-Cups",
+      "duck": false,
+      "duration_s": 6.0
     },
-    "ace_of_pentacles_reveal": {
-      "audio": "peromyscus",
-      "duration_s": 12.0,
-      "lights": "glitch bands",
-      "duck": true
+    "ace_of_pentacles": {
+      "lights": "Boon-Pentacles",
+      "duck": false,
+      "duration_s": 6.0
     },
-    "the_devil_reveal": {
-      "audio": "javan4",
-      "duration_s": 12.0,
-      "lights": "sparkfire",
-      "duck": true
+    "ace_of_swords": {
+      "lights": "Boon-Swords",
+      "duck": false,
+      "duration_s": 6.0
     },
-    "death_reveal": {
-      "audio": "september4",
-      "duration_s": 12.0,
-      "lights": "opposites",
-      "duck": true
+    "ace_of_wands": {
+      "lights": "Boon-Wands",
+      "duck": false,
+      "duration_s": 6.0
     },
-    "fortune_windfall": {
-      "audio": "audley",
-      "duration_s": 12.0,
-      "lights": "spin cycle",
-      "duck": true
+    "death": {
+      "lights": "Aura-Death",
+      "duck": false,
+      "duration_s": 60.0
     },
-    "fortune_reversal": {
-      "audio": "september4",
-      "duration_s": 12.0,
-      "lights": "opposites",
-      "duck": true
+    "judgement": {
+      "lights": "Aura-Judgement",
+      "duck": false,
+      "duration_s": 60.0
     },
-    "fortune_mystery": {
-      "audio": "peromyscus",
-      "duration_s": 12.0,
-      "lights": "glitch bands",
-      "duck": true
+    "justice": {
+      "lights": "Aura-Justice",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "strength": {
+      "lights": "Aura-Strength",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "temperance": {
+      "lights": "Aura-Temperance",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "the_chariot": {
+      "lights": "Aura-Chariot",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "the_devil": {
+      "lights": "Aura-Devil",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "the_emperor": {
+      "lights": "Person-Emperor",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_empress": {
+      "lights": "Person-Empress",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_fool": {
+      "lights": "Person-Fool",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_hanged_man": {
+      "lights": "Person-HangedMan",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_hermit": {
+      "lights": "Person-Hermit",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_hierophant": {
+      "lights": "Person-Hierophant",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_high_priestess": {
+      "lights": "Person-HighPriestess",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_lovers": {
+      "lights": "Person-Lovers",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_magician": {
+      "lights": "Person-Magician",
+      "duck": false,
+      "duration_s": 5.0
+    },
+    "the_moon": {
+      "lights": "Aura-Moon",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "the_star": {
+      "lights": "Aura-Star",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "the_sun": {
+      "lights": "Aura-Sun",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "the_tower": {
+      "lights": "Aura-Tower",
+      "duck": false,
+      "duration_s": 60.0
+    },
+    "the_world": {
+      "lights": "Aura-World",
+      "duck": false,
+      "duration_s": 60.0
     }
   },
-
   "random_tables": {
     "wheel_outcomes": {
       "entries": [
-        { "type": "interruption", "name": "fortune_windfall" },
-        { "type": "interruption", "name": "fortune_reversal" },
-        { "type": "interruption", "name": "fortune_mystery" }
+        {
+          "type": "interruption",
+          "name": "death"
+        },
+        {
+          "type": "interruption",
+          "name": "judgement"
+        },
+        {
+          "type": "interruption",
+          "name": "justice"
+        },
+        {
+          "type": "interruption",
+          "name": "strength"
+        },
+        {
+          "type": "interruption",
+          "name": "temperance"
+        },
+        {
+          "type": "interruption",
+          "name": "the_chariot"
+        },
+        {
+          "type": "interruption",
+          "name": "the_devil"
+        },
+        {
+          "type": "interruption",
+          "name": "the_moon"
+        },
+        {
+          "type": "interruption",
+          "name": "the_star"
+        },
+        {
+          "type": "interruption",
+          "name": "the_sun"
+        },
+        {
+          "type": "interruption",
+          "name": "the_tower"
+        },
+        {
+          "type": "interruption",
+          "name": "the_world"
+        }
       ]
     }
   },
-
   "cards": {
-    "04:3A:37:1A:CF:4F:81": { "label": "test1", "target": { "type": "scene", "name": "test1" } },
-    "04:F0:30:1A:CF:4F:80": { "label": "test2", "target": { "type": "scene", "name": "test2" } },
-
-    "04:39:65:9A:66:70:81": { "label": "Forest",  "target": { "type": "scene", "name": "forest" } },
-    "04:39:63:9A:66:70:81": { "label": "Plains",  "target": { "type": "scene", "name": "plains" } },
-    "04:39:62:9A:66:70:81": { "label": "Swamp",   "target": { "type": "scene", "name": "swamp" } },
-    "04:39:61:9A:66:70:81": { "label": "Island",  "target": { "type": "scene", "name": "island" } },
-    "04:39:64:9A:66:70:81": { "label": "Mountain","target": { "type": "scene", "name": "mountain" } },
-
-    "04:39:69:9A:66:70:81": { "label": "The Magician (tarot)", "target": { "type": "interruption", "name": "magician_reveal" } },
-    "04:39:68:9A:66:70:81": { "label": "Ace of Pentacles (tarot)", "target": { "type": "interruption", "name": "ace_of_pentacles_reveal" } },
-    "04:39:67:9A:66:70:81": { "label": "The Devil (tarot)", "target": { "type": "interruption", "name": "the_devil_reveal" } },
-    "04:39:6A:9A:66:70:81": { "label": "Death (tarot)", "target": { "type": "interruption", "name": "death_reveal" } },
-    "04:39:66:9A:66:70:81": { "label": "Wheel of Fortune (tarot)", "target": { "type": "random_table", "name": "wheel_outcomes" } }
+    "04:39:65:9A:66:70:81": {
+      "label": "Forest",
+      "target": {
+        "type": "scene",
+        "name": "forest"
+      }
+    },
+    "04:39:63:9A:66:70:81": {
+      "label": "Plains",
+      "target": {
+        "type": "scene",
+        "name": "plains"
+      }
+    },
+    "04:39:62:9A:66:70:81": {
+      "label": "Swamp",
+      "target": {
+        "type": "scene",
+        "name": "swamp"
+      }
+    },
+    "04:39:61:9A:66:70:81": {
+      "label": "Island",
+      "target": {
+        "type": "scene",
+        "name": "island"
+      }
+    },
+    "04:39:64:9A:66:70:81": {
+      "label": "Mountain",
+      "target": {
+        "type": "scene",
+        "name": "mountain"
+      }
+    },
+    "04:39:69:9A:66:70:81": {
+      "label": "The Magician (tarot)",
+      "target": {
+        "type": "interruption",
+        "name": "the_magician"
+      }
+    },
+    "04:39:68:9A:66:70:81": {
+      "label": "Ace of Pentacles (tarot)",
+      "target": {
+        "type": "interruption",
+        "name": "ace_of_pentacles"
+      }
+    },
+    "04:39:67:9A:66:70:81": {
+      "label": "The Devil (tarot)",
+      "target": {
+        "type": "interruption",
+        "name": "the_devil"
+      }
+    },
+    "04:39:6A:9A:66:70:81": {
+      "label": "Death (tarot)",
+      "target": {
+        "type": "interruption",
+        "name": "death"
+      }
+    },
+    "04:39:66:9A:66:70:81": {
+      "label": "Wheel of Fortune (tarot)",
+      "target": {
+        "type": "random_table",
+        "name": "wheel_outcomes"
+      }
+    }
   },
-
   "players": []
 }

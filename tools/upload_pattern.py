@@ -126,7 +126,16 @@ def main() -> int:
             preview = _borrow_preview(pb, existing)
             written = failed = 0
             pattern_dir = os.path.join(PATTERN_DIR, "generated")
+            floor = 120 * 1024      # keep this much free, always
             for path in sorted(glob.glob(os.path.join(pattern_dir, "*.js"))):
+                st = pb.getStatistics()
+                left = st["storageSize"] - st["storageUsed"]
+                if left < floor:
+                    print("   STOPPING: only %d bytes free, floor is %d"
+                          % (left, floor))
+                    print("   %d written before stopping" % written)
+                    failed += 1
+                    break
                 pname = os.path.basename(path)[:-3]
                 src = io.open(path, encoding="utf-8").read()
                 over = next((pid for pid, n in existing.items()
@@ -182,19 +191,23 @@ def main() -> int:
 
 
 def _borrow_preview(pb, existing) -> bytes:
-    """A JPEG preview is required by savePattern.
+    """The preview image to attach. Empty, deliberately.
 
-    Pillow is not a dependency of this repo, and a hand-rolled JPEG is a
-    guess about what the device accepts. Copying one the device itself
-    produced is neither.
+    savePattern takes a JPEG thumbnail for the device's own pattern list.
+    It is decoration: the pattern renders identically without one, and the
+    device accepts b"" happily.
+
+    This used to copy the FIRST preview it found from an existing pattern,
+    which cost 8,655 bytes stamped onto every upload -- roughly six times
+    the size of the pattern it was decorating. Uploading 70 patterns would
+    have needed 669 KB against 490 KB free, so it could never have fit; the
+    device filled, the flash write blocked, and the connection hung. The
+    capacity estimate that said it would fit was made on SOURCE bytes and
+    ignored the preview entirely.
+
+    Generated patterns are identified by name in the list, so a thumbnail
+    buys nothing worth 8 KB of a 1.4 MB filesystem.
     """
-    for pid in existing:
-        try:
-            image = pb.getPreviewImage(pid)
-            if image:
-                return image
-        except Exception:
-            continue
     return b""
 
 
