@@ -314,8 +314,16 @@ def _check_display(rt) -> Dict[str, Any]:
     info = probe()
     if not info.get("healthy"):
         return _r("Display", FAIL, info.get("error") or "viewer not running")
-    return _r("Display", PASS, "%d backgrounds, showing %s"
+    detail = ("%d backgrounds, showing %s"
               % (info.get("images", 0), info.get("background") or "nothing yet"))
+    # A viewer that keeps dying and being rescued reads as PASS on every
+    # individual check, which is how it would go unnoticed until it failed
+    # to come back during a session. Recovered is not the same as fine.
+    respawns = info.get("respawns", 0)
+    if respawns:
+        return _r("Display", WARN, "%s - viewer has been restarted %d time(s)"
+                  % (detail, respawns))
+    return _r("Display", PASS, detail)
 
 
 def _check_video_output(rt) -> Dict[str, Any]:

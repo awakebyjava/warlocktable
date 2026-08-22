@@ -41,6 +41,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from typing import Dict, List, Optional
@@ -49,6 +50,23 @@ from .base import DeviceError, DisplayDevice, UnknownAssetError
 
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 CURRENT = ".current.png"
+
+# --- viewer supervision ---------------------------------------------------
+#
+# feh is launched once and, before this existed, was never launched again.
+# When it died the TV went black and stayed black: status() flipped healthy
+# to False and every set_background() after that raised, so the only way
+# back was restarting the service. Mid-session that is the entire visual
+# half of the table gone, with nobody at a keyboard.
+#
+# It happened for real on 2026-08-22 -- no OOM, no segfault, plenty of free
+# memory, and nothing in any log saying why. That is the case this guards:
+# we cannot prevent an exit we cannot explain, so recover from it instead.
+WATCH_INTERVAL_S = 2.0      # how often to notice feh is gone
+RESPAWN_BACKOFF_S = 3.0     # wait between attempts, so a hard failure
+                            # does not become a spawn loop
+RESPAWN_MAX_TRIES = 5       # then stop and stay unhealthy, because a
+                            # sixth attempt would not be different
 
 # "HDMI-1 connected primary 3840x2160+0+0 (normal ...)" -- the geometry is
 # optional, and its ABSENCE is the interesting case.
@@ -104,6 +122,13 @@ class FehDisplay(DisplayDevice):
         self._lock = threading.RLock()
         self._current_dir: Optional[str] = None
 
+        # Viewer supervision. _stop is how close() gets the watcher to
+        # leave promptly instead of sleeping out its interval.
+        self._stop = threading.Event()
+        self._watcher: Optional[threading.Thread] = None
+        self._respawns = 0          # successful relaunches, for status()
+        self._stderr_file: Optional[str] = None
+
         # "" = plain artwork, otherwise one of OVERLAYS.
         self.overlay = ""
         self.background: Optional[str] = None
@@ -134,7 +159,15 @@ class FehDisplay(DisplayDevice):
                 self.log.record("display.unavailable", error=self.last_error)
                 return False
 
-        return self._launch(target)
+        if not self._launch(target):
+            return False
+
+        # Only supervise something that started. Watching a viewer that
+        # never came up would just retry a failure five times at boot.
+        self._watcher = threading.Thread(target=self._watch,
+                                         name="feh-watch", daemon=True)
+        self._watcher.start()
+        return True
 
     def video_output(self) -> dict:
         """What the X server is actually driving on each output.
@@ -203,24 +236,35 @@ class FehDisplay(DisplayDevice):
             "--no-menus",
             target,
         ]
+        # stderr goes to a FILE, not a pipe. A pipe here is a trap: nothing
+        # reads it after the startup check below, so once feh writes enough
+        # to fill the ~64KB buffer it blocks forever on write and the
+        # picture freezes with the process still "alive". A file cannot
+        # fill, and we can still read the text back when it dies.
+        self._discard_stderr()
+        try:
+            handle, self._stderr_file = tempfile.mkstemp(prefix="feh-", suffix=".err")
+        except OSError:
+            handle, self._stderr_file = None, None
+
         try:
             self._proc = subprocess.Popen(
                 cmd, env=env, stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE, start_new_session=True)
+                stderr=(handle if handle is not None else subprocess.DEVNULL),
+                start_new_session=True)
         except (OSError, FileNotFoundError) as exc:
             self.last_error = "could not start feh: %s" % exc
             self.log.record("display.unavailable", error=self.last_error)
             return False
+        finally:
+            if handle is not None:
+                os.close(handle)     # the child holds its own copy
 
         # feh exits immediately if it cannot open the display; give it a
         # moment and check, so status() is honest rather than optimistic.
         time.sleep(0.6)
         if self._proc.poll() is not None:
-            err = ""
-            try:
-                err = (self._proc.stderr.read() or b"").decode("utf-8", "replace").strip()
-            except Exception:
-                pass
+            err = self._read_stderr()
             self.last_error = "feh exited immediately: %s" % (err or "no output")
             self.log.record("display.unavailable", error=self.last_error)
             self._proc = None
@@ -232,7 +276,82 @@ class FehDisplay(DisplayDevice):
                         display=self.display)
         return True
 
+    # -------------------------------------------------- viewer supervision
+
+    def _read_stderr(self) -> str:
+        """Whatever feh complained about before it died. Never raises."""
+        if not self._stderr_file:
+            return ""
+        try:
+            with open(self._stderr_file, "r", errors="replace") as fh:
+                # Only the tail is useful and the file is untrusted in
+                # size -- a chatty feh should not pull megabytes into a
+                # log line.
+                return fh.read()[-2000:].strip()
+        except OSError:
+            return ""
+
+    def _discard_stderr(self) -> None:
+        if not self._stderr_file:
+            return
+        try:
+            os.unlink(self._stderr_file)
+        except OSError:
+            pass
+        self._stderr_file = None
+
+    def _watch(self) -> None:
+        """Relaunch feh if it dies. Runs until close().
+
+        Nothing needs restoring after a relaunch: the image on screen is
+        whatever is in CURRENT on disk, that file is untouched by feh
+        exiting, and --reload makes the new instance pick it up. So a
+        respawn is just _launch() again with the same target.
+        """
+        tries = 0
+        while not self._stop.wait(WATCH_INTERVAL_S):
+            with self._lock:
+                if self._current_dir is None:
+                    continue
+                if self._proc is not None and self._proc.poll() is None:
+                    tries = 0           # alive; forget earlier failures
+                    continue
+                if tries >= RESPAWN_MAX_TRIES:
+                    continue            # gave up; status() says why
+
+                err = self._read_stderr()
+                self.healthy = False
+                tries += 1
+                self.log.record("display.viewer_died", attempt=tries,
+                                stderr=err[-200:] or "(silent)")
+
+                target = os.path.join(self._current_dir, CURRENT)
+                if self._launch(target):
+                    self._respawns += 1
+                    self.log.record("display.respawned", attempt=tries,
+                                     total=self._respawns)
+                    tries = 0
+                    continue
+
+                if tries >= RESPAWN_MAX_TRIES:
+                    self.last_error = ("feh died and would not restart after "
+                                       "%d attempts: %s"
+                                       % (tries, self.last_error or "no output"))
+                    self.log.record("display.unavailable",
+                                    error=self.last_error)
+
+            # Outside the lock: a failing respawn must not hold up a scene
+            # change that is only going to fail fast anyway.
+            self._stop.wait(RESPAWN_BACKOFF_S)
+
     def close(self) -> None:
+        # Signal BEFORE taking the lock, so the watcher cannot win a race
+        # and relaunch feh while we are shutting it down.
+        self._stop.set()
+        watcher, self._watcher = self._watcher, None
+        if watcher is not None and watcher is not threading.current_thread():
+            watcher.join(timeout=WATCH_INTERVAL_S + RESPAWN_BACKOFF_S + 2)
+
         with self._lock:
             if self._proc is not None:
                 try:
@@ -244,6 +363,7 @@ class FehDisplay(DisplayDevice):
                     except Exception:
                         pass
                 self._proc = None
+            self._discard_stderr()
             self.healthy = False
 
     # ---------------------------------------------------------------- library
@@ -302,7 +422,15 @@ class FehDisplay(DisplayDevice):
     def set_background(self, name: str) -> None:
         with self._lock:
             path = self._resolve(name)
-            if not self.healthy or self._current_dir is None:
+            # Being mid-respawn is NOT a reason to refuse. The file is the
+            # source of truth -- feh only reads it -- so writing it while
+            # the watcher is bringing a new viewer up is both safe and
+            # exactly right: the new instance opens the scene we wanted.
+            # Refusing here would drop a card tap on the floor for the two
+            # seconds that recovery takes, which is the failure this whole
+            # change exists to remove.
+            supervised = self._watcher is not None and self._watcher.is_alive()
+            if self._current_dir is None or (not self.healthy and not supervised):
                 raise DeviceError("display unavailable: %s"
                                   % (self.last_error or "not started"))
 
@@ -379,13 +507,22 @@ class FehDisplay(DisplayDevice):
         alive = self._proc is not None and self._proc.poll() is None
         if self.healthy and not alive:
             # feh died at some point - say so rather than keep claiming ok.
+            # The watcher will normally have this back within a couple of
+            # seconds, so seeing it here means either bad luck on timing or
+            # a relaunch that is failing; don't clobber the watcher's more
+            # specific message if it already set one.
             self.healthy = False
-            self.last_error = "feh is no longer running"
+            if not self.last_error:
+                self.last_error = "feh is no longer running"
         return {
             "healthy": self.healthy,
             "background": self.background,
             "overlay": self.overlay or "none",
             "overlays": ["none"] + list(OVERLAYS),
             "images": len(self._library),
+            # A display that keeps needing rescue is still a fault, even
+            # though every individual recovery worked. Without this the
+            # only trace is log lines nobody is reading.
+            "respawns": self._respawns,
             "error": self.last_error,
         }
