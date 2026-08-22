@@ -983,6 +983,16 @@ green — because each was working exactly as designed. Nothing was wrong
 upstream. There was simply nothing downstream. A connected output is not a
 working one; only an active mode is.
 
+**Worth adding, not yet built:** a check that the zones pattern is
+*configured*, not merely present. On 2026-08-21 initiative appeared to do
+nothing: the controller was correct throughout — order set, running, right
+zone, right pattern loaded — but the pattern had never been sent a player
+count, so it rendered its unconfigured fallback. That fallback is the idle
+purple rather than black, deliberately, so a table in that state looks
+resting instead of dead — which is also precisely what hid it. Nothing
+errored, nothing logged, the status strip stayed green. Reading back
+`playerCount` from the device would have caught it in seconds.
+
 That gap is the general form of the problem noted in §5.7: *device call
 returned* is not *the thing changed*. Video output is the only check that
 currently closes it, and the same reasoning would apply to sound if it were

@@ -62,10 +62,14 @@ def main() -> int:
                     help="make it the active pattern after saving")
     ap.add_argument("--list", action="store_true",
                     help="just list what is on the device")
+    ap.add_argument("--all", action="store_true",
+                    help="upload everything in patterns/generated/ over one "
+                         "connection (70 separate runs would reopen the "
+                         "websocket 70 times)")
     args = ap.parse_args()
 
-    if not args.pattern and not args.list:
-        ap.error("give a pattern name, or --list")
+    if not args.pattern and not args.list and not args.all:
+        ap.error("give a pattern name, or --list, or --all")
 
     try:
         import websocket
@@ -116,6 +120,33 @@ def main() -> int:
             for n in sorted(existing.values(), key=str.lower):
                 print("   " + n)
             return 0
+
+        if args.all:
+            import glob
+            preview = _borrow_preview(pb, existing)
+            written = failed = 0
+            pattern_dir = os.path.join(PATTERN_DIR, "generated")
+            for path in sorted(glob.glob(os.path.join(pattern_dir, "*.js"))):
+                pname = os.path.basename(path)[:-3]
+                src = io.open(path, encoding="utf-8").read()
+                over = next((pid for pid, n in existing.items()
+                             if n == pname), None)
+                try:
+                    pb.savePattern(previewImage=preview, sourceCode=src,
+                                   name=pname, id=over)
+                    written += 1
+                except Exception as exc:   # noqa: BLE001
+                    failed += 1
+                    print("   %-26s FAILED %s" % (pname, str(exc)[:60]))
+            print("%d written, %d failed" % (written, failed))
+            # The active pattern may have just been rewritten underneath the
+            # table. Reselect it so the new bytecode is what is running.
+            if active:
+                try:
+                    pb.setActivePatternByName(active)
+                except Exception:
+                    pass
+            return 1 if failed else 0
 
         replacing = next((pid for pid, n in existing.items() if n == name), None)
         if replacing:

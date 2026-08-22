@@ -275,6 +275,245 @@ class Blooms:
         return out
 
 
+# --------------------------------------------------------------------------
+# ENVELOPES -- how brightness varies over TIME, uniformly across the loop.
+#
+# time(x) counts in units of 65.536 seconds, so a period in real seconds is
+# seconds / 65.536. Written out at each use rather than hidden in a constant:
+# getting it wrong gives an animation at the wrong speed, which looks
+# deliberate and is therefore hard to notice.
+#
+# One-shot cards (Boon, Person) use a LONG period whose animation occupies
+# only the first slice, leaving a dark tail. The controller restores the
+# scene during that tail, so the blank is never seen and a re-tap replays
+# the animation -- confirmed on the device that re-selecting an already
+# active pattern resets its clock.
+# --------------------------------------------------------------------------
+
+
+def secs(seconds: float) -> str:
+    return "%.5f" % (seconds / 65.536)
+
+
+class Envelope:
+    """Emits `env`, 0..1, once per frame in beforeRender."""
+
+    def __init__(self, kind: str, period: float = 4.0, low: float = 0.0,
+                 count: int = 3, duty: float = 0.5, action: float = 0.25):
+        self.kind, self.period, self.low = kind, period, low
+        self.count, self.duty, self.action = count, duty, action
+
+    def before(self) -> List[str]:
+        k, p, lo = self.kind, self.period, self.low
+        if k == "steady":
+            return ["env = 1"]
+        if k == "breathe":
+            return ["env = %g + %g * wave(time(%s))" % (lo, 1 - lo, secs(p))]
+        if k == "metronome":
+            # Deliberately rigid. Justice is meant to read as a machine.
+            return ["env = %g" % lo,
+                    "if (square(time(%s), %g) > 0) env = 1" % (secs(p), self.duty)]
+        if k == "strobe":
+            return ["env = 0",
+                    "if (square(time(%s), %g) > 0) env = 1" % (secs(p), self.duty)]
+        if k == "ramp_up":
+            # Rises over the first `action` of the period, then holds. The
+            # period is the card's whole duration, so it climbs once.
+            return ["et = time(%s)" % secs(p),
+                    "env = %g + %g * min(et / %g, 1)" % (lo, 1 - lo, self.action)]
+        if k == "ramp_down":
+            return ["et = time(%s)" % secs(p),
+                    "env = 1 - (1 - %g) * min(et / %g, 1)" % (lo, self.action)]
+        if k == "heartbeat":
+            # Two thumps close together, then a rest -- lub-dub, not a sine.
+            return ["et = time(%s)" % secs(p), "env = %g" % lo,
+                    "if (et < 0.12) env = 1 - (1 - %g) * (et / 0.12)" % lo,
+                    "if (et > 0.20 && et < 0.34) env = %g + %g * (1 - (et - 0.20) / 0.14)"
+                    % (lo, (1 - lo) * 0.7)]
+        if k == "flicker":
+            # Random per frame, held partly toward the previous value so it
+            # jitters like a flame rather than strobing white noise.
+            return ["env = env * 0.55 + (%g + %g * random(1)) * 0.45"
+                    % (lo, 1 - lo)]
+        if k == "pulses":
+            # N discrete pulses inside the first slice, then dark until the
+            # controller takes the pattern away.
+            return ["et = time(%s)" % secs(p), "env = 0",
+                    "if (et < %g) {" % self.action,
+                    "  pk = (et / %g) * %d" % (self.action, self.count),
+                    "  env = 1 - abs((pk - floor(pk)) * 2 - 1)",
+                    "  env = env * env",
+                    "}"]
+        raise ValueError("unknown envelope %r" % k)
+
+    def declare(self) -> List[str]:
+        # flicker feeds back on itself, so it needs a starting value.
+        return ["env = 1"] if self.kind == "flicker" else []
+
+
+# --------------------------------------------------------------------------
+# FIELDS other than waves.
+# --------------------------------------------------------------------------
+
+
+class Uniform:
+    """No spatial variation. Most Aura and Person cards are a whole-table
+    colour whose interest is entirely in the envelope."""
+
+    def declare(self): return []
+    def before(self): return []
+    def field(self): return "1"
+
+
+class Comet:
+    """A point travelling the loop with a tail behind it.
+
+    Boon's single lap and Chariot's racing streaks. `laps` is how many times
+    round per period; `count` puts several equally spaced around the ring.
+    """
+
+    def __init__(self, width: float = 40, laps: float = 1.0,
+                 period: float = 3.0, count: int = 1, tail: float = 3.0):
+        self.width, self.laps, self.period = width, laps, period
+        self.count, self.tail = count, tail
+
+    def declare(self):
+        # ct is declared here, not just assigned in beforeRender: the
+        # helper below is compiled before beforeRender ever runs, and a
+        # symbol it reads has to exist by then.
+        return ["cWide = %g" % self.width, "cN = %d" % self.count,
+                "cTail = %g" % self.tail, "ct = 0"]
+
+    def before(self):
+        return ["ct = time(%s) * %g" % (secs(self.period), self.laps)]
+
+    def field(self):
+        return "cometField(p)"
+
+    def helper(self):
+        return ["function cometField(pp) {",
+                "  acc = 0",
+                "  for (ci = 0; ci < cN; ci++) {",
+                "    hp = (ct + ci / cN) * pathLen",
+                # Wrapped signed distance, and only the trailing side gets
+                # the tail -- a comet with a symmetric glow is just a blob.
+                "    dd = pp - hp",
+                "    dd = dd - pathLen * floor(dd / pathLen + 0.5)",
+                "    wide = cWide",
+                "    if (dd < 0) wide = cWide * cTail",
+                "    dd = abs(dd)",
+                "    if (dd < wide) {",
+                "      fl = 1 - dd / wide",
+                "      acc = acc + fl * fl",
+                "    }",
+                "  }",
+                "  return min(acc, 1)",
+                "}"]
+
+
+class Fixed:
+    """One stationary point. The Hermit's lantern -- deliberately localised
+    rather than a whole-loop effect."""
+
+    def __init__(self, width: float = 45, at: float = 0.5):
+        self.width, self.at = width, at
+
+    def declare(self):
+        return ["fWide = %g" % self.width, "fAt = %g" % self.at]
+
+    def before(self): return []
+
+    def field(self):
+        return "fixedField(p)"
+
+    def helper(self):
+        return ["function fixedField(pp) {",
+                "  dd = pp - fAt * pathLen",
+                "  dd = dd - pathLen * floor(dd / pathLen + 0.5)",
+                "  dd = abs(dd)",
+                "  if (dd >= fWide) return 0",
+                "  fl = 1 - dd / fWide",
+                "  return fl * fl",
+                "}"]
+
+
+class Converge:
+    """Two points starting opposite and travelling toward each other.
+
+    The Lovers. Their meeting is the whole effect, so this is the one place
+    the anti-lockstep rule is deliberately off: they are synchronised.
+    """
+
+    def __init__(self, width: float = 30, period: float = 4.0,
+                 action: float = 0.55):
+        self.width, self.period, self.action = width, period, action
+
+    def declare(self):
+        return ["vWide = %g" % self.width, "vAct = %g" % self.action,
+                "vt = 0"]
+
+    def before(self):
+        return ["vt = min(time(%s) / vAct, 1)" % secs(self.period)]
+
+    def field(self):
+        return "convergeField(p)"
+
+    def helper(self):
+        return ["function convergeField(pp) {",
+                "  a = (0.25 + 0.25 * vt) * pathLen",
+                "  b = (0.75 - 0.25 * vt) * pathLen",
+                "  acc = 0",
+                "  for (vi = 0; vi < 2; vi++) {",
+                "    hp = a",
+                "    if (vi == 1) hp = b",
+                "    dd = pp - hp",
+                "    dd = dd - pathLen * floor(dd / pathLen + 0.5)",
+                "    dd = abs(dd)",
+                "    if (dd < vWide) {",
+                "      fl = 1 - dd / vWide",
+                "      acc = acc + fl * fl",
+                "    }",
+                "  }",
+                "  return min(acc, 1)",
+                "}"]
+
+
+class Fill:
+    """Progressive fill along the loop from a starting point, then holds.
+
+    The Emperor rising bottom-to-top. Measured in path position, so it
+    sweeps round the perimeter from the GM's end.
+    """
+
+    def __init__(self, period: float = 4.0, action: float = 0.5,
+                 start: float = 0.5, soft: float = 0.05):
+        self.period, self.action, self.start, self.soft = period, action, start, soft
+
+    def declare(self):
+        return ["lStart = %g" % self.start, "lSoft = %g" % self.soft,
+                "lt = 0"]
+
+    def before(self):
+        return ["lt = min(time(%s) / %g, 1)" % (secs(self.period), self.action)]
+
+    def field(self):
+        return "fillField(u)"
+
+    def helper(self):
+        return ["function fillField(uu) {",
+                # Distance forward from the start point, 0..1 round the loop.
+                "  d = uu - lStart",
+                "  d = d - floor(d)",
+                # Measure outward in both directions so it rises as a front
+                # from one place rather than sweeping one way round.
+                "  if (d > 0.5) d = 1 - d",
+                "  d = d * 2",
+                "  if (d > lt) return 0",
+                "  e = (lt - d) / lSoft",
+                "  return min(e, 1)",
+                "}"]
+
+
 class Palette:
     """Hue, saturation and value, each lerped by the field through its own
     curve. Per-channel curves matter: Island sharpens colour with w**3 while
@@ -325,15 +564,27 @@ class Threshold:
 
 
 class Pattern:
-    """One emitted pattern."""
+    """One emitted pattern: a field, a palette, an envelope, and features.
 
-    def __init__(self, name: str, note: str, waves: Waves, palette: Palette,
-                 field_curve: str = "none", blooms: Optional[Blooms] = None,
-                 threshold: Optional[Threshold] = None):
+    render() is always the same pipeline, with unused stages omitted:
+
+        field  -> f          what varies around the loop
+        palette-> h, sa, v   f lerped through each channel's own curve
+        feature-> h, sa, v   blooms or a threshold highlight
+        env    -> v          what varies over time, uniform across the loop
+    """
+
+    def __init__(self, name: str, note: str, palette: "Palette",
+                 field=None, waves=None, field_curve: str = "none",
+                 blooms=None, threshold=None, envelope=None,
+                 hue_cycle: float = 0.0):
         self.name, self.note = name, note
-        self.waves, self.palette = waves, palette
+        self.field = field if field is not None else waves
+        self.palette = palette
         self.field_curve = field_curve
         self.blooms, self.threshold = blooms, threshold
+        self.envelope = envelope
+        self.hue_cycle = hue_cycle
 
     def emit(self) -> str:
         L: List[str] = []
@@ -341,18 +592,30 @@ class Pattern:
         L.append("// %s" % self.note)
         L.append(PATH_BUILDER)
 
-        L += self.waves.declare()
+        L += self.field.declare()
         L += self.palette.declare()
         if self.blooms:
             L += self.blooms.declare()
         if self.threshold:
             L += self.threshold.declare()
+        if self.envelope:
+            L += self.envelope.declare()
+        if self.hue_cycle:
+            L.append("hueShift = 0")
         if self.blooms:
             L += self.blooms.init()
 
+        helper = getattr(self.field, "helper", None)
+        if helper:
+            L += helper()
+
         L.append("export function beforeRender(delta) {")
         L.append("  dt = delta / 1000")
-        L += ["  " + x for x in self.waves.before()]
+        L += ["  " + x for x in self.field.before()]
+        if self.envelope:
+            L += ["  " + x for x in self.envelope.before()]
+        if self.hue_cycle:
+            L.append("  hueShift = time(%s)" % secs(self.hue_cycle))
         if self.blooms:
             L += ["  " + x for x in self.blooms.before()]
         L.append("}")
@@ -361,7 +624,7 @@ class Pattern:
         L.append("  p = pathPos[index]")
         L.append("  if (p < 0) { rgb(0, 0, 0); return }")
         L.append("  u = p / pathLen")
-        L.append("  raw = %s" % self.waves.field())
+        L.append("  raw = %s" % self.field.field())
         L.append("  f = %s" % curve(self.field_curve, "raw"))
 
         if self.blooms and self.blooms.mode == "field":
@@ -378,9 +641,28 @@ class Pattern:
         if self.threshold:
             L += ["  " + x for x in self.threshold.emit()]
 
+        if self.hue_cycle:
+            # The World: the whole spectrum turns. hsv wraps its hue, so no
+            # explicit modulo is needed.
+            L.append("  h = h + hueShift")
+        if self.envelope:
+            L.append("  v = v * env")
+
         L.append("  hsv(h, sa, v)")
         L.append("}")
         return "\n".join(L) + "\n"
+
+
+def solid(hue: float, sat: float = 1.0, lo: float = 0.0,
+          hi: float = 0.55) -> "Palette":
+    """A one-colour palette whose brightness is driven by the field.
+
+    Most card patterns are a single colour doing something over time, so
+    the interest lives in the field and the envelope rather than in a hue
+    range.
+    """
+    return Palette(hue=(hue, hue, "none"), sat=(sat, sat, "none"),
+                   val=(lo, hi, "none"))
 
 
 # --------------------------------------------------------------------------
@@ -437,9 +719,173 @@ SCENES = {
 }
 
 
+# --------------------------------------------------------------------------
+# THE CARDS (warlock-table-interruption-cards.md)
+#
+# Hues are the doc's hex colours converted to the Pixelblaze 0..1 hue scale.
+# Saturation is kept high: on RGBW a low saturation is mostly white channel,
+# which is what made Plains read grey before it was corrected.
+# --------------------------------------------------------------------------
+
+# One-shots play their animation in the first slice of a long period and
+# then go dark. The controller restores the scene during that tail, so the
+# blank is never seen. Re-tapping the card restarts the clock.
+ONESHOT = 18.0          # seconds; animation occupies the first ~20%
+AURA_SECS = 60.0        # every Aura's duration, per the doc
+
+
+# ---- Boon: one comet lap, then a full-ring bloom -------------------------
+BOON_SUITS = {
+    "Swords":    (0.00, 0.00),   # white/silver -- unsaturated on purpose
+    "Cups":      (0.60, 0.85),   # blue
+    "Wands":     (0.045, 0.95),  # orange-red
+    "Pentacles": (0.11, 0.80),   # gold
+}
+
+CARDS = {}
+
+for _suit, (_h, _sat) in BOON_SUITS.items():
+    CARDS["Boon-" + _suit] = Pattern(
+        "Boon-" + _suit, "One comet lap, then the ring blooms. Ace of %s." % _suit,
+        field=Comet(width=26, laps=1.0, period=ONESHOT, count=1, tail=6.0),
+        palette=solid(_h, _sat, lo=0.0, hi=0.85),
+        # The bloom is the envelope: dark, one sweep, a flash as the comet
+        # completes its lap, then nothing.
+        envelope=Envelope("pulses", period=ONESHOT, count=1, action=0.22),
+    )
+
+# ---- Person: one-time announcements, nine distinct signatures ------------
+CARDS.update({
+    "Person-Magician": Pattern(
+        "Person-Magician", "Sharp double flash. A summoning snap.",
+        field=Uniform(), palette=solid(0.005, 0.95, hi=0.75),
+        envelope=Envelope("pulses", period=ONESHOT, count=2, action=0.10)),
+
+    "Person-Emperor": Pattern(
+        "Person-Emperor", "Solid fill rising from the GM's end, then holds.",
+        field=Fill(period=ONESHOT, action=0.28, start=0.0, soft=0.06),
+        palette=solid(0.035, 0.90, hi=0.60),
+        envelope=Envelope("ramp_up", period=ONESHOT, low=0.85, action=0.05)),
+
+    "Person-Fool": Pattern(
+        "Person-Fool", "Erratic playful sparkle skittering round the loop.",
+        field=Uniform(), palette=solid(0.14, 0.55, lo=0.02, hi=0.10),
+        blooms=Blooms(7, 5, 0.9, (0.12, 0.30), mode="tint", env="decay",
+                      rest=0.5, hue_pull=0.15),
+        envelope=Envelope("ramp_down", period=ONESHOT, low=0.0, action=0.30)),
+
+    "Person-Empress": Pattern(
+        "Person-Empress", "Slow organic breathing glow.",
+        field=Uniform(), palette=solid(0.33, 0.85, hi=0.55),
+        envelope=Envelope("breathe", period=5.0, low=0.10)),
+
+    "Person-HighPriestess": Pattern(
+        "Person-HighPriestess", "Slow shimmering ripple.",
+        waves=Waves((2, +0.20, 0.6), (5, -0.14, 0.4)),
+        field_curve="square",
+        palette=Palette(hue=(0.62, 0.55, "none"), sat=(0.95, 0.45, "none"),
+                        val=(0.03, 0.50, "none"))),
+
+    "Person-Lovers": Pattern(
+        "Person-Lovers", "Two lights travel toward each other and meet.",
+        field=Converge(width=26, period=ONESHOT, action=0.22),
+        palette=solid(0.95, 0.55, hi=0.70),
+        envelope=Envelope("ramp_down", period=ONESHOT, low=0.0, action=0.32)),
+
+    "Person-Hermit": Pattern(
+        "Person-Hermit", "A single lantern brightens at one spot and holds.",
+        field=Fixed(width=50, at=0.5), palette=solid(0.10, 0.70, hi=0.65),
+        envelope=Envelope("ramp_up", period=ONESHOT, low=0.05, action=0.18)),
+
+    "Person-HangedMan": Pattern(
+        "Person-HangedMan", "The ripple, running backwards.",
+        waves=Waves((2, -0.20, 0.6), (5, +0.14, 0.4)),
+        field_curve="square",
+        palette=Palette(hue=(0.72, 0.66, "none"), sat=(0.85, 0.55, "none"),
+                        val=(0.03, 0.50, "none"))),
+
+    "Person-Hierophant": Pattern(
+        "Person-Hierophant", "Three steady ceremonial pulses, bell-like.",
+        field=Uniform(), palette=solid(0.80, 0.80, hi=0.65),
+        envelope=Envelope("pulses", period=ONESHOT, count=3, action=0.28)),
+})
+
+# ---- Aura: standalone versions, played when no scene is running ----------
+#
+# Four of the twelve are dominant enough that they REPLACE a scene rather
+# than tint it (Tower, Judgement, Death, World): a violent strobe or a fade
+# to black has nothing left of the scene to preserve.
+AURAS = {
+    "Sun":        dict(hue=0.11, sat=0.85, env=Envelope("ramp_up", AURA_SECS, low=0.25, action=0.30), replaces=False),
+    "Moon":       dict(hue=0.60, sat=0.80, env=Envelope("breathe", 9.0, low=0.20), replaces=False),
+    "Star":       dict(hue=0.55, sat=0.35, env=Envelope("steady"), replaces=False,
+                       blooms=Blooms(9, 4, 0.9, (0.5, 1.2), mode="tint", env="decay", rest=1.5, hue_pull=0.55)),
+    "Temperance": dict(hue=0.45, sat=0.75, env=Envelope("breathe", 14.0, low=0.35), replaces=False),
+    "Strength":   dict(hue=0.06, sat=0.90, env=Envelope("heartbeat", 2.4, low=0.35), replaces=False),
+    "Justice":    dict(hue=0.0,  sat=0.0,  env=Envelope("metronome", 1.6, low=0.25, duty=0.35), replaces=False),
+    "Devil":      dict(hue=0.02, sat=0.95, env=Envelope("flicker", low=0.15), replaces=False),
+    "Chariot":    dict(hue=0.11, sat=0.80, env=Envelope("steady"), replaces=False,
+                       comet=Comet(width=14, laps=3.0, period=2.2, count=3, tail=5.0)),
+
+    "Judgement":  dict(hue=0.13, sat=0.15, env=Envelope("ramp_up", AURA_SECS, low=0.05, action=0.55), replaces=True),
+    "Tower":      dict(hue=0.0,  sat=0.0,  env=Envelope("strobe", 0.22, duty=0.35), replaces=True),
+    "Death":      dict(hue=0.78, sat=0.85, env=Envelope("ramp_down", AURA_SECS, low=0.02, action=0.75), replaces=True),
+    "World":      dict(hue=0.0,  sat=0.90, env=Envelope("breathe", 11.0, low=0.45), replaces=True, cycle=AURA_SECS),
+}
+
+for _name, _a in AURAS.items():
+    CARDS["Aura-" + _name] = Pattern(
+        "Aura-" + _name, "Standalone aura, played when no scene is running.",
+        field=_a.get("comet") or Uniform(),
+        palette=solid(_a["hue"], _a["sat"], lo=0.0 if _a.get("comet") else 0.04, hi=0.60),
+        blooms=_a.get("blooms"),
+        envelope=_a["env"],
+        hue_cycle=_a.get("cycle", 0.0))
+
+
+# ---- Aura over Scene: the eight that composite -------------------------
+#
+# Blend the scene's hue TOWARD the aura's rather than adding light to it.
+# Adding red to green gives yellow-white mush; blending gives an ember cast
+# with the canopy still legible underneath. Same technique as Swamp's wisps.
+def _composite(scene_name: str, aura_name: str) -> Pattern:
+    import copy
+
+    base = SCENES[scene_name]
+    aura = AURAS[aura_name]
+    out = copy.deepcopy(base)
+    out.name = "%s+%s" % (scene_name, aura_name)
+    out.note = "%s under the %s aura." % (scene_name, aura_name)
+
+    k = 0.55        # how far toward the aura's colour
+    h0, h1, hc = base.palette.hue
+    s0, s1, sc = base.palette.sat
+    out.palette = Palette(
+        hue=(h0 + (aura["hue"] - h0) * k, h1 + (aura["hue"] - h1) * k, hc),
+        sat=(s0 + (aura["sat"] - s0) * k, s1 + (aura["sat"] - s1) * k, sc),
+        val=base.palette.val)
+    out.envelope = aura["env"]
+    if aura.get("blooms") and not out.blooms:
+        out.blooms = aura["blooms"]
+    if aura.get("comet"):
+        # Chariot's streaks ride over the scene rather than replacing it.
+        out.blooms = Blooms(3, 12, 0.8, (0.5, 0.8), mode="tint",
+                            env="decay", rest=0.4, hue_pull=aura["hue"])
+    return out
+
+
+for _scene in SCENES:
+    for _aura, _cfg in AURAS.items():
+        if _cfg["replaces"]:
+            continue
+        CARDS["%s+%s" % (_scene, _aura)] = _composite(_scene, _aura)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--scenes-only", action="store_true",
+                    help="emit just the five scenes, not the card patterns")
     ap.add_argument("--list", action="store_true",
                     help="show what would be emitted, write nothing")
     # Default is no suffix: these ARE the scenes now, validated on the table
@@ -455,7 +901,10 @@ def main() -> int:
         os.makedirs(OUT_DIR, exist_ok=True)
 
     total = 0
-    for name, pattern in SCENES.items():
+    everything = dict(SCENES)
+    if not args.scenes_only:
+        everything.update(CARDS)
+    for name, pattern in everything.items():
         src = pattern.emit()
         total += len(src)
         out_name = name + args.suffix
