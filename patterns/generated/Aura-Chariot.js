@@ -11,6 +11,7 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+cueEl = 0
 cWide = 14
 cN = 3
 cTail = 5
@@ -39,7 +40,8 @@ function cometField(pp) {
 }
 export function beforeRender(delta) {
   dt = delta / 1000
-  ct = time(0.03357) * 3
+  cueEl = cueEl + dt
+  ct = (cueEl / 2.2) * 3
   env = 1
 }
 export function render(index) {

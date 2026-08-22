@@ -11,6 +11,7 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+cueEl = 0
 hA = 0.005
 hB = 0.005
 sA = 0.95
@@ -19,10 +20,10 @@ vA = 0
 vB = 0.75
 export function beforeRender(delta) {
   dt = delta / 1000
-  et = time(0.27466)
+  cueEl = cueEl + dt
   env = 0
-  if (et < 0.1) {
-    pk = (et / 0.1) * 2
+  if (cueEl < 1.8) {
+    pk = (cueEl / 1.8) * 2
     env = 1 - abs((pk - floor(pk)) * 2 - 1)
     env = env * env
   }

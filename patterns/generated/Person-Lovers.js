@@ -11,6 +11,7 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+cueEl = 0
 vWide = 26
 vAct = 0.22
 vt = 0
@@ -39,9 +40,9 @@ function convergeField(pp) {
 }
 export function beforeRender(delta) {
   dt = delta / 1000
-  vt = min(time(0.27466) / vAct, 1)
-  et = time(0.27466)
-  env = 1 - (1 - 0) * min(et / 0.32, 1)
+  cueEl = cueEl + dt
+  vt = min(cueEl / (vAct * 18), 1)
+  env = 1 - (1 - 0) * min(cueEl / 5.76, 1)
 }
 export function render(index) {
   p = pathPos[index]

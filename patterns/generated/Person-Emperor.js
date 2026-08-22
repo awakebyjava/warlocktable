@@ -11,6 +11,7 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+cueEl = 0
 lStart = 0
 lSoft = 0.06
 lt = 0
@@ -31,9 +32,9 @@ function fillField(uu) {
 }
 export function beforeRender(delta) {
   dt = delta / 1000
-  lt = min(time(0.27466) / 0.28, 1)
-  et = time(0.27466)
-  env = 0.85 + 0.15 * min(et / 0.05, 1)
+  cueEl = cueEl + dt
+  lt = min(cueEl / 5.04, 1)
+  env = 0.85 + 0.15 * min(cueEl / 0.9, 1)
 }
 export function render(index) {
   p = pathPos[index]

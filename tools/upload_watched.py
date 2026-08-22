@@ -82,6 +82,12 @@ def main() -> int:
     ap.add_argument("--address", default=None)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--only", default="",
+                    help="comma-separated names to upload, INCLUDING ones "
+                         "already on the device. The default skips anything "
+                         "present, which is right for filling a gap and "
+                         "wrong for shipping a fix to a pattern that is "
+                         "already up there.")
     ap.add_argument("--defer", default="",
                     help="comma-separated names to attempt LAST, after "
                          "everything else has gone up. For one that failed "
@@ -104,8 +110,16 @@ def main() -> int:
         existing = pb.getPatternList()
         st = pb.getStatistics()
         free = st["storageSize"] - st["storageUsed"]
-        todo = [f for f in files
-                if os.path.basename(f)[:-3] not in set(existing.values())]
+        only = {x.strip() for x in args.only.split(",") if x.strip()}
+        if only:
+            todo = [f for f in files if os.path.basename(f)[:-3] in only]
+            missing = only - {os.path.basename(f)[:-3] for f in todo}
+            if missing:
+                print("no such generated pattern: %s" % ", ".join(sorted(missing)))
+                return 2
+        else:
+            todo = [f for f in files
+                    if os.path.basename(f)[:-3] not in set(existing.values())]
         defer = {x.strip() for x in args.defer.split(",") if x.strip()}
         if defer:
             todo = ([f for f in todo if os.path.basename(f)[:-3] not in defer]

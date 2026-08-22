@@ -11,6 +11,7 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+cueEl = 0
 hA = 0.14
 hB = 0.14
 sA = 0.55
@@ -34,8 +35,8 @@ for (i = 0; i < N; i++) {
 }
 export function beforeRender(delta) {
   dt = delta / 1000
-  et = time(0.27466)
-  env = 1 - (1 - 0) * min(et / 0.3, 1)
+  cueEl = cueEl + dt
+  env = 1 - (1 - 0) * min(cueEl / 5.4, 1)
   for (i = 0; i < N; i++) {
     bAge[i] = bAge[i] + dt
     if (bAge[i] >= bLife[i]) {

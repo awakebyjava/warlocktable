@@ -11,6 +11,7 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+cueEl = 0
 fWide = 50
 fAt = 0.5
 hA = 0.1
@@ -29,8 +30,8 @@ function fixedField(pp) {
 }
 export function beforeRender(delta) {
   dt = delta / 1000
-  et = time(0.27466)
-  env = 0.05 + 0.95 * min(et / 0.18, 1)
+  cueEl = cueEl + dt
+  env = 0.05 + 0.95 * min(cueEl / 3.24, 1)
 }
 export function render(index) {
   p = pathPos[index]

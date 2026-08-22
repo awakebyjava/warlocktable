@@ -296,12 +296,54 @@ def secs(seconds: float) -> str:
 
 
 class Envelope:
-    """Emits `env`, 0..1, once per frame in beforeRender."""
+    """Emits `env`, 0..1, once per frame in beforeRender.
+
+    ONE-SHOT vs CYCLIC, and this distinction is the whole bug fixed on
+    2026-08-22.
+
+    A cyclic envelope (breathe, strobe, metronome, flicker) is ambience:
+    it should free-run on `time()` and its phase genuinely does not matter.
+
+    A one-shot (ramp_up, ramp_down, heartbeat, pulses) is a CUE. It has a
+    beginning, and that beginning is the moment the card was tapped. These
+    were also written on `time()`, which is wall-clock and free-running --
+    so a Boon's 4-second flash lived at a fixed offset inside an 18-second
+    cycle that had nothing to do with the tap. Tap at a random moment and
+    you saw nothing about 78% of the time; the Magician, whose flash is
+    1.8s of 18, was invisible about 90% of the time. Reported from the
+    table as "no visible pattern on any of the boons".
+
+    One-shots now run off `cueT`, which starts at 0 when the pattern is
+    activated. See Pattern.emit().
+    """
+
+    # heartbeat is CYCLIC -- it is a repeating pulse, and Strength's whole
+    # character is that it keeps beating for the full 60s. Classifying it
+    # as a one-shot made it beat once and then sit flat for 59 seconds.
+    ONE_SHOT = ("ramp_up", "ramp_down", "pulses")
 
     def __init__(self, kind: str, period: float = 4.0, low: float = 0.0,
                  count: int = 3, duty: float = 0.5, action: float = 0.25):
         self.kind, self.period, self.low = kind, period, low
         self.count, self.duty, self.action = count, duty, action
+
+    @property
+    def one_shot(self) -> bool:
+        return self.kind in self.ONE_SHOT
+
+    @property
+    def act_s(self) -> float:
+        """How long the action lasts, in SECONDS.
+
+        Call sites express `action` as a fraction of the period because
+        that is how the shapes were designed. Everything downstream works
+        in seconds off cueEl, so the conversion happens once, here. The
+        fractions only ever meant "this many seconds of an 18s period",
+        and they silently meant something else the moment the period
+        changed -- which is exactly how a 1.8s flash ended up inside a
+        5s card with 3.2s of dark after it.
+        """
+        return max(self.action * self.period, 0.05)
 
     def before(self) -> List[str]:
         k, p, lo = self.kind, self.period, self.low
@@ -317,13 +359,12 @@ class Envelope:
             return ["env = 0",
                     "if (square(time(%s), %g) > 0) env = 1" % (secs(p), self.duty)]
         if k == "ramp_up":
-            # Rises over the first `action` of the period, then holds. The
-            # period is the card's whole duration, so it climbs once.
-            return ["et = time(%s)" % secs(p),
-                    "env = %g + %g * min(et / %g, 1)" % (lo, 1 - lo, self.action)]
+            # Rises over the first `action` of the cue, then holds.
+            return ["env = %g + %g * min(cueEl / %g, 1)"
+                    % (lo, 1 - lo, self.act_s)]
         if k == "ramp_down":
-            return ["et = time(%s)" % secs(p),
-                    "env = 1 - (1 - %g) * min(et / %g, 1)" % (lo, self.action)]
+            return ["env = 1 - (1 - %g) * min(cueEl / %g, 1)"
+                    % (lo, self.act_s)]
         if k == "heartbeat":
             # Two thumps close together, then a rest -- lub-dub, not a sine.
             return ["et = time(%s)" % secs(p), "env = %g" % lo,
@@ -338,9 +379,9 @@ class Envelope:
         if k == "pulses":
             # N discrete pulses inside the first slice, then dark until the
             # controller takes the pattern away.
-            return ["et = time(%s)" % secs(p), "env = 0",
-                    "if (et < %g) {" % self.action,
-                    "  pk = (et / %g) * %d" % (self.action, self.count),
+            return ["env = 0",
+                    "if (cueEl < %g) {" % self.act_s,
+                    "  pk = (cueEl / %g) * %d" % (self.act_s, self.count),
                     "  env = 1 - abs((pk - floor(pk)) * 2 - 1)",
                     "  env = env * env",
                     "}"]
@@ -372,6 +413,8 @@ class Comet:
     round per period; `count` puts several equally spaced around the ring.
     """
 
+    one_shot = True     # a comet lap starts when the card is tapped
+
     def __init__(self, width: float = 40, laps: float = 1.0,
                  period: float = 3.0, count: int = 1, tail: float = 3.0):
         self.width, self.laps, self.period = width, laps, period
@@ -385,7 +428,9 @@ class Comet:
                 "cTail = %g" % self.tail, "ct = 0"]
 
     def before(self):
-        return ["ct = time(%s) * %g" % (secs(self.period), self.laps)]
+        # cueP, not time(): a comet lap belongs to the tap that started
+        # it. Unclamped so `laps` still means laps.
+        return ["ct = (cueEl / %g) * %g" % (self.period, self.laps)]
 
     def field(self):
         return "cometField(p)"
@@ -444,6 +489,8 @@ class Converge:
     the anti-lockstep rule is deliberately off: they are synchronised.
     """
 
+    one_shot = True     # the two lights set off when the card is tapped
+
     def __init__(self, width: float = 30, period: float = 4.0,
                  action: float = 0.55):
         self.width, self.period, self.action = width, period, action
@@ -453,7 +500,7 @@ class Converge:
                 "vt = 0"]
 
     def before(self):
-        return ["vt = min(time(%s) / vAct, 1)" % secs(self.period)]
+        return ["vt = min(cueEl / (vAct * %g), 1)" % self.period]
 
     def field(self):
         return "convergeField(p)"
@@ -485,6 +532,8 @@ class Fill:
     sweeps round the perimeter from the GM's end.
     """
 
+    one_shot = True     # the fill sweeps once, from the tap
+
     def __init__(self, period: float = 4.0, action: float = 0.5,
                  start: float = 0.5, soft: float = 0.05):
         self.period, self.action, self.start, self.soft = period, action, start, soft
@@ -494,7 +543,7 @@ class Fill:
                 "lt = 0"]
 
     def before(self):
-        return ["lt = min(time(%s) / %g, 1)" % (secs(self.period), self.action)]
+        return ["lt = min(cueEl / %g, 1)" % (self.action * self.period)]
 
     def field(self):
         return "fillField(u)"
@@ -586,11 +635,35 @@ class Pattern:
         self.envelope = envelope
         self.hue_cycle = hue_cycle
 
+    def needs_cue(self) -> bool:
+        """Does anything in this pattern have a beginning?"""
+        if self.envelope is not None and self.envelope.one_shot:
+            return True
+        return getattr(self.field, "one_shot", False)
+
+    def cue_seconds(self) -> float:
+        """How long the cue runs, in seconds.
+
+        The envelope's period wins when there is one, because that is the
+        card's stated duration; otherwise the field's own period. These are
+        the same number in every pattern we emit, but the envelope is the
+        one the config's duration_s is matched against.
+        """
+        if self.envelope is not None and self.envelope.one_shot:
+            return self.envelope.period
+        return getattr(self.field, "period", 4.0)
+
     def emit(self) -> str:
         L: List[str] = []
         L.append("// %s -- GENERATED by tools/patterngen.py. Do not edit here." % self.name)
         L.append("// %s" % self.note)
         L.append(PATH_BUILDER)
+
+        if self.needs_cue():
+            # Declared before anything that reads them: helper functions are
+            # compiled ahead of beforeRender and a symbol they touch has to
+            # exist by then.
+            L.append("cueEl = 0")
 
         L += self.field.declare()
         L += self.palette.declare()
@@ -611,6 +684,16 @@ class Pattern:
 
         L.append("export function beforeRender(delta) {")
         L.append("  dt = delta / 1000")
+        if self.needs_cue():
+            # THE CUE CLOCK. Counts from zero when this pattern is
+            # activated, because a card's effect begins when the card is
+            # tapped -- not at some offset inside a free-running wall clock
+            # that happens to be running.
+            #
+            # cueP is unclamped so `laps` still means laps; cueT is clamped
+            # so an envelope holds its final value rather than wrapping and
+            # firing a second time.
+            L.append("  cueEl = cueEl + dt")
         L += ["  " + x for x in self.field.before()]
         if self.envelope:
             L += ["  " + x for x in self.envelope.before()]
@@ -747,7 +830,9 @@ CARDS = {}
 for _suit, (_h, _sat) in BOON_SUITS.items():
     CARDS["Boon-" + _suit] = Pattern(
         "Boon-" + _suit, "One comet lap, then the ring blooms. Ace of %s." % _suit,
-        field=Comet(width=26, laps=1.0, period=ONESHOT, count=1, tail=6.0),
+        # The lap must finish inside the lit window, or you see a fifth of
+        # a comet and then darkness. 4s lap against a 3.96s envelope.
+        field=Comet(width=26, laps=1.0, period=4.0, count=1, tail=6.0),
         palette=solid(_h, _sat, lo=0.0, hi=0.85),
         # The bloom is the envelope: dark, one sweep, a flash as the comet
         # completes its lap, then nothing.
