@@ -13,6 +13,14 @@ User=__USER__
 Group=__USER__
 WorkingDirectory=/opt/warlocktable
 
+# stdout to journald is a pipe, so Python block-buffers it and log lines
+# surface in ~4KB bursts -- minutes late, and out of step with what the
+# table is actually doing. That is worst exactly when it matters: during
+# an incident, journalctl shows a stale picture and you debug the past.
+# It cost real time on 2026-08-22, when the display watcher's own events
+# could not be seen right after they happened.
+Environment=PYTHONUNBUFFERED=1
+
 # Flags live in /etc/default/warlocktable so they can be changed without
 # editing this unit (which install.sh overwrites).
 EnvironmentFile=-/etc/default/warlocktable
