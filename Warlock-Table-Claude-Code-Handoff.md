@@ -68,12 +68,25 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Join page + seat claiming** — QR to `/`, which asks player-or-GM. The player page does exactly one thing: pick a seat. §3.7.
 - **Volume and output switching** — including the `hdmi:` vs `plughw:` trap. §3.3.
 
+**Built 2026-08-22:**
+- **All patterns generated** from `tools/patterngen.py` — 70 of them, on the device. The five terrain scenes were compared against the hand-written originals on the table before replacing them; originals kept in `patterns/legacy/`.
+- **The tarot system** — 26 cards with config entries pointing at their own patterns. Wheel of Fortune now draws a random Aura. Silent for now: `Interruption.audio` is optional so the cards work before the clips exist.
+- **Stock patterns pruned** — 39 removed after archiving, device storage 82% → 62%.
+
 **Not built yet:**
-- **The tarot interruption system** — 26 cards, fully specified in `warlock-table-interruption-cards.md`, none of it implemented. Needs per-card patterns, audio, an NPC-binding editor, and a real mechanism for layering an Aura over a running scene. Its companion JSON is referenced but not in the repo.
+- **Audio for the 26 tarot cards**, and **enrolling the remaining 22 physical cards** (`tools/enrol_cards.py`, with the table running).
+- **NPC binding editor** for the 9 Person cards.
 - **Everything on the player phone beyond claiming a seat** — dice, break requests, whispers. **How far the phone should go is deliberately unsettled: ask, do not assume.**
 - **Input-to-effect latency** (§5.7) — the NFC read is the biggest single delay and sits upstream of everything. **Measure before changing anything.**
 - Audio upload and scene authoring in the panel (§4.5 steps 3–4)
 - Govee, voice/personality, dice, session recap — Phase 3+. Overseer is explicitly **not planned**.
+
+**Before touching the Pixelblaze, read §3.8 and §5.3.** An unattended bulk
+upload wedged it, cost a power cycle, and lost the entire LED configuration
+including the brightness limit that keeps the table inside its 40 A supply.
+The short version: stop the controller first, never run device work
+unattended, pass an empty preview image, and expect a transient failure
+every 5–15 operations that is safe to retry.
 
 **Read these before touching the matching area:**
 - `warlock-table-led-reference.md` — **before any Pixelblaze pattern.** Layout, the verified `segStart` ordering (do not "tidy" it), and the **power budget: the brightness limit is a 40 A supply constraint, not a preference.**

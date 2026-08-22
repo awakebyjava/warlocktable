@@ -57,6 +57,31 @@ The big themes:
 - **Existing card inventory (already RFID-tagged):**
   - **5 environment cards** — the five Magic: The Gathering mana types (White/Blue/Black/Red/Green). Likely used to set the environment / mood of the table.
   - **A few tarot cards** — e.g., Wheel of Fortune, The Devil, Ace of Pentacles. **Tarot is the intended expansion path** — the card set that grows and carries the richer, more numerous interactions.
+**Built 2026-08-22.** All 26 tarot cards now have config entries pointing at
+their own generated Pixelblaze patterns: 4 Boon, 9 Person, 12 Aura, and
+Wheel of Fortune as a random draw over the twelve Auras. Built by
+`tools/migrate_tarot.py` from the design doc rather than by hand, so a typo
+fails loudly instead of producing a card that does nothing.
+
+**They are silent for now, deliberately.** `Interruption.audio` was made
+optional to allow it. The design doc defers sourcing the clips, and the
+alternative was 25 entries failing referential integrity until someone
+records 25 sounds. With no audio the revert is driven by `duration_s` —
+60s for an Aura's flourish, ~5s for a one-shot announcement — which is what
+those wanted anyway rather than an arbitrary clip length.
+
+**Enrolling the physical cards:** `tools/enrol_cards.py` drives the running
+table over its web API, so the controller keeps the PN532 and the table
+stays alive while you tap. A standalone reader program would have to stop
+the service first, because the panel and a CLI cannot both own the reader.
+It asks what each object IS rather than assuming — the label describes the
+thing on the table, and the idle trigger is a postcard, not a card called
+"Idle".
+
+**Wheel of Fortune changed behaviour.** It used to pull a random *scene*; it
+now draws a random Aura and fires that card's effect. That retired the three
+`fortune_*` interruptions.
+
 - **The tarot set has its own design doc:**
   [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md)
   — the full taxonomy for all 26 cards (Boon / Person / Aura / Random
@@ -231,18 +256,88 @@ Three front doors, all on the same server:
 
 - Mostly "more routes" on the server you're already running; low added cost.
 
-### 3.8 Pixelblaze Patterns — Authoring & Upload
-Two distinct pieces, deliberately separated:
+### 3.8 Pixelblaze Patterns — Authoring & Upload *(built 2026-08-22)*
 
-- **Pixel map (one-time, DIY task).** The table needs a correct pixel map (x/y coordinates per LED) built once and pasted into Pixelblaze's Mapper. This is a manual setup step, not a tool to build — but it's a prerequisite for good 2D patterns, so it's worth doing early. *No custom tooling needed; just get it done once.*
-- **Pattern authoring (collaborative, with Claude).** Pixelblaze patterns are written in a small JavaScript-like language and are simple enough that the workflow is: **describe the pattern in plain English → Claude writes the Pixelblaze code**. The "tool" here is really just that collaboration loop, plus a way to get the code onto the device without hand-copying.
-- **Upload via API (buildable feature).** The `pixelblaze-client` Python library can write patterns to the device programmatically over WebSocket. So an **"upload new pattern" button in the web panel** is real and achievable: Claude writes the pattern → the panel pushes it to the Pixelblaze → it appears on the table.
+**Patterns are generated, not hand-written.** `tools/patterngen.py` emits all
+70 from a small vocabulary of fields, envelopes, palettes and features. The
+five terrain scenes were transcribed into it and compared side by side
+against the hand-written originals on the table before replacing them; the
+originals are in `patterns/legacy/`.
 
-**What makes Claude's patterns good:**
-- A correct **pixel map** (so patterns animate across the true physical layout).
-- Access to the **Pixelblaze language reference** when writing, for correct syntax.
+Not for the size saving, though it is 60%. Two better reasons:
 
-**To expand:** how patterns get versioned/stored, whether the panel lists/manages existing patterns too, whether we want live preview.
+- **One source of truth for the shared parts.** The perimeter path builder
+  was copy-pasted verbatim into six patterns. Correcting `segStart` would
+  have been six edits and a chance to miss one.
+- **The craft scales.** Hand-tuning seventy patterns was never going to
+  happen. The techniques that stop a loop looking machine-made — staggered
+  bloom phases, seam-correct wrapped distance, blending toward a colour
+  instead of adding to it — cost 15–45 bytes each and are now defaults
+  every generated pattern inherits.
+
+**Two rules the generator enforces rather than leaving to memory:**
+
+- **Wave frequencies must be whole numbers and coprime.** `wave()` has
+  period 1, so `wave(u * 7.3)` lands 0.3 of a cycle from where it started
+  as `u` wraps — a visible seam, measured at 0.31–0.51 on a 0..1 field
+  across the original five, and reported from the table as "a weird seam at
+  the split in the ring". The non-repeating quality comes from
+  incommensurate *speeds*, not frequencies, so whole numbers cost nothing.
+  Coprime as well: 9 and 3 would make the field repeat three times around
+  the ring.
+- **Seam-correct wrapped distance** for anything travelling the loop.
+
+#### Getting patterns onto the device
+
+| Tool | Does |
+|---|---|
+| `tools/patterngen.py` | emit the patterns into `patterns/generated/` |
+| `tools/upload_watched.py` | upload one at a time, verifying each |
+| `tools/upload_pattern.py` | upload a single named pattern |
+| `tools/archive_patterns.py` | pull sources off the device before deleting |
+| `tools/prune_patterns.py` | delete stock patterns, one at a time |
+
+**Compilation happens against the live device** — the client downloads the
+compiler out of the Pixelblaze's own web UI and runs it under V8. The
+bytecode is therefore always built by the compiler belonging to the
+firmware that will run it, and syntax is checked by the real thing. It also
+means uploads cannot happen on the Pi, where `py_mini_racer` is stubbed for
+want of an ARM wheel. **Laptop only.**
+
+The language is **not JavaScript** despite the `.js` extension. A
+user-defined function needs the `function` keyword; there is no `break`.
+Only the device can tell you.
+
+#### Hard-won operational rules
+
+These cost a wedged device, a power cycle, and the entire LED configuration
+on 2026-08-21. See §5.3.
+
+- **Stop the controller before any bulk device work.** It reconnects every
+  10 seconds and that loop exhausts the Pixelblaze's small pool of
+  websocket slots. A prune run wedged mid-way with the controller up and
+  recovered the moment it was stopped.
+- **Never run device work unattended.** The failure that started it was a
+  70-pattern upload backgrounded and left for 47 minutes.
+- **Attach no preview image.** `savePattern` takes a JPEG thumbnail for the
+  device's own list. Copying one from an existing pattern cost **8,655
+  bytes stamped onto every upload** — six times the size of the pattern it
+  decorated — and turned a 123 KB job into a 669 KB one against 490 KB
+  free. Pass `b""`. Note that *replacing* a pattern keeps its old preview;
+  only a freshly created one gets the empty one, so reclaiming means
+  delete-then-create.
+- **`storageUsed` refreshes lazily, mostly on reboot.** Deleting a pattern
+  moves it by zero. It is not a live capacity guard, and estimating from
+  source bytes is how the original job was mis-sized.
+- **Expect transient failures roughly every 5–15 operations** —
+  `IncompleteRead`, empty source read-backs, occasional write failures.
+  Every one left the device healthy and the pattern either fully written or
+  not at all. Retrying works; a pattern that fails *twice* is a real
+  problem. Small batches with pauses are reliable where long runs are not.
+
+**Still not built:** the pixel map for 2D patterns, and pattern upload from
+the panel. `tools/upload_pattern.py` does it from the command line, and the
+Pi cannot compile, so a panel button would have to proxy to a laptop.
 
 ### 3.9 Player Initiative Lighting *(built 2026-08-21)*
 
@@ -945,6 +1040,33 @@ Ready in about a minute, with no interaction required.
 | **Game-day deploy** | The Git bridge makes it trivially easy to `git pull` an hour before people arrive and break everything. | Run a **tagged known-good version** on the Pi, not raw `main`, so rollback is one command. Test on the laptop first — the fakes (§4.2) make this possible. |
 | **Unknown card scanned** | Old code printed `not a registered card!` to a terminal nobody is reading. | Surface it on the panel; ideally offer to register it right there. |
 
+**Pixelblaze flash exhaustion and websocket wedging (2026-08-21).** Worth
+its own entry, because it took the table down for an evening and the cause
+was not where it looked.
+
+| | |
+|---|---|
+| **Symptom** | Upload hung mid-run; websocket then refused every connection while HTTP still served fine. Power cycle brought it back with **the entire LED configuration lost** — `ledType: noLeds`, `pixelCount: 0`, `colorOrder: BGR`, and the brightness limit reset from 50 to **100** |
+| **Root cause** | `savePattern` was copying an **8,655-byte preview image** onto every uploaded pattern. 70 patterns needed 669 KB against 490 KB free — it could never have fit. The capacity estimate that said otherwise counted source bytes only |
+| **Made worse by** | The upload was backgrounded and left unattended for 47 minutes; and the controller's 10-second reconnect loop was competing for the device's small pool of websocket slots throughout |
+| **Fixed by** | Empty previews (`b""`), one-at-a-time uploads with verification, stopping the controller during device work, and archiving before deleting |
+
+**The brightness limit resetting to 100 is the part that mattered most.**
+That is the power ceiling for a 40 A supply feeding 764 SK6812 RGBW (§3b of
+the LED reference). It was restored *before* the pixel count, so there was
+never a moment where 764 pixels could run at full. `tools/upload_watched.py`
+now checks the pixel count and the limit after **every** upload, because
+they were lost silently once and nothing noticed.
+
+**Two device behaviours worth knowing before touching it again:**
+
+- **`storageUsed` refreshes lazily**, mostly on reboot. Deleting a pattern
+  moves it by zero. It cannot be used as a live capacity guard.
+- **Transient failures happen roughly every 5–15 operations** —
+  `IncompleteRead`, empty source read-backs, occasional write failures —
+  and the device is healthy immediately after each. Retrying works. Small
+  batches with pauses are reliable where long runs are not.
+
 ### 5.4 "Table Check" — pre-session self-test *(built)*
 
 One button on the panel. Run it ten minutes before people arrive. **This is
@@ -1174,6 +1296,9 @@ Stand up the core software on the Pi once hardware is trusted.
 
 ### Phase 3+ — Feature Build-Out
 - [x] Operator web panel — done. iPad PWA, status strip, scene/interruption/table buttons built from the controller's vocabulary, brightness, grid toggle, card editing. *Apple TV hand-off is stubbed — it logs intent, HDMI-CEC not implemented.*
+- [x] **Generate all patterns from one vocabulary** — built 2026-08-22
+  (§3.8). 70 patterns, 60% smaller, with the anti-machine-made techniques
+  as enforced defaults rather than per-pattern decisions.
 - [ ] Build the table's Pixelblaze pixel map (one-time)
 - [ ] Pattern authoring loop + "upload pattern" via the web panel — `tools/upload_pattern.py` does it from the command line already; the panel cannot, and the Pi cannot compile (no ARM wheel for V8).
 - [x] Card management — reassign/create/delete from the panel, plus registering an unknown tag by tapping it (§4.5 steps 1–2).
@@ -1182,10 +1307,15 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] **Volume and audio output switching** — built 2026-08-21 (§3.3).
   Master volume in software, and a switch between the 3.5mm jack and the
   television.
-- [ ] **The tarot interruption system** — specified in
-  `warlock-table-interruption-cards.md`, not built. Needs the per-card
-  Pixelblaze patterns, the audio assets, an NPC-binding editor, and a real
-  mechanism for layering an Aura over a running scene.
+- [x] **The tarot interruption system** — built 2026-08-22 (§3.2). All 26
+  cards have entries pointing at their own generated patterns, and all 70
+  patterns are on the device. Layering was solved by pre-rendering the
+  aura×scene combinations rather than compositing at runtime.
+  - [ ] **Audio for the 26 cards.** They are silent by design for now;
+    `Interruption.audio` is optional so they work until clips exist.
+  - [ ] **Enrol the remaining 22 physical cards** — `tools/enrol_cards.py`.
+  - [ ] **NPC binding editor** for the 9 Person cards (`npc_binding` is
+    defined in the spec and null on every card; nothing edits it yet).
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
 - [x] **Zone map + per-zone lighting** — built 2026-08-21 (§4.7). The perimeter divides between the GM and 1–7 players, each seat lit its own colour; `patterns/zones.js` is on the device and confirmed working. **Unblocks player phones.**

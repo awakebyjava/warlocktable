@@ -63,8 +63,15 @@ warlock/
   inputs/          things that CALL the controller (the NFC reader)
   web/             the operator panel, served from the controller process
 deploy/            install.sh, update.sh, the systemd unit
-tools/             upload_pattern.py   - put a pattern on the Pixelblaze
-                   sync_seat_colours.py - realign a live config's palette
+tools/             laptop-side, for the Pixelblaze and the live config:
+                     patterngen.py       generate all 70 patterns
+                     upload_watched.py   upload one at a time, verifying each
+                     upload_pattern.py   upload a single named pattern
+                     archive_patterns.py copy sources off before deleting
+                     prune_patterns.py   delete stock patterns, one at a time
+                     migrate_tarot.py    build card entries from the spec
+                     enrol_cards.py      tap physical cards to register them
+                     sync_seat_colours.py realign a live config's palette
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy
 ```
@@ -101,6 +108,9 @@ card editing, visual identity.
 `v0.3.1` — seat zones (GM + 1–7 players, each its own colour), player
 initiative on the lights, the join/QR page with seat claiming, and volume
 plus audio-output switching.
+`v0.4.0` *(unreleased)* — all patterns generated from one vocabulary; the
+26 tarot cards specced, built and pointing at their own patterns; session
+recording.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.
