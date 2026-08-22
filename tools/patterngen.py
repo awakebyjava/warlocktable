@@ -398,10 +398,14 @@ SCENES = {
         blooms=Blooms(3, 70, 0.55, (5, 6), mode="field", desat=0.25),
     ),
     "Plains": Pattern(
-        "Plains", "Broad soft gusts over open grass.",
+        "Plains", "Broad soft gusts over ripe grain.",
         waves=Waves((1, -0.50, 0.6), (2.3, -0.35, 0.4)),
         field_curve="smoothstep",
-        palette=Palette(hue=(0.13, 0.10, "none"), sat=(0.15, 0.42, "none"),
+        # Saturation was 0.15-0.42, which on RGBW is mostly white channel:
+        # the hue was right but barely expressed, so it read pale and grey
+        # rather than golden. Raised so the gold actually shows -- this is
+        # a wheat field, not a lawn.
+        palette=Palette(hue=(0.13, 0.10, "none"), sat=(0.62, 0.88, "none"),
                         val=(0.18, 0.50, "none")),
     ),
     "Island": Pattern(
@@ -438,10 +442,13 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--list", action="store_true",
                     help="show what would be emitted, write nothing")
-    ap.add_argument("--suffix", default="-gen",
-                    help="appended to each name so generated patterns sit "
-                         "alongside the originals for comparison "
-                         "(default: -gen)")
+    # Default is no suffix: these ARE the scenes now, validated on the table
+    # 2026-08-21 and the hand-written originals retired to patterns/legacy/.
+    # Pass --suffix -gen to put a variant alongside a live pattern when
+    # trying a change out.
+    ap.add_argument("--suffix", default="",
+                    help="appended to each emitted name, for putting a "
+                         "variant beside a live pattern while comparing")
     args = ap.parse_args()
 
     if not args.list:
