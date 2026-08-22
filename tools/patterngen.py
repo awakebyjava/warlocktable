@@ -626,7 +626,23 @@ class Pattern:
     def __init__(self, name: str, note: str, palette: "Palette",
                  field=None, waves=None, field_curve: str = "none",
                  blooms=None, threshold=None, envelope=None,
-                 hue_cycle: float = 0.0):
+                 hue_cycle: float = 0.0,
+                 window: Optional[Tuple[float, float, float]] = None):
+        # window = (attack_s, release_s, total_s). A one-shot gate over the
+        # whole cue, multiplied into brightness at render time.
+        #
+        # WHY: the Auras' envelopes are CYCLIC -- strobe, breathe,
+        # metronome, flicker, heartbeat. They have no ending, so the card
+        # simply got chopped off mid-cycle when the revert timer fired.
+        # Reported from the table as "they don't stop, they take over the
+        # board". A gate gives every one of them an arrival and a
+        # departure without touching what makes it itself: the Tower still
+        # strobes, Strength still beats, but now inside a shape.
+        #
+        # Applied at RENDER, not folded into env, because flicker feeds
+        # back on its own previous value -- gating env in place would make
+        # the fade compound frame over frame and die early.
+        self.window = window
         self.name, self.note = name, note
         self.field = field if field is not None else waves
         self.palette = palette
@@ -637,6 +653,8 @@ class Pattern:
 
     def needs_cue(self) -> bool:
         """Does anything in this pattern have a beginning?"""
+        if self.window is not None:
+            return True
         if self.envelope is not None and self.envelope.one_shot:
             return True
         return getattr(self.field, "one_shot", False)
@@ -664,6 +682,8 @@ class Pattern:
             # compiled ahead of beforeRender and a symbol they touch has to
             # exist by then.
             L.append("cueEl = 0")
+        if self.window:
+            L.append("gate = 0")
 
         L += self.field.declare()
         L += self.palette.declare()
@@ -697,6 +717,13 @@ class Pattern:
         L += ["  " + x for x in self.field.before()]
         if self.envelope:
             L += ["  " + x for x in self.envelope.before()]
+        if self.window:
+            att, rel, total = self.window
+            L.append("  gate = min(cueEl / %g, 1)" % max(att, 0.01))
+            L.append("  gOut = (%g - cueEl) / %g" % (total, max(rel, 0.01)))
+            L.append("  if (gOut < 0) gOut = 0")
+            L.append("  if (gOut > 1) gOut = 1")
+            L.append("  gate = gate * gOut")
         if self.hue_cycle:
             L.append("  hueShift = time(%s)" % secs(self.hue_cycle))
         if self.blooms:
@@ -728,8 +755,12 @@ class Pattern:
             # The World: the whole spectrum turns. hsv wraps its hue, so no
             # explicit modulo is needed.
             L.append("  h = h + hueShift")
-        if self.envelope:
+        if self.envelope and self.window:
+            L.append("  v = v * env * gate")
+        elif self.envelope:
             L.append("  v = v * env")
+        elif self.window:
+            L.append("  v = v * gate")
 
         L.append("  hsv(h, sa, v)")
         L.append("}")
@@ -877,10 +908,19 @@ CARDS.update({
         palette=solid(0.95, 0.55, hi=0.70),
         envelope=Envelope("ramp_down", period=ONESHOT, low=0.0, action=0.32)),
 
+    # Was a Fixed() point that lit up and sat there -- hermetic in theory,
+    # inert in practice, and it landed on a corner ring where half the
+    # table could not see it. Now the lantern is CARRIED: one warm point
+    # travelling a bit over half the loop, trailing light, with a little
+    # drifting sparkle so it is not a clean geometric dot. The gate brings
+    # him in and takes him away again.
     "Person-Hermit": Pattern(
-        "Person-Hermit", "A single lantern brightens at one spot and holds.",
-        field=Fixed(width=50, at=0.5), palette=solid(0.10, 0.70, hi=0.65),
-        envelope=Envelope("ramp_up", period=ONESHOT, low=0.05, action=0.18)),
+        "Person-Hermit", "A lantern carried slowly round the table.",
+        field=Comet(width=30, laps=0.55, period=9.0, count=1, tail=4.0),
+        palette=solid(0.10, 0.72, lo=0.0, hi=0.68),
+        blooms=Blooms(4, 7, 0.30, (0.6, 1.4), mode="tint", env="triangle",
+                      rest=0.8, drift=3.0, hue_pull=0.09),
+        window=(0.9, 1.6, 9.0)),
 
     "Person-HangedMan": Pattern(
         "Person-HangedMan", "The ripple, running backwards.",
@@ -900,32 +940,64 @@ CARDS.update({
 # Four of the twelve are dominant enough that they REPLACE a scene rather
 # than tint it (Tower, Judgement, Death, World): a violent strobe or a fade
 # to black has nothing left of the scene to preserve.
+# Every Aura carries `secs`: how long the card runs, and the length of the
+# gate that shapes it. Ten seconds is the ceiling, set at the table --
+# these are STINGS. At 60s they read as the card taking the table over,
+# and the cyclic ones were simply cut off mid-cycle when the timer fired.
+#
+# The numbers are per-card rather than a flat ten, because the right
+# length is a property of the pattern: three heartbeats is 8s, five
+# metronome ticks is 8s, and a hard strobe wants 4s and not a second more.
 AURAS = {
-    "Sun":        dict(hue=0.11, sat=0.85, env=Envelope("ramp_up", AURA_SECS, low=0.25, action=0.30)),
-    "Moon":       dict(hue=0.60, sat=0.80, env=Envelope("breathe", 9.0, low=0.20)),
-    "Star":       dict(hue=0.55, sat=0.35, env=Envelope("steady"),
+    "Sun":        dict(hue=0.11, sat=0.85, secs=8.0,
+                       env=Envelope("ramp_up", 8.0, low=0.25, action=0.375)),
+    "Moon":       dict(hue=0.60, sat=0.80, secs=9.0,
+                       env=Envelope("breathe", 9.0, low=0.20)),
+    "Star":       dict(hue=0.55, sat=0.35, secs=9.0, env=Envelope("steady"),
                        blooms=Blooms(9, 4, 0.9, (0.5, 1.2), mode="tint", env="decay", rest=1.5, hue_pull=0.55)),
-    "Temperance": dict(hue=0.45, sat=0.75, env=Envelope("breathe", 14.0, low=0.35)),
-    "Strength":   dict(hue=0.06, sat=0.90, env=Envelope("heartbeat", 2.4, low=0.35)),
-    "Justice":    dict(hue=0.0,  sat=0.0,  env=Envelope("metronome", 1.6, low=0.25, duty=0.35)),
-    "Devil":      dict(hue=0.02, sat=0.95, env=Envelope("flicker", low=0.15)),
-    "Chariot":    dict(hue=0.11, sat=0.80, env=Envelope("steady"),
+    "Temperance": dict(hue=0.45, sat=0.75, secs=9.0,
+                       env=Envelope("breathe", 8.0, low=0.35)),
+    "Strength":   dict(hue=0.06, sat=0.90, secs=8.0,
+                       env=Envelope("heartbeat", 2.4, low=0.35)),
+    "Justice":    dict(hue=0.0,  sat=0.0,  secs=8.0,
+                       env=Envelope("metronome", 1.6, low=0.25, duty=0.35)),
+    "Devil":      dict(hue=0.02, sat=0.95, secs=8.0,
+                       env=Envelope("flicker", low=0.15)),
+    "Chariot":    dict(hue=0.11, sat=0.80, secs=7.0, env=Envelope("steady"),
                        comet=Comet(width=14, laps=3.0, period=2.2, count=3, tail=5.0)),
 
-    "Judgement":  dict(hue=0.13, sat=0.15, env=Envelope("ramp_up", AURA_SECS, low=0.05, action=0.55)),
-    "Tower":      dict(hue=0.0,  sat=0.0,  env=Envelope("strobe", 0.22, duty=0.35)),
-    "Death":      dict(hue=0.78, sat=0.85, env=Envelope("ramp_down", AURA_SECS, low=0.02, action=0.75)),
-    "World":      dict(hue=0.0,  sat=0.90, env=Envelope("breathe", 11.0, low=0.45), cycle=AURA_SECS),
+    "Judgement":  dict(hue=0.13, sat=0.15, secs=6.0,
+                       env=Envelope("ramp_up", 6.0, low=0.05, action=0.33)),
+    # Shortest of the set on purpose. A hard strobe is the one thing here
+    # that gets worse the longer it runs, and ten seconds of it in front of
+    # players is not something to ship.
+    "Tower":      dict(hue=0.0,  sat=0.0,  secs=4.0,
+                       env=Envelope("strobe", 0.22, duty=0.35)),
+    "Death":      dict(hue=0.78, sat=0.85, secs=8.0,
+                       env=Envelope("ramp_down", 8.0, low=0.02, action=0.75)),
+    # cycle == secs so the spectrum turns exactly ONCE. At 60s you only
+    # ever saw about a sixth of the wheel, which is the whole card.
+    "World":      dict(hue=0.0,  sat=0.90, secs=9.0, cycle=9.0,
+                       env=Envelope("breathe", 9.0, low=0.45)),
 }
 
+# Attack and release for the Aura gate. Short in, longer out: an effect
+# that arrives promptly and leaves gently reads as deliberate, where the
+# reverse reads as a fault.
+AURA_ATTACK = 0.5
+AURA_RELEASE = 1.2
+
 for _name, _a in AURAS.items():
+    _secs = _a["secs"]
     CARDS["Aura-" + _name] = Pattern(
-        "Aura-" + _name, "Standalone aura, played when no scene is running.",
+        "Aura-" + _name,
+        "Standalone aura, %gs. Arrives, plays, leaves." % _secs,
         field=_a.get("comet") or Uniform(),
         palette=solid(_a["hue"], _a["sat"], lo=0.0 if _a.get("comet") else 0.04, hi=0.60),
         blooms=_a.get("blooms"),
         envelope=_a["env"],
-        hue_cycle=_a.get("cycle", 0.0))
+        hue_cycle=_a.get("cycle", 0.0),
+        window=(AURA_ATTACK, min(AURA_RELEASE, _secs / 3.0), _secs))
 
 
 # ---- Aura over Scene: REMOVED 2026-08-22 -------------------------------

@@ -99,6 +99,9 @@ function render(s) {
   if (dd) {
     $("#display-section").style.display = "";
     renderOverlayButtons(dd);
+    // Lit while it is the thing on screen, so the GM can see at a glance
+    // whether the join code is up without looking over their shoulder.
+    $("#show-status").classList.toggle("active", dd.background === STATUS_SCREEN);
     $("#display-note").textContent = dd.healthy
       ? `${dd.images} background${dd.images === 1 ? "" : "s"}` +
         (dd.background ? ` · showing ${dd.background}` : "")
@@ -338,6 +341,14 @@ async function runCheck(physical, btn) {
 
 $("#check-run").addEventListener("click", (e) => runCheck(false, e.currentTarget));
 $("#check-full").addEventListener("click", (e) => runCheck(true, e.currentTarget));
+
+// Canonical definition is STATUS_SCREEN in warlock/devices/base.py. Repeated
+// here because the panel has to name it to ask for it; if it ever changes,
+// both move together.
+const STATUS_SCREEN = "(status screen)";
+
+$("#show-status").addEventListener("click", (e) =>
+  fire("set_background", { name: STATUS_SCREEN }, e.currentTarget));
 
 const OVERLAY_LABEL = { none: "No Overlay", grid: "Square Grid", hex: "Hex Grid" };
 

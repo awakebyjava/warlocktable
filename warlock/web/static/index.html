@@ -63,7 +63,12 @@
     <!-- Three explicit buttons rather than one cycling toggle: mid-session
          in low light you should be able to hit the state you want, not
          guess where a cycle will land. -->
-    <div id="overlay-row" class="check-row" style="grid-template-columns:repeat(3,1fr)"></div>
+    <!-- Put the join code up. Its own full-width button above the overlay
+         row because it is a different KIND of decision: the overlays
+         change how a scene is drawn, this replaces what is on screen. -->
+    <button id="show-status" class="wide">Show Join / Status Screen</button>
+    <div id="overlay-row" class="check-row"
+         style="grid-template-columns:repeat(3,1fr);margin-top:.8rem"></div>
     <p class="note" id="display-note"></p>
   </section>
 
