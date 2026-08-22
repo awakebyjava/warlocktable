@@ -205,7 +205,9 @@ class Blooms:
             out += ["bHue = %g" % self.tint[0], "bSat = %g" % self.tint[1]]
         if self.hue_pull is not None:
             out.append("bHue = %g" % self.hue_pull)
-        out += ["bPos = array(N)", "bAge = array(N)", "bLife = array(N)"]
+        # bAmp: this bloom's brightness THIS FRAME. See before().
+        out += ["bPos = array(N)", "bAge = array(N)", "bLife = array(N)",
+                "bAmp = array(N)"]
         return out
 
     def init(self) -> List[str]:
@@ -229,15 +231,34 @@ class Blooms:
         out += ["    bAge[i] = -random(bRest)"] if self.rest else ["    bAge[i] = 0"]
         out += ["    bLife[i] = bMin + random(bVar)",
                 "    bPos[i] = random(pathLen)",
+                "  }"]
+        # THE ENVELOPE IS PER-BLOOM, NOT PER-PIXEL. It used to be evaluated
+        # inside the render loop, so a 9-bloom pattern made ~7,000
+        # triangle() calls and 7,000 divisions per frame to produce nine
+        # numbers. That is what took Aura-Star to 11fps and idle to 10,
+        # reported from the table as "not very smooth" -- and it was read
+        # as a hardware fault twice before it was measured properly.
+        #
+        # A resting bloom lands on zero, which lets render skip its
+        # distance maths entirely rather than computing a wrap for a point
+        # that contributes nothing.
+        out += ["  bAmp[i] = 0",
+                "  if (bAge[i] >= 0) {"]
+        if self.env == "decay":
+            out.append("    e = 1 - bAge[i] / bLife[i]")
+        else:
+            out.append("    e = triangle(bAge[i] / bLife[i])")
+        out += ["    bAmp[i] = e * e * bGain",
                 "  }", "}"]
         return out
 
     def accumulate(self) -> List[str]:
-        out = ["b = 0", "for (j = 0; j < N; j++) {"]
-        indent = "  "
-        if self.rest:
-            out.append("  if (bAge[j] > 0) {")
-            indent = "    "
+        # bAmp[j] is already this frame's brightness (see before()), and a
+        # zero means resting -- so that test replaces the old rest check
+        # AND skips the wrap arithmetic for a bloom contributing nothing.
+        out = ["b = 0", "for (j = 0; j < N; j++) {",
+               "  if (bAmp[j] > 0) {"]
+        indent = "    "
         # Wrapped signed distance. NOT min(d, pathLen - d), which loses the
         # sign across the seam and glitches once per lap.
         out += [indent + "dd = p - bPos[j]",
@@ -246,15 +267,10 @@ class Blooms:
                 indent + "if (dd < bWide) {",
                 indent + "  fall = 1 - dd / bWide"]
         if self.env == "decay":
-            out += [indent + "  e = 1 - bAge[j] / bLife[j]",
-                    indent + "  b = b + fall * e * e * bGain"]
+            out.append(indent + "  b = b + fall * bAmp[j]")
         else:
-            out += [indent + "  e = triangle(bAge[j] / bLife[j])",
-                    indent + "  b = b + fall * fall * e * e * bGain"]
-        out.append(indent + "}")
-        if self.rest:
-            out.append("  }")
-        out.append("}")
+            out.append(indent + "  b = b + fall * fall * bAmp[j]")
+        out += [indent + "}", "  }", "}"]
         return out
 
     def apply_tint(self) -> List[str]:

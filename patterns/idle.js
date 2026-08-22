@@ -57,6 +57,7 @@ eyePos  = array(EYES)
 eyeAge  = array(EYES)
 eyeLife = array(EYES)
 eyeGain = array(EYES)
+eyeAmp  = array(EYES)   // this frame's brightness -- see beforeRender
 for (i = 0; i < EYES; i++) {
   eyePos[i]  = random(pathLen)
   eyeLife[i] = EYE_MIN + random(EYE_VAR)
@@ -81,6 +82,10 @@ export function beforeRender(delta) {
   t2 = time(ws2)
   breath = 0.55 + 0.45 * wave(time(0.15))
 
+  // Each eye's brightness is a PER-EYE value, so it is computed once here
+  // rather than once per pixel. Doing it in render meant six triangle()
+  // calls and six divisions for all 764 pixels -- 4,584 evaluations a
+  // frame to produce six numbers, which held this pattern at about 10fps.
   for (i = 0; i < EYES; i++) {
     eyeAge[i] = eyeAge[i] + dt
     if (eyeAge[i] >= eyeLife[i]) {
@@ -89,6 +94,8 @@ export function beforeRender(delta) {
       eyePos[i] = random(pathLen)
       eyeGain[i] = 0.55 + random(0.45)
     }
+    e = triangle(eyeAge[i] / eyeLife[i])
+    eyeAmp[i] = e * e * eyeGain[i]
   }
 
   if (surgeAmp > 0.002) {
@@ -123,14 +130,14 @@ export function render(index) {
   f = base * 0.30 * breath
 
   for (j = 0; j < EYES; j++) {
-    d = p - eyePos[j]
-    d = d - pathLen * floor(d / pathLen + 0.5)   // seam-correct wrap
-    d = abs(d)
-    if (d < EYE_WIDE) {
-      fall = 1 - d / EYE_WIDE
-      e = triangle(eyeAge[j] / eyeLife[j])
-      e = e * e                                   // ease the open and close
-      f = f + fall * fall * e * eyeGain[j]
+    if (eyeAmp[j] > 0) {
+      d = p - eyePos[j]
+      d = d - pathLen * floor(d / pathLen + 0.5)   // seam-correct wrap
+      d = abs(d)
+      if (d < EYE_WIDE) {
+        fall = 1 - d / EYE_WIDE
+        f = f + fall * fall * eyeAmp[j]
+      }
     }
   }
 

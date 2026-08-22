@@ -32,6 +32,7 @@ bSat = 0.8
 bPos = array(N)
 bAge = array(N)
 bLife = array(N)
+bAmp = array(N)
 for (i = 0; i < N; i++) {
   bPos[i] = random(pathLen)
   bLife[i] = bMin + random(bVar)
@@ -50,6 +51,11 @@ export function beforeRender(delta) {
       bLife[i] = bMin + random(bVar)
       bPos[i] = random(pathLen)
     }
+    bAmp[i] = 0
+    if (bAge[i] >= 0) {
+      e = triangle(bAge[i] / bLife[i])
+      bAmp[i] = e * e * bGain
+    }
   }
 }
 export function render(index) {
@@ -63,13 +69,14 @@ export function render(index) {
   v = vA + (vB - vA) * (f)
   b = 0
   for (j = 0; j < N; j++) {
-    dd = p - bPos[j]
-    dd = dd - pathLen * floor(dd / pathLen + 0.5)
-    dd = abs(dd)
-    if (dd < bWide) {
-      fall = 1 - dd / bWide
-      e = triangle(bAge[j] / bLife[j])
-      b = b + fall * fall * e * e * bGain
+    if (bAmp[j] > 0) {
+      dd = p - bPos[j]
+      dd = dd - pathLen * floor(dd / pathLen + 0.5)
+      dd = abs(dd)
+      if (dd < bWide) {
+        fall = 1 - dd / bWide
+        b = b + fall * fall * bAmp[j]
+      }
     }
   }
   if (b > 0) {
