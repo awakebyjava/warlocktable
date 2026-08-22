@@ -540,6 +540,10 @@ class Controller:
             cleaned.append(zone)
         self.initiative.set_order(cleaned)
         self.log.record("initiative.order_set", seats=cleaned)
+        # Configure before highlighting: pushing the highlight first is what
+        # loaded the pattern in an unconfigured state.
+        if self.lights.supports_zones():
+            self._ensure_zones_pattern()
         self._push_active_zone()
         return self.initiative_report()
 
@@ -648,9 +652,20 @@ class Controller:
         return report
 
     def _ensure_zones_pattern(self) -> None:
-        """Seat lighting only shows while the zones pattern is loaded."""
-        if getattr(self.lights, "current_pattern", None) == "zones":
-            return
+        """Load the zones pattern AND push its layout. Always both.
+
+        This used to skip the push when the pattern was already loaded,
+        treating "loaded" as a proxy for "configured". They are not the
+        same, because set_active_zone() switches to the zones pattern by
+        itself in order to write activeZone -- so setting an order loaded
+        the pattern with no playerCount, and running initiative then saw it
+        already loaded and skipped the setup. The pattern sat at
+        playerCount = 0 and rendered its unconfigured fallback: a dim
+        purple table, and initiative that appeared to do nothing.
+
+        Pushing every time costs one websocket message on a path that runs
+        when combat starts, not per turn.
+        """
         self._try("lights", self.lights.show_zones,
                   self.config.player_count, self.zone_colours(),
                   *zonemap.gm_span())
