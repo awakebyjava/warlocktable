@@ -145,6 +145,52 @@ def _mark(draw, cx, cy, r, state):
                      outline=BONE_DIM, width=max(2, w // 2))
 
 
+def _draw_qr(draw, data: str, x: int, y: int, side: int) -> bool:
+    """Draw a QR for `data` as a `side`-wide square at (x, y).
+
+    Returns False if segno is not installed rather than raising: a missing
+    decoration must never be the reason the status screen fails to render,
+    because the status screen is what you look at WHEN things are failing.
+    The URL is printed in the footer regardless, so the information is
+    never lost -- only the convenience.
+    """
+    try:
+        import segno
+    except ImportError:
+        return False
+    try:
+        code = segno.make(data, error="m")
+        rows = [list(r) for r in code.matrix]
+    except Exception:      # noqa: BLE001 -- a bad URL must not kill the screen
+        return False
+
+    n = len(rows)
+    if not n:
+        return False
+
+    # Integer module size, then centre the remainder. A non-integer module
+    # leaves seams of background between cells that a camera reads as noise.
+    quiet = 4
+    mod = max(1, side // (n + quiet * 2))
+    span = mod * n
+    ox = x + (side - span) // 2
+    oy = y + (side - span) // 2
+
+    # White quiet zone, sized in whole modules. Without it, a code on a dark
+    # background is effectively unscannable no matter how crisp it is.
+    pad = mod * quiet
+    draw.rectangle([ox - pad, oy - pad, ox + span + pad, oy + span + pad],
+                   fill=(255, 255, 255))
+    for r, row in enumerate(rows):
+        cy = oy + r * mod
+        for c, on in enumerate(row):
+            if on:
+                cx = ox + c * mod
+                draw.rectangle([cx, cy, cx + mod - 1, cy + mod - 1],
+                               fill=(0, 0, 0))
+    return True
+
+
 def render(path: str, report: Dict[str, Any], width: int = 3840,
            height: int = 2160, branding: Optional[str] = None) -> str:
     """Render the status screen to `path`. Returns the path."""
@@ -256,12 +302,37 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
                   font=f_detail, fill=BONE_MID)
         top += px(108)
 
+    # ---- join code --------------------------------------------------------
+    # The status screen is the one thing on the table that is readable from
+    # every seat, so it is where the join code belongs: people arrive, the
+    # screen is already up, they scan it. Printing the URL alone means
+    # somebody types an address into a phone in a dim room.
+    #
+    # Drawn from segno's raw matrix rather than a PNG round-trip, so the
+    # modules land on exact pixel boundaries. A QR resampled by a fraction
+    # of a module is what makes a code that "sometimes scans".
+    join_url = report.get("join_url") or report.get("panel_url") or ""
+    if join_url:
+        qr_side = px(430)
+        qr_x = width - px(700) - qr_side
+        qr_y = height - px(300) - qr_side
+        drawn = _draw_qr(draw, join_url, qr_x, qr_y, qr_side)
+        if drawn:
+            cap = "SCAN TO JOIN"
+            cw = draw.textlength(cap, font=f_mono)
+            draw.text((qr_x + (qr_side - cw) / 2, qr_y - px(52)),
+                      cap, font=f_mono, fill=BRASS)
+
     # ---- footer -----------------------------------------------------------
     foot_y = height - px(190)
     draw.line([px(560), foot_y - px(50), width - px(560), foot_y - px(50)],
               fill=LINE, width=max(1, px(3)))
 
-    left_text = report.get("panel_url", "")
+    # The same address the QR encodes, not the .local name. This line is the
+    # fallback for someone whose camera will not scan -- handing them an
+    # mDNS name their phone cannot resolve makes the fallback useless in
+    # exactly the case it exists for.
+    left_text = report.get("join_url") or report.get("panel_url", "")
     right_text = "%s · %s" % (report.get("version", "?"),
                                    time.strftime("%H:%M"))
     draw.text((px(700), foot_y), left_text, font=f_mono, fill=BRASS)
@@ -351,9 +422,32 @@ def build_report(rt) -> Dict[str, Any]:
     except Exception:
         pass
 
+    # The QR gets a LAN IP, not the .local name. The web server can use the
+    # client's own Host header because it is answering a request; this runs
+    # at boot with nobody connected, so it has to choose. A .local name
+    # needs mDNS, which iPhones resolve and a good number of Android phones
+    # do not -- and a join code that works for half the table is worse than
+    # useless, because the failure looks like the table being broken.
+    #
+    # The UDP connect picks whichever interface actually routes off-box
+    # without sending anything, which beats guessing on a machine with both
+    # wifi and ethernet.
+    join_host = host
+    try:
+        import socket as _s
+        probe_sock = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
+        try:
+            probe_sock.connect(("10.255.255.255", 1))
+            join_host = probe_sock.getsockname()[0]
+        finally:
+            probe_sock.close()
+    except Exception:      # noqa: BLE001 -- fall back to the .local name
+        pass
+
     return {
         "overall": worst,
         "rows": rows,
         "version": version,
         "panel_url": "http://%s:8080" % host,
+        "join_url": "http://%s:8080/" % join_host,
     }

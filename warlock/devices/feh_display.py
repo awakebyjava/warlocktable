@@ -46,7 +46,8 @@ import threading
 import time
 from typing import Dict, List, Optional
 
-from .base import DeviceError, DisplayDevice, UnknownAssetError
+from .base import (DeviceError, DisplayDevice, STATUS_SCREEN,
+                   UnknownAssetError)
 
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 CURRENT = ".current.png"
@@ -98,6 +99,11 @@ def _pinned_mode():
 #   forest_3840x2160_grid.png  -> base "forest", overlay "grid"
 #   forest_3840x2160_hex.png   -> base "forest", overlay "hex"
 OVERLAYS = ("grid", "hex")
+
+# STATUS_SCREEN comes from .base: it is a background like any other as far
+# as this device is concerned -- just an image swapped into CURRENT -- but
+# the controller has to recognise the name as well, so it is defined once
+# on the interface rather than here.
 
 # Deliberately data-driven off OVERLAYS rather than hardcoding the two
 # names: adding a third overlay later should be a filename convention, not
@@ -402,7 +408,10 @@ class FehDisplay(DisplayDevice):
         self._library = found
 
     def available_backgrounds(self) -> List[str]:
-        return sorted(self._library.keys())
+        # Status screen first: it is the one entry that is not artwork, and
+        # burying it alphabetically among the scenes hides the thing you
+        # reach for when you are trying to see what is wrong.
+        return [STATUS_SCREEN] + sorted(self._library.keys())
 
     def _resolve(self, name: str) -> str:
         base, wanted = self._split(os.path.splitext(name)[0])
@@ -471,7 +480,7 @@ class FehDisplay(DisplayDevice):
             tmp = target + ".tmp"
             shutil.copyfile(out, tmp)
             os.replace(tmp, target)
-            self.background = "(status screen)"
+            self.background = STATUS_SCREEN
             self.log.record("display.status_screen", overall=report.get("overall"))
 
     def set_overlay(self, mode: str) -> None:
@@ -492,7 +501,7 @@ class FehDisplay(DisplayDevice):
         with self._lock:
             self.overlay = mode
             self.log.record("display.overlay", mode=mode or "none")
-            if self.background and self.background != "(status screen)":
+            if self.background and self.background != STATUS_SCREEN:
                 self.set_background(self.background)
 
     def available_overlays(self) -> List[str]:

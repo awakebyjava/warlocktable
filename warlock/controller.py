@@ -16,11 +16,11 @@ from __future__ import annotations
 
 import random
 import threading
-from typing import Optional
+from typing import List, Optional
 
 from .config import Config, Interruption, Scene, Target
 from .devices.base import (AudioDevice, DeviceError, DisplayDevice,
-                            LightDevice, UnknownAssetError)
+                           LightDevice, STATUS_SCREEN, UnknownAssetError)
 from .eventlog import EventLog
 from . import zones as zonemap
 from .initiative import Initiative
@@ -253,10 +253,29 @@ class Controller:
                      if self.current_scene else 1.5)
         self._try("audio", self.audio.play_soundscape, track, crossfade)
 
-    @action(ParamSpec("name", "str"))
+    @action(ParamSpec("name", "str", choices=lambda c: c.background_choices()))
     def set_background(self, name: str) -> None:
         self._supersede()
+        # The status screen is offered in the same list as the artwork,
+        # because from the panel it is the same decision: what is on the
+        # television. It cannot go through the display's own
+        # set_background, though -- it has to be RENDERED first, from live
+        # status the device knows nothing about.
+        if name == STATUS_SCREEN:
+            self.show_status_screen()
+            return
         self._try("display", self.display.set_background, name)
+
+    def background_choices(self) -> List[str]:
+        """What the panel may pick. Never raises: an empty picker is a
+        nuisance, an action registry that blows up is a dead panel."""
+        lister = getattr(self.display, "available_backgrounds", None)
+        if not callable(lister):
+            return [STATUS_SCREEN]
+        try:
+            return list(lister())
+        except Exception:      # noqa: BLE001
+            return [STATUS_SCREEN]
 
     @action(ParamSpec("track", "str", choices=lambda c: c.audio.available_tracks()))
     def play_effect(self, track: str) -> None:

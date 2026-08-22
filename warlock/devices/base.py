@@ -163,6 +163,13 @@ class AudioDevice(ABC):
         return None
 
 
+# The status screen, named as a background so it can be offered in the same
+# picker as the artwork. Lives here rather than in feh_display because the
+# controller has to recognise it too, and the controller must not import a
+# concrete device to do that.
+STATUS_SCREEN = "(status screen)"
+
+
 class DisplayDevice(ABC):
     @abstractmethod
     def set_background(self, name: str) -> None:
