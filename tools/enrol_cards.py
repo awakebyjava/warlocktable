@@ -2,7 +2,7 @@
 """Enrol NFC cards by tapping them, one at a time.
 
     python tools/enrol_cards.py                    # everything unassigned
-    python tools/enrol_cards.py --only aura        # just the Aura cards
+    python tools/enrol_cards.py --only ace         # just the four Aces
     python tools/enrol_cards.py --list             # what still needs a tag
 
 Run it from anywhere on the network. It drives the RUNNING table over its
@@ -64,7 +64,10 @@ def main() -> int:
     ap.add_argument("--base", default=DEFAULT_BASE,
                     help="table URL (default: %s)" % DEFAULT_BASE)
     ap.add_argument("--only", default="",
-                    help="only targets whose name contains this, e.g. 'aura'")
+                    help="only targets whose NAME contains this, e.g. 'ace' "
+                         "or 'the_'. Matches the entry name, not the card "
+                         "subtype -- the Auras are named the_devil, death, "
+                         "judgement and so on, so 'aura' matches nothing.")
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
 
@@ -78,10 +81,15 @@ def main() -> int:
     # What already has a card, so the same tag is never asked for twice.
     assigned = {(c.get("target_kind"), c.get("target_name")) for c in cards}
 
+    # The idle scene is where the table returns by itself when nothing else
+    # is happening. A card for it would be a card that does nothing you
+    # could not do by waiting.
+    skip = {("scene", "idle")}
+
     todo = []
     for kind in ("interruption", "random_table", "scene"):
         for name in sorted(targets.get(kind, [])):
-            if (kind, name) in assigned:
+            if (kind, name) in assigned or (kind, name) in skip:
                 continue
             if args.only and args.only.lower() not in name.lower():
                 continue
