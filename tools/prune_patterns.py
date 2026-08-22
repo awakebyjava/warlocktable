@@ -41,6 +41,7 @@ from archive_patterns import safe_filename          # noqa: E402
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE = os.path.join(REPO, "data", "device-state.json")
 ARCHIVE = os.path.join(REPO, "patterns", "legacy", "device-archive")
+GENERATED = os.path.join(REPO, "patterns", "generated")
 TIMEOUT_S = 45.0
 PAUSE_S = 1.5
 
@@ -72,6 +73,14 @@ def main() -> int:
                     help="comma-separated names to keep regardless")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--containing", default="",
+                    help="delete patterns whose NAME contains this substring, "
+                         "including ones this project wrote. Opt-in and "
+                         "explicit, because the default refuses to touch our "
+                         "own patterns and that default is worth keeping. "
+                         "--used and --keep still protect absolutely. Used to "
+                         "retire the 40 aura-x-scene combos ('+') when "
+                         "layering was abandoned.")
     args = ap.parse_args()
 
     import websocket
@@ -97,12 +106,24 @@ def main() -> int:
               % (len(pats), st["storageSize"] - st["storageUsed"], st["fps"]),
               flush=True)
 
-        targets = sorted((pid, n) for pid, n in pats.items()
-                         if not is_ours(n) and n not in used and n not in keep)
-        print("%d to delete (protected: %d ours, %d in use, %d kept)"
-              % (len(targets), sum(1 for n in pats.values() if is_ours(n)),
-                 len(used & set(pats.values())), len(keep & set(pats.values()))),
-              flush=True)
+        if args.containing:
+            # Explicitly named class of our own patterns. --used and --keep
+            # still win: this widens WHICH of our patterns may go, never
+            # whether a referenced one may.
+            targets = sorted((pid, n) for pid, n in pats.items()
+                             if args.containing in n
+                             and n not in used and n not in keep)
+            print("--containing %r: %d to delete (%d protected by --used/--keep)"
+                  % (args.containing, len(targets),
+                     sum(1 for n in pats.values() if args.containing in n
+                         and (n in used or n in keep))), flush=True)
+        else:
+            targets = sorted((pid, n) for pid, n in pats.items()
+                             if not is_ours(n) and n not in used and n not in keep)
+            print("%d to delete (protected: %d ours, %d in use, %d kept)"
+                  % (len(targets), sum(1 for n in pats.values() if is_ours(n)),
+                     len(used & set(pats.values())), len(keep & set(pats.values()))),
+                  flush=True)
         print(flush=True)
 
         for pid, name in targets:
@@ -114,7 +135,15 @@ def main() -> int:
             # odd characters, the other did not), so "Example: time and
             # animation" looked unarchived when it was not. Two copies of a
             # naming rule is two chances to be wrong.
-            if not os.path.exists(os.path.join(ARCHIVE, safe_filename(name) + ".js")):
+            #
+            # For patterns THIS project generated, patterns/generated/ in
+            # git is the archive -- a better one, since it is the source
+            # they were built from rather than a copy pulled back off the
+            # device. Only stock patterns depend on the device-archive.
+            recoverable = (
+                os.path.exists(os.path.join(ARCHIVE, safe_filename(name) + ".js"))
+                or os.path.exists(os.path.join(GENERATED, name + ".js")))
+            if not recoverable:
                 print("  %-34s NOT ARCHIVED - skipping" % name[:34], flush=True)
                 continue
 

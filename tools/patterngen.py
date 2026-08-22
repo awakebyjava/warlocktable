@@ -816,21 +816,21 @@ CARDS.update({
 # than tint it (Tower, Judgement, Death, World): a violent strobe or a fade
 # to black has nothing left of the scene to preserve.
 AURAS = {
-    "Sun":        dict(hue=0.11, sat=0.85, env=Envelope("ramp_up", AURA_SECS, low=0.25, action=0.30), replaces=False),
-    "Moon":       dict(hue=0.60, sat=0.80, env=Envelope("breathe", 9.0, low=0.20), replaces=False),
-    "Star":       dict(hue=0.55, sat=0.35, env=Envelope("steady"), replaces=False,
+    "Sun":        dict(hue=0.11, sat=0.85, env=Envelope("ramp_up", AURA_SECS, low=0.25, action=0.30)),
+    "Moon":       dict(hue=0.60, sat=0.80, env=Envelope("breathe", 9.0, low=0.20)),
+    "Star":       dict(hue=0.55, sat=0.35, env=Envelope("steady"),
                        blooms=Blooms(9, 4, 0.9, (0.5, 1.2), mode="tint", env="decay", rest=1.5, hue_pull=0.55)),
-    "Temperance": dict(hue=0.45, sat=0.75, env=Envelope("breathe", 14.0, low=0.35), replaces=False),
-    "Strength":   dict(hue=0.06, sat=0.90, env=Envelope("heartbeat", 2.4, low=0.35), replaces=False),
-    "Justice":    dict(hue=0.0,  sat=0.0,  env=Envelope("metronome", 1.6, low=0.25, duty=0.35), replaces=False),
-    "Devil":      dict(hue=0.02, sat=0.95, env=Envelope("flicker", low=0.15), replaces=False),
-    "Chariot":    dict(hue=0.11, sat=0.80, env=Envelope("steady"), replaces=False,
+    "Temperance": dict(hue=0.45, sat=0.75, env=Envelope("breathe", 14.0, low=0.35)),
+    "Strength":   dict(hue=0.06, sat=0.90, env=Envelope("heartbeat", 2.4, low=0.35)),
+    "Justice":    dict(hue=0.0,  sat=0.0,  env=Envelope("metronome", 1.6, low=0.25, duty=0.35)),
+    "Devil":      dict(hue=0.02, sat=0.95, env=Envelope("flicker", low=0.15)),
+    "Chariot":    dict(hue=0.11, sat=0.80, env=Envelope("steady"),
                        comet=Comet(width=14, laps=3.0, period=2.2, count=3, tail=5.0)),
 
-    "Judgement":  dict(hue=0.13, sat=0.15, env=Envelope("ramp_up", AURA_SECS, low=0.05, action=0.55), replaces=True),
-    "Tower":      dict(hue=0.0,  sat=0.0,  env=Envelope("strobe", 0.22, duty=0.35), replaces=True),
-    "Death":      dict(hue=0.78, sat=0.85, env=Envelope("ramp_down", AURA_SECS, low=0.02, action=0.75), replaces=True),
-    "World":      dict(hue=0.0,  sat=0.90, env=Envelope("breathe", 11.0, low=0.45), replaces=True, cycle=AURA_SECS),
+    "Judgement":  dict(hue=0.13, sat=0.15, env=Envelope("ramp_up", AURA_SECS, low=0.05, action=0.55)),
+    "Tower":      dict(hue=0.0,  sat=0.0,  env=Envelope("strobe", 0.22, duty=0.35)),
+    "Death":      dict(hue=0.78, sat=0.85, env=Envelope("ramp_down", AURA_SECS, low=0.02, action=0.75)),
+    "World":      dict(hue=0.0,  sat=0.90, env=Envelope("breathe", 11.0, low=0.45), cycle=AURA_SECS),
 }
 
 for _name, _a in AURAS.items():
@@ -843,42 +843,24 @@ for _name, _a in AURAS.items():
         hue_cycle=_a.get("cycle", 0.0))
 
 
-# ---- Aura over Scene: the eight that composite -------------------------
+# ---- Aura over Scene: REMOVED 2026-08-22 -------------------------------
 #
-# Blend the scene's hue TOWARD the aura's rather than adding light to it.
-# Adding red to green gives yellow-white mush; blending gives an ember cast
-# with the canopy still legible underneath. Same technique as Swamp's wisps.
-def _composite(scene_name: str, aura_name: str) -> Pattern:
-    import copy
-
-    base = SCENES[scene_name]
-    aura = AURAS[aura_name]
-    out = copy.deepcopy(base)
-    out.name = "%s+%s" % (scene_name, aura_name)
-    out.note = "%s under the %s aura." % (scene_name, aura_name)
-
-    k = 0.55        # how far toward the aura's colour
-    h0, h1, hc = base.palette.hue
-    s0, s1, sc = base.palette.sat
-    out.palette = Palette(
-        hue=(h0 + (aura["hue"] - h0) * k, h1 + (aura["hue"] - h1) * k, hc),
-        sat=(s0 + (aura["sat"] - s0) * k, s1 + (aura["sat"] - s1) * k, sc),
-        val=base.palette.val)
-    out.envelope = aura["env"]
-    if aura.get("blooms") and not out.blooms:
-        out.blooms = aura["blooms"]
-    if aura.get("comet"):
-        # Chariot's streaks ride over the scene rather than replacing it.
-        out.blooms = Blooms(3, 12, 0.8, (0.5, 0.8), mode="tint",
-                            env="decay", rest=0.4, hue_pull=aura["hue"])
-    return out
-
-
-for _scene in SCENES:
-    for _aura, _cfg in AURAS.items():
-        if _cfg["replaces"]:
-            continue
-        CARDS["%s+%s" % (_scene, _aura)] = _composite(_scene, _aura)
+# There used to be a _composite() here that pre-rendered every scene under
+# every compositing aura, because the Pixelblaze cannot layer two patterns
+# at runtime -- a combination has to exist as its own pattern.
+#
+# It produced 40 patterns: 65% of everything this generator emitted, for a
+# feature that was never wired up. play_interruption() sets the
+# interruption's pattern verbatim, so nothing ever selected "Forest+Chariot"
+# and all 40 sat on the device unused. Finishing it would have meant 72
+# patterns (6 scenes x 12 auras) to cover the matrix honestly, on a device
+# whose flash had already been filled once.
+#
+# So the aura now REPLACES the scene for its duration and reverts, which is
+# what the four `replaces` auras always did. That is a real loss -- the
+# forest is gone for those 60 seconds rather than tinted -- and it is not
+# recoverable without bringing the combos back. It bought the memory to
+# spend on patterns people actually see.
 
 
 def main() -> int:
