@@ -17,7 +17,11 @@ web API, so:
 HOW IT WORKS
 
 It shows the next target that has no card, waits for you to tap an
-unrecognised tag, then registers that tag to that target and moves on. An
+unrecognised tag, asks what the object is, then registers it and moves on.
+The label describes the PHYSICAL OBJECT rather than the effect -- the
+tarot cards are named for themselves, but the idle trigger is a postcard,
+and recording that as "Idle" would describe the wrong thing. Enter accepts
+the suggested default. An
 already-known tag is reported rather than silently reassigned, because
 tapping the wrong card is the likely mistake and quietly stealing it from
 its current target is the worst possible response.
@@ -121,6 +125,18 @@ def main() -> int:
                     if row["uid"] not in seen_before:
                         uid = row["uid"]
                         break
+
+            # Card.label is "what the physical object IS, not what it
+            # does" -- so the target name is only a sensible default when
+            # the object happens to be the card of that name. The idle
+            # trigger is a postcard; "Idle" would be a lie about the thing
+            # sitting on the table. Enter accepts the default.
+            try:
+                typed = input("     label [%s]: " % label).strip()
+            except EOFError:
+                typed = ""
+            if typed:
+                label = typed
 
             res = api(args.base, "/api/config/cards",
                       {"uid": uid, "label": label,
