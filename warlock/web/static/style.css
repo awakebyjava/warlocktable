@@ -571,10 +571,6 @@ button.wide { width: 100%; }
 /* --- player signals (plan doc 3.7) ---------------------------------------
    Bottom corner, thumb-reachable, and big: this is pressed one-handed under
    a table in low light, often without looking. */
-.signals {
-  position: fixed; right: 16px; bottom: 16px;
-  display: flex; gap: 12px; z-index: 20;
-}
 .sig {
   width: 64px; height: 64px; border-radius: 50%;
   font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px;
@@ -600,15 +596,6 @@ button.wide { width: 100%; }
 [hidden] { display: none !important; }
 
 /* --- whispers (plan doc 3.7) --------------------------------------------- */
-.whisper {
-  position: fixed; inset: 0; z-index: 30;
-  background: var(--bg, #0d0b11);
-  display: flex; flex-direction: column; padding: 14px;
-}
-.whisper-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding-bottom: 10px; border-bottom: 1px solid var(--line);
-}
 .whisper-who {
   font-family: 'IBM Plex Mono', monospace; font-size: 11px;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--brass);
@@ -640,13 +627,6 @@ button.small { padding: 4px 10px; font-size: 10px; }
 .whisper-tab.active { background: var(--purple-deep); color: var(--bone); }
 
 /* --- dice (plan doc 3.7) -------------------------------------------------- */
-.dice {
-  position: fixed; inset: 0; z-index: 30;
-  background: var(--bg, #0d0b11);
-  display: flex; flex-direction: column; padding: 14px;
-}
-.dice-panels { display: flex; gap: 14px; flex: 1; min-height: 0; margin-top: 12px; }
-.pad { flex: 1 1 60%; display: flex; flex-direction: column; gap: 10px; }
 
 /* Reads as a calculator on purpose: a display that looks like a readout is
    understood without a label. */
@@ -667,7 +647,6 @@ button.small { padding: 4px 10px; font-size: 10px; }
 }
 .wide-key { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-dim); }
 
-.shapes { flex: 1 1 40%; display: grid; grid-template-columns: 1fr; gap: 8px; align-content: start; }
 .die {
   font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px;
   min-height: 52px; padding: 0;
@@ -682,3 +661,55 @@ button.small { padding: 4px 10px; font-size: 10px; }
   font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: var(--bone-mid);
 }
 .roll-row { padding: 5px 2px; border-bottom: 1px solid rgba(255,255,255,.05); }
+
+/* --- player phone, one panel (plan doc 3.7) -------------------------------
+   Rebuilt after the first attempt bolted dice and whisper on as
+   full-screen overlays: they covered the seat screen with no way back, and
+   four floating circles in a corner is a stopgap rather than a design. */
+.app-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0 12px; border-bottom: 1px solid var(--line);
+}
+.app-bar-spacer { flex: 1; }
+.me-dot {
+  width: 18px; height: 18px; border-radius: 50%; flex: none;
+  background: var(--seat, var(--line));
+  box-shadow: 0 0 0 1px rgba(0,0,0,.5) inset;
+}
+.me-name {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* `?` and `!` live in the header so they are reachable from any tab --
+   the whole reason the panes stopped being overlays. */
+.sig {
+  width: 44px; height: 44px; border-radius: 50%; flex: none; padding: 0;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel, #17141c); color: var(--bone-dim);
+  border: 1px solid var(--line);
+}
+.sig.on { background: var(--purple-deep); color: var(--bone); border-color: var(--purple); }
+
+.tabs { display: flex; gap: 6px; margin: 12px 0; }
+.tab {
+  flex: 1; min-height: 40px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  background: transparent; color: var(--bone-dim);
+  border: 1px solid var(--line); border-radius: 2px;
+}
+.tab.on { background: var(--purple-deep); color: var(--bone); border-color: var(--purple); }
+.tab-panel { display: flex; flex-direction: column; gap: 10px; }
+
+/* Dice, stacked for a phone: read the display, type, then reach the dice
+   at the bottom where a thumb already is. */
+.pad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.shapes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.die { min-height: 56px; }
+
+.whisper-log {
+  min-height: 40vh; max-height: 52vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px; padding: 4px 0;
+}

@@ -9,71 +9,61 @@
 </head>
 <body>
 
-<!-- A player's phone. Deliberately one job: say who you are and which
-     lights are yours. Dice, whispers and break requests come later (plan
-     doc 3.7); adding them now would bury the only thing that has to work
-     at the start of a session. -->
+<!-- A player's phone (plan doc 3.7).
+     ONE panel, tabbed. The first version bolted dice and whisper on as
+     full-screen overlays and it was a mess: the panes covered the seat
+     screen with no way back, and four floating circles in a corner is a
+     stopgap rather than a design.
+     Everything now lives in one column with a tab bar. The signals stay
+     in the header, because `?` and `!` have to be reachable from whatever
+     tab you happen to be on. -->
 <main class="player">
-  <header class="join-head">
-    <h1>Take a Seat</h1>
-    <p class="muted" id="seat-hint">Pick the colour of the lights in front of you</p>
-  </header>
 
-  <form id="claim" autocomplete="off">
-    <label class="field">
-      <span>Your name</span>
-      <!-- No autofocus: on iOS it throws the keyboard up over the colours,
-           which are the part you are meant to be comparing to the table. -->
-      <input id="pname" name="name" maxlength="24" required
-             placeholder="What everyone calls you">
-    </label>
+  <!-- ---------- first run: who are you, and where ---------- -->
+  <section id="join">
+    <header class="join-head">
+      <h1>Take a Seat</h1>
+      <p class="muted" id="seat-hint">Pick the colour of the lights in front of you</p>
+    </header>
 
-    <p class="muted small">Look at the table. Which colour is lit at your place?</p>
-    <div id="swatches" class="swatches"></div>
+    <form id="claim" autocomplete="off">
+      <label class="field">
+        <span>Your name</span>
+        <!-- No autofocus: on iOS it throws the keyboard up over the
+             colours, which are the part you are meant to be comparing to
+             the table. -->
+        <input id="pname" name="name" maxlength="24" required
+               placeholder="What everyone calls you">
+      </label>
+      <p class="muted small">Look at the table. Which colour is lit at your place?</p>
+      <div id="swatches" class="swatches"></div>
+      <button id="claim-go" type="submit" disabled>Claim this seat</button>
+      <p class="note" id="claim-msg">&nbsp;</p>
+    </form>
+  </section>
 
-    <button id="claim-go" type="submit" disabled>Claim this seat</button>
-    <p class="note" id="claim-msg">&nbsp;</p>
-  </form>
+  <!-- ---------- everything after that ---------- -->
+  <section id="app" hidden>
+    <header class="app-bar">
+      <span id="me-dot" class="me-dot"></span>
+      <span id="me-name" class="me-name">&nbsp;</span>
+      <span class="app-bar-spacer"></span>
+      <button id="sig-question" class="sig" data-kind="question"
+              aria-label="I have a question">?</button>
+      <button id="sig-need" class="sig" data-kind="need"
+              aria-label="I need something">!</button>
+    </header>
 
-  <section id="claimed" class="claimed" hidden>
-    <div id="claimed-swatch" class="claimed-swatch"></div>
-    <h2 id="claimed-name">&nbsp;</h2>
-    <p class="muted" id="claimed-seat">&nbsp;</p>
-    <button id="claim-again" class="ghost">That is not my seat</button>
-</section>
+    <nav class="tabs">
+      <button class="tab on" data-tab="dice">Dice</button>
+      <button class="tab" data-tab="whisper">Whisper</button>
+      <button class="tab" data-tab="seat">Seat</button>
+    </nav>
 
-<!-- Signals (plan doc 3.7). A corner of the screen, only once you have a
-     seat: there is nobody to signal as until the table knows who you are.
-     Deliberately unlabelled beyond the marks themselves — everyone at a
-     table already knows what a raised hand means. -->
-<!-- Whisper (plan doc 3.7): a conversation with the GM and nobody else.
-     Its own pane rather than a strip on the seat screen, because it is the
-     one thing here you actually read. -->
-<section id="whisper" class="whisper" hidden>
-  <div class="whisper-head">
-    <span id="whisper-who" class="whisper-who">&nbsp;</span>
-    <button id="whisper-close" class="ghost small">Close</button>
-  </div>
-  <div id="whisper-log" class="whisper-log"></div>
-  <form id="whisper-form" class="whisper-form" autocomplete="off">
-    <input id="whisper-text" maxlength="500" placeholder="Whisper the GM…" />
-    <button id="whisper-send" type="submit">Send</button>
-  </form>
-</section>
-
-<!-- Dice (plan doc 3.7). Pad + display are ONE panel, the dice are the
-     other. No modifiers and no d100: the table does not know what game
-     you are playing and should not pretend to. -->
-<section id="dice" class="dice" hidden>
-  <div class="whisper-head">
-    <span class="whisper-who">Dice</span>
-    <button id="dice-close" class="ghost small">Close</button>
-  </div>
-
-  <div class="dice-panels">
-    <div class="pad">
-      <!-- Holds the last result until a digit is pressed, then clears. -->
+    <!-- ---- dice ---- -->
+    <div id="tab-dice" class="tab-panel">
       <div id="pad-display" class="pad-display">0</div>
+
       <div class="pad-keys">
         <button class="key" data-d="1">1</button>
         <button class="key" data-d="2">2</button>
@@ -88,19 +78,29 @@
         <button class="key" data-d="0">0</button>
         <button id="pad-history" class="key wide-key">Log</button>
       </div>
+
+      <!-- Lowest on the page because it is the last thing you touch and
+           the easiest place for a thumb to reach. -->
+      <div id="dice-shapes" class="shapes"></div>
+      <div id="roll-history" class="roll-history" hidden></div>
     </div>
 
-    <div id="dice-shapes" class="shapes"></div>
-  </div>
+    <!-- ---- whisper ---- -->
+    <div id="tab-whisper" class="tab-panel" hidden>
+      <div id="whisper-log" class="whisper-log"></div>
+      <form id="whisper-form" class="whisper-form" autocomplete="off">
+        <input id="whisper-text" maxlength="500" placeholder="Whisper the GM…">
+        <button id="whisper-send" type="submit">Send</button>
+      </form>
+    </div>
 
-  <div id="roll-history" class="roll-history" hidden></div>
-</section>
-
-<section id="signals" class="signals" hidden>
-  <button id="sig-dice" class="sig" aria-label="Dice">&#9856;</button>
-  <button id="sig-whisper" class="sig" aria-label="Whisper the GM">&#9998;</button>
-  <button id="sig-question" class="sig" data-kind="question" aria-label="I have a question">?</button>
-  <button id="sig-need" class="sig" data-kind="need" aria-label="I need something">!</button>
+    <!-- ---- seat ---- -->
+    <div id="tab-seat" class="tab-panel" hidden>
+      <div id="claimed-swatch" class="claimed-swatch"></div>
+      <h2 id="claimed-name">&nbsp;</h2>
+      <p class="muted" id="claimed-seat">&nbsp;</p>
+      <button id="claim-again" class="ghost">That is not my seat</button>
+    </div>
   </section>
 </main>
 
@@ -108,6 +108,8 @@
 const $ = (s) => document.querySelector(s);
 let chosen = null;
 let mine = null;
+
+/* ---------- claiming a seat ---------- */
 
 function paint(zones) {
   const box = $("#swatches");
@@ -181,25 +183,55 @@ $("#claim").addEventListener("submit", async (ev) => {
     }
     mine = { name: name, colour: chosen };
     localStorage.setItem("warlock-seat", JSON.stringify(mine));
-    showClaimed();
+    showApp();
   } catch (e) {
     $("#claim-msg").textContent = "Could not reach the table.";
     $("#claim-go").disabled = false;
   }
 });
 
-function showClaimed() {
-  $("#claim").hidden = true;
-  $("#claimed").hidden = false;
-  $("#signals").hidden = false;
+function showApp() {
+  $("#join").hidden = true;
+  $("#app").hidden = false;
+  $("#me-name").textContent = mine.name;
+  $("#me-dot").style.setProperty("--seat", mine.colour);
   $("#claimed-name").textContent = mine.name;
   $("#claimed-seat").textContent = "You are the " + mine.colour + " lights";
   $("#claimed-swatch").style.setProperty("--seat", mine.colour);
+  buildShapes();
+  padClear();
 }
 
+$("#claim-again").addEventListener("click", () => {
+  localStorage.removeItem("warlock-seat");
+  mine = null; chosen = null; raised = null;
+  document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
+  stopWhisperPoll();
+  $("#app").hidden = true;
+  $("#join").hidden = false;
+  $("#claim-msg").textContent = " ";
+  refresh();
+});
+
+/* ---------- tabs ---------- */
+
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("on", t.dataset.tab === name));
+  document.querySelectorAll(".tab-panel").forEach(p =>
+    p.hidden = (p.id !== "tab-" + name));
+  // Only poll the conversation while it is the thing being looked at.
+  if (name === "whisper") startWhisperPoll(); else stopWhisperPoll();
+}
+
+document.querySelectorAll(".tab").forEach(t =>
+  t.addEventListener("click", () => showTab(t.dataset.tab)));
+
+/* ---------- signals ---------- */
+
 // Pressing the same mark again takes it back; pressing the other swaps.
-// The button's own lit state IS the feedback -- there is no toast, because
-// a phone held under a table at arm's length is not somewhere to read one.
+// The button's own lit state IS the feedback — a phone held under a table
+// at arm's length is not somewhere to read a toast.
 let raised = null;
 
 async function signal(kind) {
@@ -220,18 +252,26 @@ async function signal(kind) {
 document.querySelectorAll(".sig[data-kind]").forEach(b =>
   b.addEventListener("click", () => signal(b.dataset.kind)));
 
+// The table drops a signal after 60s. Clear the lit state at the same time,
+// so the button never claims to be raised when the GM can no longer see it.
+setInterval(() => {
+  if (!raised) return;
+  document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
+  raised = null;
+}, 60000);
+
 /* ---------- dice ---------- */
 
 const DICE = [4, 6, 8, 10, 12, 20];
 let entry = "";          // what has been typed
-let holding = false;     // display is showing a RESULT, not an entry
+let holding = false;     // the display is showing a RESULT, not an entry
 
-function padShow(text) { $("#pad-display").textContent = text; }
+function padShow(t) { $("#pad-display").textContent = t; }
 
 function padDigit(d) {
   // A result stays up until the next digit, then gets out of the way.
   if (holding) { entry = ""; holding = false; }
-  if (entry.length >= 3) return;           // 100 dice is the cap
+  if (entry.length >= 3) return;            // matches the table's 100 cap
   entry = (entry === "0" ? "" : entry) + d;
   padShow(entry || "0");
 }
@@ -240,7 +280,7 @@ function padClear() { entry = ""; holding = false; padShow("0"); }
 
 function buildShapes() {
   const box = $("#dice-shapes");
-  box.innerHTML = "";
+  if (box.childElementCount) return;
   DICE.forEach(sides => {
     const b = document.createElement("button");
     b.className = "die";
@@ -261,22 +301,22 @@ async function rollDice(sides) {
                              sides: sides, name: mine.name })
     });
     const data = await res.json();
-    if (!res.ok) { padShow(data.error || "no"); holding = true; return; }
+    if (!res.ok) { padShow(data.error ? "no" : "no"); holding = true; return; }
     padShow(String(data.total));
     holding = true;
     entry = "";
+    if (!$("#roll-history").hidden) loadRollHistory();
   } catch (e) { padShow("—"); holding = true; }
 }
 
-async function showRollHistory() {
+async function loadRollHistory() {
   const box = $("#roll-history");
-  if (!box.hidden) { box.hidden = true; return; }
   try {
     const res = await fetch("/api/player/rolls?colour=" +
       encodeURIComponent(mine.colour), { cache: "no-store" });
     const data = await res.json();
     box.innerHTML = "";
-    // Newest at the top: the roll you care about is the one you just made.
+    // Newest first: the roll you care about is the one you just made.
     (data.rolls || []).slice().reverse().forEach(r => {
       const row = document.createElement("div");
       row.className = "roll-row";
@@ -284,30 +324,27 @@ async function showRollHistory() {
       box.append(row);
     });
     if (!box.childElementCount) box.textContent = "No rolls yet.";
-    box.hidden = false;
-  } catch (e) { /* leave it closed */ }
+  } catch (e) { /* leave whatever was there */ }
 }
+
+$("#pad-history").addEventListener("click", () => {
+  const box = $("#roll-history");
+  if (box.hidden) { loadRollHistory(); box.hidden = false; }
+  else box.hidden = true;
+});
 
 document.querySelectorAll(".key[data-d]").forEach(b =>
   b.addEventListener("click", () => padDigit(b.dataset.d)));
 $("#pad-clear").addEventListener("click", padClear);
-$("#pad-history").addEventListener("click", showRollHistory);
-$("#dice-close").addEventListener("click", () => { $("#dice").hidden = true; });
-$("#sig-dice").addEventListener("click", () => {
-  if (!mine) return;
-  const pane = $("#dice");
-  pane.hidden = !pane.hidden;
-  if (!pane.hidden) { buildShapes(); padClear(); $("#roll-history").hidden = true; }
-});
 
 /* ---------- whisper ---------- */
 
-let whisperSeen = 0;
+let whisperSeen = -1;
 let whisperTimer = null;
 
 function renderWhisper(msgs) {
   const log = $("#whisper-log");
-  if (msgs.length === whisperSeen && log.childElementCount) return;
+  if (msgs.length === whisperSeen) return;
   whisperSeen = msgs.length;
   log.innerHTML = "";
   msgs.forEach(m => {
@@ -316,38 +353,33 @@ function renderWhisper(msgs) {
     row.textContent = m.text;
     log.append(row);
   });
-  // Newest message visible without scrolling for it.
+  if (!msgs.length) {
+    const hint = document.createElement("p");
+    hint.className = "muted small";
+    hint.textContent = "Only the GM sees this.";
+    log.append(hint);
+  }
   log.scrollTop = log.scrollHeight;
 }
 
 async function pollWhisper() {
-  if (!mine || $("#whisper").hidden) return;
+  if (!mine) return;
   try {
     const res = await fetch("/api/player/whisper?colour=" +
       encodeURIComponent(mine.colour), { cache: "no-store" });
-    const data = await res.json();
-    renderWhisper(data.messages || []);
+    renderWhisper((await res.json()).messages || []);
   } catch (e) { /* the next tick will do */ }
 }
 
-function openWhisper() {
-  if (!mine) return;
-  $("#whisper").hidden = false;
-  $("#whisper-who").textContent = "Whispering the GM";
+function startWhisperPoll() {
   whisperSeen = -1;
   pollWhisper();
   if (!whisperTimer) whisperTimer = setInterval(pollWhisper, 3000);
 }
 
-function closeWhisper() {
-  $("#whisper").hidden = true;
+function stopWhisperPoll() {
   if (whisperTimer) { clearInterval(whisperTimer); whisperTimer = null; }
 }
-
-$("#sig-whisper").addEventListener("click", () => {
-  if ($("#whisper").hidden) openWhisper(); else closeWhisper();
-});
-$("#whisper-close").addEventListener("click", closeWhisper);
 
 $("#whisper-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -364,37 +396,17 @@ $("#whisper-form").addEventListener("submit", async (ev) => {
     const data = await res.json();
     if (data.messages) { whisperSeen = -1; renderWhisper(data.messages); }
   } catch (e) {
-    // Put it back rather than losing what they typed.
-    box.value = text;
+    box.value = text;      // put it back rather than lose what they typed
   }
 });
 
-// The table drops a signal after 60s. Clear the lit state at the same time
-// so the button never claims to be raised when the GM can no longer see it.
-setInterval(() => {
-  if (!raised) return;
-  document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
-  raised = null;
-}, 60000);
-
-$("#claim-again").addEventListener("click", () => {
-  localStorage.removeItem("warlock-seat");
-  mine = null; chosen = null; raised = null;
-  document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
-  $("#signals").hidden = true;
-  $("#dice").hidden = true;
-  closeWhisper();
-  $("#claimed").hidden = true;
-  $("#claim").hidden = false;
-  $("#claim-msg").textContent = " ";
-  refresh();
-});
+/* ---------- start ---------- */
 
 // Coming back to a page you already used should not make you re-claim: a
 // phone that locked and woke should still know whose it is.
 try {
   const saved = JSON.parse(localStorage.getItem("warlock-seat") || "null");
-  if (saved && saved.name && saved.colour) { mine = saved; showClaimed(); }
+  if (saved && saved.name && saved.colour) { mine = saved; showApp(); }
 } catch (e) { /* corrupt storage is not worth a broken page */ }
 
 refresh();
