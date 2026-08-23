@@ -242,6 +242,75 @@ Three front doors, all on the same server:
   Encoded with `segno` — pure Python, no ARM wheel trouble — and optional at
   runtime, degrading to printing the URL, because a join page that 500s over
   a missing decoration is far worse than an address people can type.
+#### Phone tools — specified 2026-08-23, none built
+
+Three additions beyond seat claiming. The scope of the phone was
+deliberately left open until now; this is the answer.
+
+**1. Signals — `?` and `!`**
+
+Two buttons in a corner of the player screen. `?` means this player has a
+question; `!` means this player needs something. Both put a message on the
+GM's screen saying which player it came from. That is the whole feature.
+
+Explicitly **not** a "break request" — that framing was considered and
+rejected as too narrow. These are lighter and more general, and the GM
+reads the room to decide what either one means.
+
+**2. Dice**
+
+Its own pane, in two panels:
+
+- **A number pad**, calculator-style, with a **display along the top**
+  showing the number being entered.
+- **The standard tabletop dice shapes**, clickable.
+
+You type a number, tap a die, and it rolls that many of that die.
+
+- A roll puts **a visual indicator on the table's display**.
+- **The player keeps a record** of their own rolls.
+- **The GM keeps a record** of the rolls.
+
+**3. Whisper**
+
+Its own pane: a conversation with the GM, both ways.
+
+- **No public chat room.** There is no all-players channel and will not be.
+- A player's conversation is **not visible to the other players**.
+
+---
+
+##### Notes on building these *(analysis, not spec — argue with it)*
+
+**Order by cost, cheapest first: Signals → Whisper → Dice.** Whisper is
+the stated priority and is the middle one, not the smallest; Signals is
+cheaper by a good margin and would prove the phone→GM path that Whisper
+then builds on.
+
+- **Signals** is one endpoint, an in-memory list, two buttons and a strip
+  on the GM panel. No history, no new rendering, nothing persisted.
+- **Whisper** adds a message store per player, a pane on the phone, a
+  threaded pane on the GM panel, and polling in both directions. No
+  television involvement.
+- **Dice** is the largest by some way: phone UI, a roll engine, **two**
+  separate histories, and the only one of the three that has to put
+  something on the 4K display.
+
+**Proposed mechanism for the dice indicator.** The TV shows one file,
+`.current.png`, which feh reloads five times a second. The status screen
+already exploits this — it renders a PNG with PIL and swaps it in. A roll
+banner can do the same, but **composited over the current background**
+rather than replacing it, so the scene artwork stays up and the roll
+appears on top of it. Restore the plain background after a few seconds.
+That reuses machinery already proven rather than inventing a second way
+to draw on the screen.
+
+**In memory, not on the SD card**, matching the initiative order and for
+the same reason: rolls and whispers mean nothing after the session, and
+writing every one of them would be flash wear for nothing. This does mean
+a service restart loses the history mid-session — worth a decision rather
+than an assumption.
+
 - **The player page does exactly one job: pick a seat.** Name, then tap the
   colour lit in front of you. The swatch is large and flat because it is
   held up against the actual lights. A taken seat stays visible and greyed
