@@ -560,6 +560,79 @@ Two complementary options; not mutually exclusive.
 - **dddice (software 3D dice).** Same creator as Overseer Studio; full API/SDK, renders 3D dice, syncs rolls, keeps a roll log, can display rolls on screen. Natural fit for **player phones as second screens** (roll from your phone, see it on the table's TV) and for remote players. The controller can react to roll results (nat 20 → gold + cheer, nat 1 → red).
 - **To expand:** which comes first (dddice is the lighter/cheaper start; Pixels is the "wow"), how rolls map to effects.
 
+### 3.13 Govee Room & Accent Lighting *(specced 2026-08-23, not built)*
+
+The table lights the table. Govee lights the room it sits in — wall and
+accent strips, and strips under the table itself — so a scene reaches past
+the edge of the furniture.
+
+#### The LAN API, not the cloud one
+
+**This uses Govee's LOCAL LAN API. The cloud API is rejected**, for the
+same reason push notifications were: it routes every command through
+Govee's servers, so the table would need outbound internet to change the
+colour of a light in the same room, and would go dark whenever the
+internet did. It also costs a round trip to a data centre on a chain we
+just spent a day cutting to under 600ms.
+
+The LAN API is plain UDP on the local network:
+
+| | |
+|---|---|
+| **Discovery** | multicast `239.255.255.250:4001`, devices reply to UDP `4002` |
+| **Commands** | UDP to the device's own IP, port `4003` |
+| **On/off** | `{"msg":{"cmd":"turn","data":{"value":0}}}` — 0 or 1 |
+| **Brightness** | `{"msg":{"cmd":"brightness","data":{"value":20}}}` — 1..100 |
+| **Colour** | `{"msg":{"cmd":"colorwc","data":{"color":{"r":0,"g":12,"b":8},"colorTemInKelvin":7200}}}` |
+| **State** | `{"msg":{"cmd":"devStatus","data":{}}}` — reply on 4002 |
+
+**Four constraints that shape the design, and none are ours to change:**
+
+1. **LAN control must be switched on per device in the Govee Home app.**
+   It is off by default. A device that has not been enabled is invisible
+   to discovery and there is nothing the table can do about it.
+2. **Not every model supports it.** Check the model before buying anything
+   for this.
+3. **Multicast discovery is unreliable on consumer routers**, particularly
+   across WiFi. The config must accept **explicit device IPs** as well, or
+   this will work at one house and not another.
+4. **UDP is fire-and-forget.** No acknowledgement, no delivery guarantee.
+   `devStatus` is the only way to know a command landed.
+
+**What the LAN API cannot do: Govee's built-in scenes and effects.** Those
+are cloud-only. Locally you get solid colour, colour temperature,
+brightness and power. That is enough for what this is for — the room
+should support the table, not compete with it — but it does mean no
+Govee-side animation, ever, and the spec should not imply otherwise.
+
+#### How it fits
+
+A device in `warlock/devices/` behind the same interface discipline as the
+others, constructed in `runtime.py`, faked for development. It joins the
+existing concurrent dispatch as a fourth job, so the room changes with the
+lights rather than after them — and §5.2 applies unchanged: **a Govee that
+is unplugged, unreachable or never enabled must degrade to nothing at all
+happening in the room, with the table entirely unaffected.**
+
+Devices are addressed in **named groups** rather than individually — a
+scene wants to say "room" and "under-table", not recite MAC addresses.
+
+#### Open questions, to answer before building
+
+1. **Where does the colour come from?** A scene names a Pixelblaze
+   *pattern*, not a colour, and the table cannot ask a running pattern what
+   it looks like. So either every scene carries an explicit Govee colour in
+   config, or the Govee lights take a single per-scene colour chosen by
+   hand. Leaning explicit-per-scene: it is one more field and it is honest.
+2. **Do cards drive it too, or only scenes?** An Aura is 4–9 seconds; the
+   room flaring for the Tower would be striking, or it would be exhausting.
+3. **How often to reconcile?** UDP gives no acknowledgement, so a lost
+   packet leaves the room out of step until something else changes it. A
+   periodic `devStatus` and re-send is the fix, and its interval is a
+   trade against network chatter.
+4. **What happens at idle, and at shutdown?** Does the room stay lit, fade
+   to something low, or go out?
+
 ### 3.12 (Future) Virtual Desktop / Remote Access
 - Possibly add a second computer running a virtual desktop.
 - Accessible remotely from an iPad or similar.
