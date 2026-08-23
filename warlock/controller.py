@@ -217,6 +217,19 @@ class Controller:
         if not duration:
             duration = self.config.fallback_interruption_s
 
+        # THE LIGHTS DECIDE THE LENGTH, NOT THE CLIP. play_effect returns the
+        # audio's own duration, and letting that drive the revert means a
+        # short clip cuts the visual off mid-gesture: the Auras are built
+        # with a release that fades them out over their last second or so,
+        # and a 3s howl on a 9s aura would kill the light before it got
+        # there. Whoever sources a sound would be silently deciding how long
+        # the pattern runs.
+        #
+        # A LONG clip is already handled -- play_effect was passed
+        # duration_s as max_duration, so it returns no more than that.
+        if interruption.duration_s:
+            duration = max(duration, interruption.duration_s)
+
         self._schedule_revert(interruption_name, duration)
 
     def _schedule_revert(self, interruption_name: str, duration: float) -> None:
