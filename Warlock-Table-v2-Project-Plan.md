@@ -336,8 +336,12 @@ on 2026-08-21. See §5.3.
   not at all. Retrying works; a pattern that fails *twice* is a real
   problem. Small batches with pauses are reliable where long runs are not.
 
-**Still not built:** the pixel map for 2D patterns, and pattern upload from
-the panel. `tools/upload_pattern.py` does it from the command line, and the
+**The 2D pixel map IS installed** — confirmed on the device 2026-08-23
+(`getMapFunction()` returns the 3,442-character map from
+`warlock-table-pixelmap.js`, with both coordinate arrays populated). Two
+docs disagreed about this for a while; the device is the tiebreaker.
+
+**Still not built:** pattern upload from the panel. `tools/upload_pattern.py` does it from the command line, and the
 Pi cannot compile, so a panel button would have to proxy to a laptop.
 
 ### 3.9 Player Initiative Lighting *(built 2026-08-21)*
@@ -1441,7 +1445,13 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] **Status screen on the TV — done.** Rendered to a PNG and shown through the *same* feh instance as the artwork, so only one thing ever draws on the screen. Shows per-subsystem marks, current scene, the panel URL and the deployed version. **It also carries the join QR, and is selectable (2026-08-22):** it appears in `available_backgrounds()` — listed first, because it is the one entry that is not artwork and burying it alphabetically hides what you reach for when something is wrong — with a **Show Join / Status Screen** button on the panel, lit while it is on screen. `set_background` previously took free text with no choice list at all, so there was nothing to pick from. The controller routes that name to `show_status_screen()`, since the screen must be RENDERED from live status the display device knows nothing about. **The QR encodes a LAN IP, not the `.local` name:** the web server can use the client's Host header because it is answering a request, but this renders at boot with nobody connected, and `.local` needs mDNS that many Android phones will not resolve — a join code that works for half the table reads as the table being broken. The footer prints that same address so the type-it-in fallback works for exactly the phones that could not scan. Drawn from segno's raw matrix rather than a PNG round-trip so modules land on whole pixels, with a quiet zone in whole modules; a missing segno returns False rather than raising, because this screen is what you look at WHEN things are broken. Appears automatically at startup, and on demand via the `show_status_screen` action. Styled to `warlock-table-style-guide.html` **exactly** — Syne, IBM Plex Sans and IBM Plex Mono are bundled in `warlock/web/static/fonts/` (SIL OFL) and served locally rather than from the Google CDN, so the table never needs the internet to render its own surfaces. The same font files feed both the TV and the iPad panel, so the two use identical type.
 - [x] Config validation with last-known-good fallback — done, three levels (requested → `.last-good` → minimal built-in that still lights the table).
 - [x] mDNS — `raspberrypi.local` works (avahi).
-- [ ] **DHCP reservations** for the Pi and Pixelblaze — not done. Discovery covers the Pixelblaze; the Pi's address moving would still break a bookmarked IP.
+- [ ] **DHCP reservations** for the Pi and Pixelblaze — not done, and it
+  bit on 2026-08-23: the Pixelblaze moved `.171` → `.169` mid-session.
+  The controller was fine, because discovery does its job — but every
+  laptop tool reads a cached address from `data/device-state.json` and
+  they all failed with "no route to host" until it was corrected. The Pi
+  has moved once too (`.24` → `.25`). Discovery covers the device;
+  reservations would cover the tools and any bookmarked IP.
 - [x] **"Table Check" self-test — done.** Panel button, sub-second. Its centrepiece is a cross-device referential integrity check: every light pattern, audio track and background that config references is confirmed to exist on the real device. Verified by deliberately pointing a scene at a deleted pattern and a missing track — both caught by name, while every device still reported healthy. A second button additionally flashes lights and plays a clip (software cannot confirm photons or sound), restoring the previous scene afterwards.
 - [ ] Physical GPIO shutdown button + a known-good SD image on the shelf
 - [x] Tagged releases — `v0.1.0` cut and deployed; `VERSION` and the panel both report the build.
@@ -1451,7 +1461,10 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] **Generate all patterns from one vocabulary** — built 2026-08-22
   (§3.8). 70 patterns, 60% smaller, with the anti-machine-made techniques
   as enforced defaults rather than per-pattern decisions.
-- [ ] Build the table's Pixelblaze pixel map (one-time)
+- [x] **Pixelblaze pixel map** — installed and verified on the device
+  2026-08-23. `warlock-table-pixelmap.js` is the source; `render2D()`
+  patterns will work. Nothing currently uses it, which is why it went
+  unnoticed as done.
 - [ ] Pattern authoring loop + "upload pattern" via the web panel — `tools/upload_pattern.py` does it from the command line already; the panel cannot, and the Pi cannot compile (no ARM wheel for V8).
 - [x] Card management — reassign/create/delete from the panel, plus registering an unknown tag by tapping it (§4.5 steps 1–2).
 - [ ] **§4.5 steps 3–4:** upload audio through the panel, and author scenes/interruptions from scratch.
@@ -1492,8 +1505,10 @@ Stand up the core software on the Pi once hardware is trusted.
   - [ ] **Audio for the 26 cards.** They are silent by design for now;
     `Interruption.audio` is optional so they work until clips exist. With
     no audio the revert is driven entirely by `duration_s`.
-  - [ ] **NPC binding editor** for the 9 Person cards (`npc_binding` is
-    defined in the spec and null on every card; nothing edits it yet).
+  - [~] **NPC binding editor** — **not planned** (decided 2026-08-23).
+    `npc_binding` stays defined in the spec and null on every card. The
+    nine Person cards work as announcements without it; binding each to a
+    named NPC was speculative and nobody has wanted it.
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
 - [x] **Zone map + per-zone lighting** — built 2026-08-21 (§4.7). The perimeter divides between the GM and 1–7 players, each seat lit its own colour; `patterns/zones.js` is on the device and confirmed working. **Unblocks player phones.**
