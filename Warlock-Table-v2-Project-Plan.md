@@ -416,6 +416,46 @@ must survive being interrupted by a card tap.
 - **This is downstream of the branding work**, which is in progress. The
   structure above can be settled now; type, colour and texture cannot.
 
+#### One design, three widths *(specced 2026-08-23)*
+
+A full complement of layouts: GM and player, on phone, tablet and browser.
+
+**TWO documents, THREE breakpoints, ONE component vocabulary.** Not six
+designs. Six bespoke layouts is where this kind of thing dies: a change to
+the dice pad has to be made in three places, they drift, and eventually
+nobody knows which is authoritative. Same classes, same tab pattern, and
+the differences live as media queries in the one stylesheet both pages
+already share.
+
+Starting position, checked 2026-08-23: **the stylesheet contains no layout
+media queries at all** — the only `@media` is `prefers-reduced-motion`. So
+the current pages are one fixed layout that happens to survive on a phone.
+Nothing to undo; this is greenfield.
+
+| Width | Device | Layout |
+|---|---|---|
+| ≤ 600px | phone | one column, bottom tabs |
+| 601–1199px | tablet (iPad mini landscape is 1133) | bottom tabs, two columns inside a panel |
+| ≥ 1200px | browser | **panels side by side, tabs gone** |
+
+**The wide breakpoint is the interesting one.** Tabs exist to solve a
+space problem. On a 1400px browser there is no space problem, and a tab
+bar that hides two thirds of the interface behind a tap is a downgrade —
+show Settings, Players and Run at once. That is what "varied by device"
+should mean: the navigation model changes when the constraint that
+justified it goes away, not that the same screen wears three skins.
+
+**Tabs come to the player page too**, moved to the bottom to match the GM
+panel. The player page already has them (Dice / Whisper / Seat), so this
+is a move rather than a build, and it makes one tab pattern serve both
+surfaces at every width.
+
+**The symbols being drawn for the branding land here.** A bottom tab bar
+wants an icon and a label per destination, and at the phone width the
+label may have to go. That makes the symbols load-bearing rather than
+decorative: a tab whose icon is not legible at 24px is a tab nobody can
+find.
+
 #### Phone tools — specified 2026-08-23, none built
 
 Three additions beyond seat claiming. The scope of the phone was
