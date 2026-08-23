@@ -44,10 +44,13 @@ identical on the wire and hold very different amounts.
 from __future__ import annotations
 
 import argparse
+import io as _io
+import json
 import sys
 import time
 
 CS, RESET = 4, 20
+LIVE_CONFIG = "/var/lib/warlocktable/config.json"
 INLISTPASSIVETARGET = 0x4A
 INDATAEXCHANGE = 0x40
 ISO14443A = 0x00
@@ -77,6 +80,26 @@ NTAG_STORAGE = {
 
 def fmt(b) -> str:
     return ":".join("%02X" % x for x in b)
+
+
+def known_cards(path):
+    """UID -> label, from the live config.
+
+    The point of the probe is sorting a pile of tags nobody kept track of,
+    and the first question about any of them is "is this one already a
+    card?". The chip type does not answer that; the config does.
+    """
+    try:
+        with _io.open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for uid, card in (cfg.get("cards") or {}).items():
+        target = card.get("target") or {}
+        out[uid.upper()] = "%s -> %s" % (
+            card.get("label") or "?", target.get("name") or "?")
+    return out
 
 
 def classify(sak: int, uid_len: int) -> str:
@@ -114,6 +137,8 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seconds", type=float, default=300.0,
                     help="how long to keep listening (default 300)")
+    ap.add_argument("--config", default=LIVE_CONFIG,
+                    help="config to check tags against")
     args = ap.parse_args()
 
     try:
@@ -133,13 +158,17 @@ def main() -> int:
         print("is the service stopped?  sudo systemctl stop warlocktable")
         return 1
 
-    print("PN532 firmware %d.%d ready. Tap tags one at a time." % (ver[1], ver[2]))
+    enrolled = known_cards(args.config)
+    print("PN532 firmware %d.%d ready. %d cards already enrolled."
+          % (ver[1], ver[2], len(enrolled)))
+    print("Tap tags one at a time. Ctrl-C when done.")
     print("Listening for %.0f seconds.\n" % args.seconds)
-    print("%-3s %-26s %-6s %-5s %s" % ("#", "UID", "ATQA", "SAK", "WHAT IT IS"))
 
     seen = {}
+    unknown = []
     n = 0
     last_uid = None
+    misses = 0
     end = time.time() + args.seconds
     while time.time() < end:
         try:
@@ -149,8 +178,14 @@ def main() -> int:
         except Exception:      # noqa: BLE001 -- BusyError just means no tag
             resp = None
         if not resp or resp[0] != 0x01:
-            last_uid = None       # tag removed; the next one counts as new
+            # A tag resting on the reader answers intermittently, so one
+            # missed poll is not a removal. Requiring several stops the
+            # same tag being reported over and over while it sits there.
+            misses += 1
+            if misses >= 3:
+                last_uid = None
             continue
+        misses = 0
 
         atqa = (resp[2] << 8) | resp[3]
         sak = resp[4]
@@ -167,12 +202,24 @@ def main() -> int:
 
         n += 1
         key = fmt(uid)
-        dupe = "  (already seen as #%d)" % seen[key] if key in seen else ""
+        card = enrolled.get(key)
+        if key in seen:
+            verdict = "seen already this session (#%d)" % seen[key]
+        elif card:
+            verdict = "ALREADY A CARD -- %s" % card
+        else:
+            unknown.append(key)
+            verdict = "SPARE  (spare #%d)" % len(unknown)
         seen.setdefault(key, n)
-        print("%-3d %-26s %04X   0x%02X  %s%s" % (n, key, atqa, sak, what, dupe),
-              flush=True)
 
-    print("\n%d taps, %d distinct tags." % (n, len(seen)))
+        print("%-3d %-24s %-28s %s" % (n, key, what, verdict), flush=True)
+
+    print("\n%d taps, %d distinct tags, %d spare."
+          % (n, len(seen), len(unknown)))
+    if unknown:
+        print("\nspare tags, ready for enrol_cards.py:")
+        for u in unknown:
+            print("  %s" % u)
     return 0
 
 
