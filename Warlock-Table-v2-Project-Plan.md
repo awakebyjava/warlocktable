@@ -1331,7 +1331,52 @@ and the approach was chosen for a good reason: feh survives running headless
 under systemd, where pygame did not (§4.6). Fix the poll, keep the process
 model.
 
-#### Measure before optimising
+#### MEASURED 2026-08-22
+
+Timed from the Pi, where the controller sits. The guesses above were
+partly right and missed the largest software cost entirely.
+
+| Step | Cost |
+|---|---|
+| NFC `poll_timeout` (upstream of everything) | 0–500 ms |
+| Sending a pattern command to the Pixelblaze | **0.3–1.2 ms** |
+| Pixelblaze actually switching pattern | **270–320 ms** |
+| `getActivePattern()` read-back confirmation | 88 ms |
+| **`set_pattern()` total, which the controller BLOCKS on** | **~480 ms** |
+| `set_background()` file copy | 76–320 ms |
+| feh noticing the file (`--reload 1`) | 0–1000 ms |
+| `getPatternList()` | 0 ms — cached in the client |
+
+**The biggest finding is not on the list above: the controller is
+serial.** `apply_scene` calls lights, *then* audio, *then* display, and
+each waits for the last. So audio does not start until ~480 ms after the
+lights command, and the picture is asked for later still. That is not a
+device problem and costs nothing to fix.
+
+A card tap today, worst case: 500 ms to notice the card, +280 ms for the
+lights, +480 ms before audio begins, +up to 1 s before feh looks at the
+file. Roughly **two seconds to a complete picture**, arriving in three
+distinct instalments — exactly the stagger that was reported.
+
+**The 270–320 ms pattern switch is a floor.** Sending costs a millisecond;
+the rest is the device loading bytecode and starting it. `saveToFlash` is
+already False, so it is not a flash write.
+
+Ranked by value:
+
+1. **Dispatch the three subsystems concurrently.** Removes ~480 ms of pure
+   serialisation. Note it *reorders* the stagger rather than removing it —
+   audio would then lead the lights by ~250 ms — so aligning deliberately
+   (delay the fast ones to meet the Pixelblaze) is the actual goal.
+2. **`--reload 0.2`.** feh 3.6.3 on the Pi accepts a fractional value; it
+   parses fine and only fails on the display. Cuts picture jitter from
+   0–1000 ms to 0–200 ms. One word.
+3. **Make the read-back confirmation occasional rather than per call.**
+   88 ms, and it exists for observability rather than correctness.
+4. **`poll_timeout`.** Halving to 0.25 s halves the upstream delay, at the
+   cost of more SPI traffic. Cheap to try, easy to revert.
+
+#### The original guesses, kept for the record
 
 **Nothing here has been timed.** The ordering above is what a person
 perceived, which is enough to know something is wrong and not enough to know
