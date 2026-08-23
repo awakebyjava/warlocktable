@@ -257,6 +257,12 @@ Explicitly **not** a "break request" — that framing was considered and
 rejected as too narrow. These are lighter and more general, and the GM
 reads the room to decide what either one means.
 
+**Clearing: either the GM or the player, and a 60-second timeout on top.**
+Three ways out, deliberately. A signal nobody clears should not sit on the
+GM's screen all session, and a player who taps `!` and then sorts it out
+themselves should be able to take it back without waiting for the GM to
+notice.
+
 **2. Dice**
 
 Its own pane, in two panels:
@@ -267,9 +273,18 @@ Its own pane, in two panels:
 
 You type a number, tap a die, and it rolls that many of that die.
 
-- A roll puts **a visual indicator on the table's display**.
+**The dice are d4, d6, d8, d10, d12, d20.** No d100 and no percentile
+pair. **No modifiers** — a number and a die, nothing else. The point is to
+stay **system-agnostic**: the moment there are modifiers and a d100 it
+starts encoding somebody's rules, and this table does not know what game
+you are playing.
+
+- **No indicator on the television.** Considered and dropped. That was the
+  single largest piece of work in all three tools, and it bought the least.
 - **The player keeps a record** of their own rolls.
 - **The GM keeps a record** of the rolls.
+- **Rolls are logged alongside the audio recording.** See below — this is
+  the part that makes them worth keeping.
 
 **3. Whisper**
 
@@ -282,34 +297,36 @@ Its own pane: a conversation with the GM, both ways.
 
 ##### Notes on building these *(analysis, not spec — argue with it)*
 
-**Order by cost, cheapest first: Signals → Whisper → Dice.** Whisper is
-the stated priority and is the middle one, not the smallest; Signals is
-cheaper by a good margin and would prove the phone→GM path that Whisper
-then builds on.
+**Order by cost, cheapest first: Signals → Dice ≈ Whisper.** Dropping the
+television indicator took the largest single piece of work out of Dice and
+moved it from clearly-biggest to roughly level with Whisper. Whisper is
+the stated priority and is not the cheapest; Signals is, by a wide margin,
+and it proves the phone→GM path the other two both need.
 
-- **Signals** is one endpoint, an in-memory list, two buttons and a strip
-  on the GM panel. No history, no new rendering, nothing persisted.
-- **Whisper** adds a message store per player, a pane on the phone, a
-  threaded pane on the GM panel, and polling in both directions. No
-  television involvement.
-- **Dice** is the largest by some way: phone UI, a roll engine, **two**
-  separate histories, and the only one of the three that has to put
-  something on the 4K display.
+- **Signals** is one endpoint, an in-memory list with an expiry, two
+  buttons and a strip on the GM panel.
+- **Dice** is phone UI — pad, display, six dice — plus a roll engine that
+  is nearly trivial, two history views, and the session-log hook.
+- **Whisper** is the only two-way one, which is what makes it the heaviest
+  despite looking simpler: the GM side needs per-player threads, unread
+  state and somewhere to switch between them.
 
-**Proposed mechanism for the dice indicator.** The TV shows one file,
-`.current.png`, which feh reloads five times a second. The status screen
-already exploits this — it renders a PNG with PIL and swaps it in. A roll
-banner can do the same, but **composited over the current background**
-rather than replacing it, so the scene artwork stays up and the roll
-appears on top of it. Restore the plain background after a few seconds.
-That reuses machinery already proven rather than inventing a second way
-to draw on the screen.
+**Rolls ride with the recording.** Recordings are
+`session-%Y%m%d-%H%M%S.wav` in `recording_dir`. A roll log belongs beside
+its recording under the matching name, and each entry should carry **an
+offset from the recording's start**, not just a wall clock — an offset is
+what lets a later transcript line "Jon rolled 3d6 → 11" up against the
+moment somebody groaned. That is the whole reason to keep them.
 
-**In memory, not on the SD card**, matching the initiative order and for
-the same reason: rolls and whispers mean nothing after the session, and
-writing every one of them would be flash wear for nothing. This does mean
-a service restart loses the history mid-session — worth a decision rather
-than an assumption.
+Rolls happen whether or not the mic is running, so the in-memory history
+for the phone and the panel is always live; the file is written *as well*,
+and only while recording. This also feeds the transcription/recap item on
+the roadmap, which otherwise has only audio to work from.
+
+**Everything else stays in memory**, matching the initiative order: a
+signal is meaningless sixty seconds later by definition, and whisper
+history is a live conversation rather than a record. A service restart
+mid-session drops both, which is a real consequence and an accepted one.
 
 - **The player page does exactly one job: pick a seat.** Name, then tap the
   colour lit in front of you. The swatch is large and flat because it is
