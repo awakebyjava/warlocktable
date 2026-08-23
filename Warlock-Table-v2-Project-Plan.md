@@ -450,6 +450,27 @@ panel. The player page already has them (Dice / Whisper / Seat), so this
 is a move rather than a build, and it makes one tab pattern serve both
 surfaces at every width.
 
+##### Constraints that are not negotiable
+
+**"Works on every phone" means fluid, with a floor.** Every width from
+**320px** (iPhone SE, small Android) upward has to work. Below that
+nothing sane does, and no phone in use is narrower. The layout is fluid
+between breakpoints rather than three fixed designs, so an unlisted device
+lands somewhere sensible rather than nowhere.
+
+**Use `dvh`, never `vh`.** Mobile Safari and Android Chrome shrink and
+grow the viewport as their toolbars hide and reveal, and `100vh` is the
+*largest* it ever gets — so anything sized in `vh` is taller than the
+screen while the toolbar is showing. With a bottom tab bar that means the
+tabs sit below the fold, which is the exact failure this would produce on
+the devices most likely to see it. **The stylesheet currently uses `vh` in
+four places** and all of them need converting.
+
+**Fonts must be self-hostable.** The table has no internet, so a webfont
+CDN is not an option — Syne and IBM Plex are bundled as variable TTFs in
+`warlock/web/static/fonts/` with their OFL licence. Any new typeface needs
+files we can ship and a licence that permits it.
+
 **The symbols being drawn for the branding land here.** A bottom tab bar
 wants an icon and a label per destination, and at the phone width the
 label may have to go. That makes the symbols load-bearing rather than
