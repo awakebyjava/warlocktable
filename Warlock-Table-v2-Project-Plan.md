@@ -380,13 +380,39 @@ must survive being interrupted by a card tap.
   to share a row.
 - **Use the width.** Inside a panel, two columns beat one — Players wants
   initiative beside seats, not above it.
-- **Tabs, not swipe.** Swipe is natural horizontally but conflicts with
-  scrolling inside a panel and is invisible to anyone who has not been
-  told. A GM mid-session should not have to discover anything.
+- **Tabs at the BOTTOM, not swipe** *(decided 2026-08-23)*. Swipe conflicts
+  with scrolling inside a panel and is invisible to anyone who has not
+  been told; a GM mid-session should not have to discover anything. Bottom
+  rather than top because on a held tablet the thumbs are already there.
+  It is proven in this codebase: `.idle-bar` is already a bottom-fixed bar
+  handling `env(safe-area-inset-bottom)`, and the page already sets
+  `viewport-fit=cover`.
+- **The bottom edge is already taken.** `.idle-bar` — the always-available
+  Go Idle button — lives exactly where the tabs want to be. Either it
+  becomes part of the tab bar, or it moves. It is arguably a fifth
+  destination rather than a button, since "put the table back to rest" is
+  a place the GM goes.
+- **The vertical budget, with tabs.** At 744px, minus a 56px tab bar and
+  ~21px of safe area:
+
+  | Header | Content left |
+  |---|---|
+  | 164px (today) | 503px |
+  | 120px | 547px |
+  | 90px | **577px** |
+
+  So the header must come down to roughly 90px for a panel to hold
+  anything substantial. That is the single most constraining number in
+  this redesign.
 - **Panel state must survive switching.** A typed whisper, a selected
   initiative order, a half-entered dice count.
-- **Phones still reach `/gm`.** Four panels side by side need a sensible
-  answer at 400px wide, even if that answer is that they stack.
+- **The GM panel must work on a phone too** *(confirmed 2026-08-23)*, not
+  merely survive. Bottom tabs help here: the pattern is native to phones,
+  and four panels at 400px wide is a normal phone app rather than a
+  compromise. The panels stay; only what is inside them reflows.
+- **The PLAYER page is the phone surface that matters** and its design is
+  settled — one column, tabs, signals in the header. It needs the new
+  branding and nothing else. Do not reopen it.
 - **This is downstream of the branding work**, which is in progress. The
   structure above can be settled now; type, colour and texture cannot.
 
