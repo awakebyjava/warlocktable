@@ -213,6 +213,10 @@ class Controller:
 
     def whisper_thread(self, colour: str) -> dict:
         colour = (colour or "").strip().lower()
+        if colour == self.GM_KEY:
+            # Same reasoning as roll_history: no thread is addressed to
+            # this key, but refusing it explicitly beats relying on that.
+            return {"colour": colour, "messages": []}
         with self._whispers_lock:
             return {"colour": colour,
                     "messages": list(self._whispers.get(colour, []))}
@@ -293,7 +297,17 @@ class Controller:
         return entry
 
     def roll_history(self, colour: str) -> dict:
+        """One player's own rolls. Never the GM's.
+
+        The phone only ever asks for its own colour, so in practice a GM
+        roll never reached a player anyway -- but "the client does not ask"
+        is not the same as "cannot be had", and anyone who typed
+        ?colour=gm into a browser would have had the lot. The guard makes
+        the claim true instead of merely usually-true.
+        """
         colour = (colour or "").strip().lower()
+        if colour == self.GM_KEY:
+            return {"colour": colour, "rolls": []}
         with self._rolls_lock:
             return {"colour": colour, "rolls": list(self._rolls.get(colour, []))}
 
