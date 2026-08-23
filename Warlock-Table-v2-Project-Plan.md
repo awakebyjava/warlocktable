@@ -267,9 +267,11 @@ notice.
 
 Its own pane, in two panels:
 
-- **A number pad**, calculator-style, with a **display along the top**
-  showing the number being entered.
-- **The standard tabletop dice shapes**, clickable.
+- **The display and the number pad are one panel**, together. A
+  calculator: the display sits along the top showing the number being
+  entered, the keys below it, and with them a **clear** button and a
+  **history** button that pulls up that player's own log of rolls.
+- **The standard tabletop dice shapes**, clickable, as the second panel.
 
 You type a number, tap a die, and it rolls that many of that die.
 
