@@ -1455,7 +1455,20 @@ Stand up the core software on the Pi once hardware is trusted.
 - [ ] Pattern authoring loop + "upload pattern" via the web panel — `tools/upload_pattern.py` does it from the command line already; the panel cannot, and the Pi cannot compile (no ARM wheel for V8).
 - [x] Card management — reassign/create/delete from the panel, plus registering an unknown tag by tapping it (§4.5 steps 1–2).
 - [ ] **§4.5 steps 3–4:** upload audio through the panel, and author scenes/interruptions from scratch.
-- [ ] **Cut input-to-effect latency** (§5.7) — the NFC read is the biggest single delay and sits upstream of everything; the picture also trails the lights and sound by up to a second. Measure the chain first.
+- [x] **Cut input-to-effect latency** — measured and largely fixed
+  2026-08-22 (§5.7). The chain was timed rather than guessed at, and the
+  biggest cost turned out not to be a device at all: the controller
+  dispatched lights, then audio, then display *serially*, so the sound
+  waited ~480ms for the Pixelblaze to load bytecode. Now concurrent.
+  Also: feh's poll 1s → 0.2s, the NFC poll 0.5s → 0.25s, and the
+  set_pattern read-back from every call to once per 30s. A tap should
+  resolve in under 600ms against roughly two seconds before.
+  - [ ] **Confirm at the table.** Audio now slightly LEADS the lights
+    rather than trailing; if that reads worse, the fix is a deliberate
+    ~250ms delay on audio and display. Not added — fast was preferred
+    over synchronised.
+  - The Pixelblaze's 270–320ms pattern load is a floor. Sending the
+    command costs one millisecond; the rest is the device.
 - [x] **Volume and audio output switching** — built 2026-08-21 (§3.3).
   Master volume in software, and a switch between the 3.5mm jack and the
   television.
