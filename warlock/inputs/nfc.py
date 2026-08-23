@@ -42,11 +42,16 @@ class NFCReader:
     RECONNECT_INTERVAL_S = 15.0
 
     def __init__(self, log, on_card: Callable[[str], None],
-                 cs: int = 4, reset: int = 20, poll_timeout: float = 0.5):
+                 cs: int = 4, reset: int = 20, poll_timeout: float = 0.25):
         self.log = log
         self.on_card = on_card
         self.cs = cs
         self.reset = reset
+        # 0.25s, halved from 0.5 on 2026-08-22. This sits UPSTREAM of
+        # everything -- nothing happens until the card is recognised, so
+        # whatever the rest of the chain costs, this is added to all of it
+        # (plan doc 5.7). The cost is more SPI traffic; trivially reverted
+        # if the reader starts misbehaving.
         self.poll_timeout = poll_timeout
 
         self._pn532 = None

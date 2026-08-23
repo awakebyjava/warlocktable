@@ -91,6 +91,40 @@ class Controller:
         self.subsystem_ok[subsystem] = True
         return True
 
+    # How long to wait for the slowest subsystem before returning. Generous:
+    # every device already bounds its own sockets, so this only catches a
+    # driver that hangs outright, and a card tap must never wedge the panel.
+    FANOUT_JOIN_S = 5.0
+
+    def _fanout(self, *jobs) -> None:
+        """Run device calls CONCURRENTLY. Each job is (subsystem, fn, *args).
+
+        Serial dispatch was the largest software cost in the whole chain,
+        measured 2026-08-22 (plan doc 5.7): set_pattern blocks for ~480ms --
+        270-320ms of it the Pixelblaze loading bytecode -- and audio and
+        the picture were queued behind it. So a card tap answered in three
+        instalments spread over about two seconds, which is the stagger
+        that was reported from the table.
+
+        Nothing is delayed to make them land together. Deliberately: the
+        goal is fast and close, not synchronised, and padding the quick
+        subsystems to meet the slow one would trade the thing you notice
+        (lag) for the thing you mostly do not (a quarter-second skew).
+
+        Fault isolation is unchanged -- each job goes through _try, which
+        absorbs its own failures, so one dead device still cannot take the
+        others down.
+        """
+        threads = []
+        for job in jobs:
+            subsystem, fn = job[0], job[1]
+            t = threading.Thread(target=self._try, args=(subsystem, fn) + tuple(job[2:]),
+                                 name="fanout-" + subsystem, daemon=True)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join(timeout=self.FANOUT_JOIN_S)
+
     def status(self) -> dict:
         """What the panel status strip and TV status screen render (5.1)."""
         return {
@@ -128,13 +162,15 @@ class Controller:
         scene = self.config.scenes[scene_name]
         self.current_scene = scene
         self.log.record("scene.apply", name=scene_name)
-        # Each subsystem is attempted independently: a dead Pixelblaze must
-        # not stop the soundscape from playing (plan doc 5.2).
-        self._try("lights", self.lights.set_pattern, scene.lights)
-        self._try("audio", self.audio.play_soundscape, scene.soundscape,
-                   scene.transition.crossfade_s)
+        # Each subsystem is attempted independently and CONCURRENTLY: a dead
+        # Pixelblaze must not stop the soundscape (plan doc 5.2), and the
+        # soundscape must not wait half a second for the lights (5.7).
+        jobs = [("lights", self.lights.set_pattern, scene.lights),
+                ("audio", self.audio.play_soundscape, scene.soundscape,
+                 scene.transition.crossfade_s)]
         if scene.background:
-            self._try("display", self.display.set_background, scene.background)
+            jobs.append(("display", self.display.set_background, scene.background))
+        self._fanout(*jobs)
 
     @action(ParamSpec("interruption_name", "str",
                        choices=lambda c: list(c.config.interruptions)))
@@ -146,10 +182,14 @@ class Controller:
         self.log.record("interruption.start", name=interruption_name,
                          reverts_to=self.current_scene.name if self.current_scene else None)
 
+        jobs = []
         if interruption.lights:
-            self._try("lights", self.lights.set_pattern, interruption.lights)
+            jobs.append(("lights", self.lights.set_pattern, interruption.lights))
         if interruption.background:
-            self._try("display", self.display.set_background, interruption.background)
+            jobs.append(("display", self.display.set_background,
+                         interruption.background))
+        if jobs:
+            self._fanout(*jobs)
 
         # play_effect returns the duration we need for the revert timer, so
         # it can't go through _try (which discards return values). Guard it
@@ -188,13 +228,14 @@ class Controller:
             if scene_to_restore:
                 # Re-apply directly rather than calling apply_scene(), so
                 # we don't clear a timer another action may have set since.
-                self._try("lights", self.lights.set_pattern, scene_to_restore.lights)
-                self._try("audio", self.audio.play_soundscape,
-                           scene_to_restore.soundscape,
-                           scene_to_restore.transition.crossfade_s)
+                jobs = [("lights", self.lights.set_pattern, scene_to_restore.lights),
+                        ("audio", self.audio.play_soundscape,
+                         scene_to_restore.soundscape,
+                         scene_to_restore.transition.crossfade_s)]
                 if scene_to_restore.background:
-                    self._try("display", self.display.set_background,
-                               scene_to_restore.background)
+                    jobs.append(("display", self.display.set_background,
+                                 scene_to_restore.background))
+                self._fanout(*jobs)
             else:
                 self.go_idle()
 
@@ -432,12 +473,13 @@ class Controller:
             return
 
         self.current_scene = idle
+        jobs = [("audio", self.audio.play_soundscape, idle.soundscape,
+                 idle.transition.crossfade_s)]
         if idle.lights:
-            self._try("lights", self.lights.set_pattern, idle.lights)
-        self._try("audio", self.audio.play_soundscape, idle.soundscape,
-                   idle.transition.crossfade_s)
+            jobs.append(("lights", self.lights.set_pattern, idle.lights))
         if idle.background:
-            self._try("display", self.display.set_background, idle.background)
+            jobs.append(("display", self.display.set_background, idle.background))
+        self._fanout(*jobs)
 
     # ---- zones (plan doc 4.7) --------------------------------------------
 

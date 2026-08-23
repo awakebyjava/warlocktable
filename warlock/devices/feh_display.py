@@ -2,9 +2,10 @@
 
 HOW IT WORKS
 
-feh runs fullscreen showing one file, `.current.png`, with `--reload 1`.
+feh runs fullscreen showing one file, `.current.png`, with `--reload 0.2`.
 Changing the background copies the wanted image over that file and feh picks
-it up within a second.
+it up within about a fifth of a second. It was 1s, which measured as the
+dominant term in how far the picture trailed the lights and sound.
 
 That indirection is the point: feh owns the X window for the whole session,
 so switching images never creates or destroys a window. Killing and
@@ -238,7 +239,12 @@ class FehDisplay(DisplayDevice):
             "--hide-pointer",
             "--auto-zoom",          # fill the screen, preserving aspect
             "--image-bg", "black",  # letterbox in black, not desktop grey
-            "--reload", "1",        # notice the file being swapped
+            # 0.2, not 1: feh POLLS, so this is the dominant term in how
+            # long the picture trails the lights and sound -- 0-1000ms of
+            # pure waiting, measured 2026-08-22 (plan doc 5.7). feh 3.6.3
+            # on the Pi accepts a fractional value; verified by parsing it
+            # with the display unset, where it complains only about X.
+            "--reload", "0.2",      # notice the file being swapped
             "--no-menus",
             target,
         ]

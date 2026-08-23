@@ -87,11 +87,15 @@ class PixelblazeLights(LightDevice):
     BRIGHTNESS_TTL_S = 30.0
     # Pattern lists change rarely (only when you author one), so cache them.
     PATTERN_CACHE_TTL_S = 60.0
+    # How often set_pattern() pays 88ms to confirm the device really
+    # switched. See the note in set_pattern.
+    CONFIRM_INTERVAL_S = 30.0
 
     def __init__(self, log, address_hint: Optional[str] = None,
                  state_path: Optional[str] = None,
                  discovery_timeout_ms: int = 5000):
         self.log = log
+        self._last_confirm_at = 0.0
         self.state_path = state_path
         self.discovery_timeout_ms = discovery_timeout_ms
 
@@ -376,14 +380,24 @@ class PixelblazeLights(LightDevice):
         # logged real=True purely because nothing raised, which meant a
         # silently-ignored write looked identical to a successful one in the
         # log — exactly the "how would I know it's broken?" problem section 5
-        # exists to prevent. Costs one extra round-trip (~10ms on the LAN).
+        # exists to prevent.
+        #
+        # But it is not free: measured at 88ms, on a call already costing
+        # ~480ms, in the path of every card tap (plan doc 5.7). The original
+        # note guessed ~10ms. So it now runs at most once every
+        # CONFIRM_INTERVAL_S rather than every time -- often enough that a
+        # device quietly ignoring writes still gets caught within half a
+        # minute, rarely enough that nobody waits for it mid-game.
         confirmed = None
-        try:
-            with self._bounded():
-                active_id = pb.getActivePattern()
-            confirmed = self._patterns_by_id().get(active_id)
-        except Exception:
-            pass   # verification is best-effort; don't fail the action over it
+        now = time.monotonic()
+        if (now - self._last_confirm_at) >= self.CONFIRM_INTERVAL_S:
+            try:
+                with self._bounded():
+                    active_id = pb.getActivePattern()
+                confirmed = self._patterns_by_id().get(active_id)
+                self._last_confirm_at = now
+            except Exception:
+                pass   # best-effort; don't fail the action over it
 
         self.current_pattern = confirmed or name
         if confirmed is not None and confirmed != name:
