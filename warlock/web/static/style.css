@@ -571,20 +571,6 @@ button.wide { width: 100%; }
 /* --- player signals (plan doc 3.7) ---------------------------------------
    Bottom corner, thumb-reachable, and big: this is pressed one-handed under
    a table in low light, often without looking. */
-.sig {
-  width: 64px; height: 64px; border-radius: 50%;
-  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px;
-  line-height: 1; padding: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--panel, #17141c); color: var(--bone-dim);
-  border: 1px solid var(--line);
-  /* 64px against the 44px minimum: the extra is for a dim room and a
-     glance that does not want to become a look. */
-}
-.sig.on {
-  background: var(--purple-deep); color: var(--bone);
-  border-color: var(--purple);
-}
 
 /* The `hidden` attribute only works while nothing outcompetes it. Author
    CSS setting `display: flex` on a panel beats the UA stylesheet's
@@ -684,7 +670,10 @@ button.small { padding: 4px 10px; font-size: 10px; }
 /* `?` and `!` live in the header so they are reachable from any tab --
    the whole reason the panes stopped being overlays. */
 .sig {
-  width: 44px; height: 44px; border-radius: 50%; flex: none; padding: 0;
+  /* min-height too: a global button rule sets 64px, which quietly beat a
+     plain height and left these 44 wide by 64 tall. */
+  width: 44px; height: 44px; min-height: 44px;
+  border-radius: 50%; flex: none; padding: 0;
   font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px;
   display: flex; align-items: center; justify-content: center;
   background: var(--panel, #17141c); color: var(--bone-dim);
