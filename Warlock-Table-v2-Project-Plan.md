@@ -295,6 +295,31 @@ Its own pane: a conversation with the GM, both ways.
 
 ---
 
+**4. Player status panel** *(replaces push notifications)*
+
+A bar across the top of the GM panel showing the players, which **stays in
+place as you move around the interface** rather than scrolling away. It is
+where a `?` or `!` appears, so a signal is seen without anything having to
+interrupt.
+
+**Push notifications were considered and rejected.** Not on effort — on
+dependency. The iOS Push API routes every message through Apple's own push
+service, so the Pi would need outbound internet, and the PWA would need a
+real HTTPS certificate, which a `.local` LAN name cannot be issued. A
+table in the same room as the phone would be asking Cupertino to pass a
+note across it, and would go quiet whenever the internet did. **The table
+stays self-contained.** A panel that is always on screen needs none of it.
+
+**5. What the session log records**
+
+Rolls, whispers, **and the cards and scenes used** — a record of the game,
+not just of the dice. All of it beside the recording, all of it carrying
+an offset from the recording's start.
+
+**The interface needs a redesign** to hold all this. Noted, not specced.
+
+---
+
 ##### Notes on building these *(analysis, not spec — argue with it)*
 
 **Order by cost, cheapest first: Signals → Dice ≈ Whisper.** Dropping the
@@ -322,6 +347,14 @@ Rolls happen whether or not the mic is running, so the in-memory history
 for the phone and the panel is always live; the file is written *as well*,
 and only while recording. This also feeds the transcription/recap item on
 the roadmap, which otherwise has only audio to work from.
+
+**Whispers, cards and scenes go in the same file.** A transcript that
+knows the Tower came out, the scene turned to Swamp, and somebody
+whispered the GM thirty seconds later is a far better account of an
+evening than audio alone. Note the consequence: **whisper history stops
+being ephemeral** the moment it is written down, and private messages on
+disk are a different proposition to a conversation that evaporates.
+Recorded here so it is a decision rather than a side effect.
 
 **Everything else stays in memory**, matching the initiative order: a
 signal is meaningless sixty seconds later by definition, and whisper
