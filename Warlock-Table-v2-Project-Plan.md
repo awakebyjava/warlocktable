@@ -275,6 +275,14 @@ Its own pane, in two panels:
 
 You type a number, tap a die, and it rolls that many of that die.
 
+**The display holds the last result** until new input is entered, at which
+point it clears and starts the next entry. **Clear wipes the whole
+display**, not one digit — a backspace is a small target for something
+pressed under a table without looking.
+
+**The log reads `(dice)d(sides)=(result)`** — `3d6=12`. That format is the
+spec, not a suggestion.
+
 **The dice are d4, d6, d8, d10, d12, d20.** No d100 and no percentile
 pair. **No modifiers** — a number and a die, nothing else. The point is to
 stay **system-agnostic**: the moment there are modifiers and a d100 it

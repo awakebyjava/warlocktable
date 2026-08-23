@@ -70,6 +70,12 @@ class Controller:
         self._whispers = {}                   # colour -> [ {from, text, at} ]
         self._whispers_lock = threading.Lock()
 
+        # Dice rolls, per player (plan doc 3.7). Both the player and the GM
+        # keep a record; while recording, each roll also reaches the
+        # session log with an offset so a transcript can line it up.
+        self._rolls = {}                      # colour -> [ {n, sides, total} ]
+        self._rolls_lock = threading.Lock()
+
         # Per-subsystem health, for the panel status strip and the TV status
         # screen (plan doc 5.1). A subsystem going unhealthy must never stop
         # the others — see _try below.
@@ -233,6 +239,82 @@ class Controller:
             n = len(self._whispers)
             self._whispers = {}
         self.log.record("whispers_cleared", threads=n)
+
+    # ---- dice (plan doc 3.7) ---------------------------------------------
+
+    DICE = (4, 6, 8, 10, 12, 20)
+    MAX_DICE = 100             # see roll(); a rail, not a rule
+    ROLL_HISTORY = 500         # per player
+
+    def roll(self, colour: str, count: int, sides: int, name: str = "") -> dict:
+        """Roll `count` dice of `sides`, record it, return the whole roll.
+
+        Deliberately system-agnostic: a number and a die, no modifiers and
+        no d100. The moment there are modifiers this starts encoding
+        somebody's rules, and the table does not know what game you are
+        playing.
+
+        MAX_DICE exists because nothing stops a thumb entering 9999 on a
+        phone. It is a guard against a fat finger, not a judgement about
+        how many dice a game may need -- raise it freely.
+        """
+        colour = (colour or "").strip().lower()
+        if not colour:
+            raise ValueError("a seat colour is needed")
+        try:
+            count, sides = int(count), int(sides)
+        except (TypeError, ValueError):
+            raise ValueError("count and sides must be numbers")
+        if sides not in self.DICE:
+            raise ValueError("no d%s at this table (have: %s)"
+                             % (sides, ", ".join("d%d" % d for d in self.DICE)))
+        if count < 1 or count > self.MAX_DICE:
+            raise ValueError("roll between 1 and %d dice" % self.MAX_DICE)
+
+        dice = [random.randint(1, sides) for _ in range(count)]
+        entry = {"n": count, "sides": sides, "dice": dice,
+                 "total": sum(dice), "at": time.time(),
+                 # The spec's format, built once here rather than in each
+                 # of the three places that display it.
+                 "label": "%dd%d=%d" % (count, sides, sum(dice))}
+        with self._rolls_lock:
+            log = self._rolls.setdefault(colour, [])
+            log.append(entry)
+            if len(log) > self.ROLL_HISTORY:
+                del log[:len(log) - self.ROLL_HISTORY]
+        self.log.record("dice.roll", colour=colour, roll=entry["label"])
+        self._session_log("roll", colour=colour, name=name,
+                          roll=entry["label"], dice=dice)
+        return entry
+
+    def roll_history(self, colour: str) -> dict:
+        colour = (colour or "").strip().lower()
+        with self._rolls_lock:
+            return {"colour": colour, "rolls": list(self._rolls.get(colour, []))}
+
+    def roll_log(self, limit: int = 60) -> dict:
+        """Every player's rolls, newest first. The GM's record."""
+        seated = {z.colour: p.name
+                  for z in self.config.zones
+                  for p in self.config.players
+                  if p.zone_id == z.id}
+        rows = []
+        with self._rolls_lock:
+            for colour, entries in self._rolls.items():
+                for e in entries:
+                    rows.append({"colour": colour,
+                                 "name": seated.get(colour, ""),
+                                 "label": e["label"], "at": e["at"]})
+        rows.sort(key=lambda r: r["at"], reverse=True)
+        return {"rolls": rows[:max(1, int(limit))]}
+
+    @action()
+    def clear_rolls(self) -> None:
+        """Wipe every roll log. End of session, or a fresh table."""
+        with self._rolls_lock:
+            n = sum(len(v) for v in self._rolls.values())
+            self._rolls = {}
+        self.log.record("dice.cleared", rolls=n)
 
     # ---- player signals (plan doc 3.7) -----------------------------------
 

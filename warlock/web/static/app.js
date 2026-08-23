@@ -95,6 +95,7 @@ function render(s) {
 
   renderPlayerBar(s.signals || []);
   refreshWhispers();
+  refreshRolls();
 
   // Table screen: reflect the device's own state rather than what we last
   // asked for, so the controls cannot drift out of sync with reality.
@@ -409,6 +410,32 @@ function renderPlayerBar(signals) {
       });
     }
     bar.append(pill);
+  });
+}
+
+/* ---------- dice log, GM side (plan doc 3.7) ---------- */
+
+async function refreshRolls() {
+  let data;
+  try { data = await api("/api/rolls"); }
+  catch (e) { return; }
+  const rows = data.rolls || [];
+  const sec = $("#rolls-section");
+  if (!rows.length) { sec.hidden = true; return; }
+  sec.hidden = false;
+  const log = $("#rolls-log");
+  const stamp = rows.length + ":" + (rows[0] || {}).at;
+  if (log.dataset.stamp === stamp) return;
+  log.dataset.stamp = stamp;
+  log.innerHTML = "";
+  rows.forEach(r => {
+    const row = el("div");
+    row.className = "roll-row";
+    const who = el("span");
+    who.style.color = r.colour;
+    who.append(document.createTextNode((r.name || r.colour) + "  "));
+    row.append(who, document.createTextNode(r.label));
+    log.append(row);
   });
 }
 

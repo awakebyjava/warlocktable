@@ -61,7 +61,43 @@
   </form>
 </section>
 
+<!-- Dice (plan doc 3.7). Pad + display are ONE panel, the dice are the
+     other. No modifiers and no d100: the table does not know what game
+     you are playing and should not pretend to. -->
+<section id="dice" class="dice" hidden>
+  <div class="whisper-head">
+    <span class="whisper-who">Dice</span>
+    <button id="dice-close" class="ghost small">Close</button>
+  </div>
+
+  <div class="dice-panels">
+    <div class="pad">
+      <!-- Holds the last result until a digit is pressed, then clears. -->
+      <div id="pad-display" class="pad-display">0</div>
+      <div class="pad-keys">
+        <button class="key" data-d="1">1</button>
+        <button class="key" data-d="2">2</button>
+        <button class="key" data-d="3">3</button>
+        <button class="key" data-d="4">4</button>
+        <button class="key" data-d="5">5</button>
+        <button class="key" data-d="6">6</button>
+        <button class="key" data-d="7">7</button>
+        <button class="key" data-d="8">8</button>
+        <button class="key" data-d="9">9</button>
+        <button id="pad-clear" class="key wide-key">Clear</button>
+        <button class="key" data-d="0">0</button>
+        <button id="pad-history" class="key wide-key">Log</button>
+      </div>
+    </div>
+
+    <div id="dice-shapes" class="shapes"></div>
+  </div>
+
+  <div id="roll-history" class="roll-history" hidden></div>
+</section>
+
 <section id="signals" class="signals" hidden>
+  <button id="sig-dice" class="sig" aria-label="Dice">&#9856;</button>
   <button id="sig-whisper" class="sig" aria-label="Whisper the GM">&#9998;</button>
   <button id="sig-question" class="sig" data-kind="question" aria-label="I have a question">?</button>
   <button id="sig-need" class="sig" data-kind="need" aria-label="I need something">!</button>
@@ -184,6 +220,86 @@ async function signal(kind) {
 document.querySelectorAll(".sig[data-kind]").forEach(b =>
   b.addEventListener("click", () => signal(b.dataset.kind)));
 
+/* ---------- dice ---------- */
+
+const DICE = [4, 6, 8, 10, 12, 20];
+let entry = "";          // what has been typed
+let holding = false;     // display is showing a RESULT, not an entry
+
+function padShow(text) { $("#pad-display").textContent = text; }
+
+function padDigit(d) {
+  // A result stays up until the next digit, then gets out of the way.
+  if (holding) { entry = ""; holding = false; }
+  if (entry.length >= 3) return;           // 100 dice is the cap
+  entry = (entry === "0" ? "" : entry) + d;
+  padShow(entry || "0");
+}
+
+function padClear() { entry = ""; holding = false; padShow("0"); }
+
+function buildShapes() {
+  const box = $("#dice-shapes");
+  box.innerHTML = "";
+  DICE.forEach(sides => {
+    const b = document.createElement("button");
+    b.className = "die";
+    b.textContent = "d" + sides;
+    b.addEventListener("click", () => rollDice(sides));
+    box.append(b);
+  });
+}
+
+async function rollDice(sides) {
+  if (!mine) return;
+  const count = Math.max(1, parseInt(entry || "1", 10));
+  try {
+    const res = await fetch("/api/player/roll", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colour: mine.colour, count: count,
+                             sides: sides, name: mine.name })
+    });
+    const data = await res.json();
+    if (!res.ok) { padShow(data.error || "no"); holding = true; return; }
+    padShow(String(data.total));
+    holding = true;
+    entry = "";
+  } catch (e) { padShow("—"); holding = true; }
+}
+
+async function showRollHistory() {
+  const box = $("#roll-history");
+  if (!box.hidden) { box.hidden = true; return; }
+  try {
+    const res = await fetch("/api/player/rolls?colour=" +
+      encodeURIComponent(mine.colour), { cache: "no-store" });
+    const data = await res.json();
+    box.innerHTML = "";
+    // Newest at the top: the roll you care about is the one you just made.
+    (data.rolls || []).slice().reverse().forEach(r => {
+      const row = document.createElement("div");
+      row.className = "roll-row";
+      row.textContent = r.label;
+      box.append(row);
+    });
+    if (!box.childElementCount) box.textContent = "No rolls yet.";
+    box.hidden = false;
+  } catch (e) { /* leave it closed */ }
+}
+
+document.querySelectorAll(".key[data-d]").forEach(b =>
+  b.addEventListener("click", () => padDigit(b.dataset.d)));
+$("#pad-clear").addEventListener("click", padClear);
+$("#pad-history").addEventListener("click", showRollHistory);
+$("#dice-close").addEventListener("click", () => { $("#dice").hidden = true; });
+$("#sig-dice").addEventListener("click", () => {
+  if (!mine) return;
+  const pane = $("#dice");
+  pane.hidden = !pane.hidden;
+  if (!pane.hidden) { buildShapes(); padClear(); $("#roll-history").hidden = true; }
+});
+
 /* ---------- whisper ---------- */
 
 let whisperSeen = 0;
@@ -266,6 +382,7 @@ $("#claim-again").addEventListener("click", () => {
   mine = null; chosen = null; raised = null;
   document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
   $("#signals").hidden = true;
+  $("#dice").hidden = true;
   closeWhisper();
   $("#claimed").hidden = true;
   $("#claim").hidden = false;

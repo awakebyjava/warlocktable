@@ -629,3 +629,47 @@ button.wide { width: 100%; }
 button.small { padding: 4px 10px; font-size: 10px; }
 .whisper-tab.unread { color: var(--bone); border-color: var(--purple); }
 .whisper-tab.active { background: var(--purple-deep); color: var(--bone); }
+
+/* --- dice (plan doc 3.7) -------------------------------------------------- */
+.dice {
+  position: fixed; inset: 0; z-index: 30;
+  background: var(--bg, #0d0b11);
+  display: flex; flex-direction: column; padding: 14px;
+}
+.dice-panels { display: flex; gap: 14px; flex: 1; min-height: 0; margin-top: 12px; }
+.pad { flex: 1 1 60%; display: flex; flex-direction: column; gap: 10px; }
+
+/* Reads as a calculator on purpose: a display that looks like a readout is
+   understood without a label. */
+.pad-display {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 34px; font-weight: 500; text-align: right;
+  padding: 14px 16px; border-radius: 3px;
+  background: #0a0810; color: var(--purple);
+  border: 1px solid var(--line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; }
+.key {
+  font-family: 'IBM Plex Mono', monospace; font-size: 20px;
+  min-height: 52px; padding: 0;
+  background: var(--panel, #17141c); color: var(--bone);
+  border: 1px solid var(--line); border-radius: 3px;
+}
+.wide-key { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-dim); }
+
+.shapes { flex: 1 1 40%; display: grid; grid-template-columns: 1fr; gap: 8px; align-content: start; }
+.die {
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px;
+  min-height: 52px; padding: 0;
+  background: var(--panel, #17141c); color: var(--bone);
+  border: 1px solid var(--purple-deep); border-radius: 3px;
+}
+.die:active { background: var(--purple-deep); }
+
+.roll-history {
+  margin-top: 12px; max-height: 34vh; overflow-y: auto;
+  border-top: 1px solid var(--line); padding-top: 10px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: var(--bone-mid);
+}
+.roll-row { padding: 5px 2px; border-bottom: 1px solid rgba(255,255,255,.05); }
