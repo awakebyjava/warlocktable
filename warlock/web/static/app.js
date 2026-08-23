@@ -94,6 +94,7 @@ function render(s) {
   });
 
   renderPlayerBar(s.signals || []);
+  refreshWhispers();
 
   // Table screen: reflect the device's own state rather than what we last
   // asked for, so the controls cannot drift out of sync with reality.
@@ -410,6 +411,101 @@ function renderPlayerBar(signals) {
     bar.append(pill);
   });
 }
+
+/* ---------- whispers, GM side (plan doc 3.7) ---------- */
+
+// Which thread is open, and how many messages we had last time we looked.
+// The unread mark is per thread and local to this panel: the table does not
+// track "read", because two GMs on two devices would disagree about it and
+// neither would be wrong.
+let waColour = null;
+let waSeen = {};
+let waThreads = [];
+
+async function refreshWhispers() {
+  let data;
+  try { data = await api("/api/whispers"); }
+  catch (e) { return; }
+  waThreads = data.threads || [];
+  const sec = $("#whisper-section");
+  if (!waThreads.length) { sec.hidden = true; return; }
+  sec.hidden = false;
+
+  let unread = 0;
+  waThreads.forEach(t => {
+    const seen = waSeen[t.colour] || 0;
+    // Only the GM's own messages count as read on arrival; a player's
+    // message is unread until the thread is opened.
+    if (t.colour !== waColour && t.messages.length > seen &&
+        t.last_from === "player") unread++;
+  });
+  $("#whisper-count").textContent = unread ? unread + " waiting" : "";
+
+  const key = waThreads.map(t => t.colour + ":" + t.messages.length).join(",")
+              + "|" + waColour;
+  const tabs = $("#whisper-tabs");
+  if (tabs.dataset.key !== key) {
+    tabs.dataset.key = key;
+    tabs.innerHTML = "";
+    waThreads.forEach(t => {
+      const b = el("button");
+      b.className = "whisper-tab"
+        + (t.colour === waColour ? " active" : "")
+        + ((t.messages.length > (waSeen[t.colour] || 0) &&
+            t.last_from === "player" && t.colour !== waColour) ? " unread" : "");
+      b.style.setProperty("--seat", t.colour);
+      b.append(document.createTextNode((t.name || t.colour)));
+      b.addEventListener("click", () => {
+        waColour = t.colour;
+        waSeen[t.colour] = t.messages.length;
+        tabs.dataset.key = "";
+        renderGmThread();
+      });
+      tabs.append(b);
+    });
+  }
+  if (waColour) {
+    waSeen[waColour] = (waThreads.find(t => t.colour === waColour) || {})
+      .messages?.length || 0;
+  }
+  renderGmThread();
+}
+
+function renderGmThread() {
+  const log = $("#gm-whisper-log");
+  const t = waThreads.find(x => x.colour === waColour);
+  if (!t) { log.innerHTML = ""; return; }
+  const stamp = t.colour + ":" + t.messages.length;
+  if (log.dataset.stamp === stamp) return;
+  log.dataset.stamp = stamp;
+  log.innerHTML = "";
+  t.messages.forEach(m => {
+    const row = el("div");
+    // Mirrored from the player's view: the GM's own words sit on the right
+    // there too, so a screenshared panel does not confuse anyone.
+    row.className = "bubble " + (m.from === "gm" ? "from-me" : "from-gm");
+    row.append(document.createTextNode(m.text));
+    log.append(row);
+  });
+  log.scrollTop = log.scrollHeight;
+}
+
+$("#gm-whisper-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const box = $("#gm-whisper-text");
+  const text = box.value.trim();
+  if (!text || !waColour) return;
+  box.value = "";
+  try {
+    await api("/api/whispers/reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colour: waColour, text: text })
+    });
+    $("#gm-whisper-log").dataset.stamp = "";
+    refreshWhispers();
+  } catch (e) { box.value = text; }
+});
 
 const OVERLAY_LABEL = { none: "No Overlay", grid: "Square Grid", hex: "Hex Grid" };
 

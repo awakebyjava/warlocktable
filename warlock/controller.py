@@ -59,6 +59,17 @@ class Controller:
         self._signals = {}                    # colour -> {kind, name, at}
         self._signals_lock = threading.Lock()
 
+        # Whispers: one private thread per player, keyed by seat colour
+        # (plan doc 3.7). There is no public channel and there will not be
+        # one -- a player's thread is between them and the GM.
+        #
+        # In memory, but ALSO written to the session log while recording,
+        # which is a decision with a consequence: private messages end up
+        # on the SD card. Recorded in the spec so it is a choice rather
+        # than something discovered later.
+        self._whispers = {}                   # colour -> [ {from, text, at} ]
+        self._whispers_lock = threading.Lock()
+
         # Per-subsystem health, for the panel status strip and the TV status
         # screen (plan doc 5.1). A subsystem going unhealthy must never stop
         # the others — see _try below.
@@ -136,6 +147,92 @@ class Controller:
             threads.append(t)
         for t in threads:
             t.join(timeout=self.FANOUT_JOIN_S)
+
+    # ---- session log: what happened, beside the recording ----------------
+
+    def _session_log(self, kind: str, **fields) -> None:
+        """Write one event to the recording's companion log, if recording.
+
+        Never raises and never reports: play carries on whether or not the
+        microphone is running, and an event that cannot be written is not a
+        reason to fail the thing that produced it.
+        """
+        mic = self._mic()
+        logger = getattr(mic, "log_event", None)
+        if not callable(logger):
+            return
+        try:
+            logger(kind, **fields)
+        except Exception:      # noqa: BLE001
+            pass
+
+    # ---- whispers (plan doc 3.7) -----------------------------------------
+
+    WHISPER_MAX = 200          # per thread; an evening, not a lifetime
+
+    def whisper(self, colour: str, text: str, sender: str = "player",
+                name: str = "") -> dict:
+        """Add a message to one player's thread. Both directions.
+
+        Keyed by seat colour because that is the identity the phone
+        already holds and the one the player can see lit in front of them.
+        Worth being plain about the limit: anyone who knows a colour could
+        read that thread. On a LAN table with six people in the room that
+        is not a threat model, but it is not privacy either, and it should
+        not be described as such.
+        """
+        colour = (colour or "").strip().lower()
+        text = (text or "").strip()
+        if not colour:
+            raise ValueError("a seat colour is needed")
+        if not text:
+            raise ValueError("an empty whisper is not a whisper")
+        if sender not in ("player", "gm"):
+            raise ValueError("sender must be player or gm")
+        text = text[:500]
+        msg = {"from": sender, "text": text, "at": time.time()}
+        with self._whispers_lock:
+            thread = self._whispers.setdefault(colour, [])
+            thread.append(msg)
+            # Trim from the front: a long evening should cost memory that
+            # stops growing, and the oldest line is the one nobody rereads.
+            if len(thread) > self.WHISPER_MAX:
+                del thread[:len(thread) - self.WHISPER_MAX]
+            out = {"colour": colour, "messages": list(thread)}
+        self.log.record("whisper", colour=colour, sender=sender,
+                        chars=len(text))
+        self._session_log("whisper", colour=colour, sender=sender,
+                          name=name, text=text)
+        return out
+
+    def whisper_thread(self, colour: str) -> dict:
+        colour = (colour or "").strip().lower()
+        with self._whispers_lock:
+            return {"colour": colour,
+                    "messages": list(self._whispers.get(colour, []))}
+
+    def whisper_threads(self) -> dict:
+        """Every thread, for the GM. Players never call this."""
+        seated = {z.colour: p.name
+                  for z in self.config.zones
+                  for p in self.config.players
+                  if p.zone_id == z.id}
+        with self._whispers_lock:
+            return {"threads": [
+                {"colour": c,
+                 "name": seated.get(c, ""),
+                 "messages": list(msgs),
+                 "last_from": msgs[-1]["from"] if msgs else None,
+                 "last_at": msgs[-1]["at"] if msgs else 0}
+                for c, msgs in sorted(self._whispers.items())]}
+
+    @action()
+    def clear_whispers(self) -> None:
+        """Wipe every thread. For the end of a session, or a fresh table."""
+        with self._whispers_lock:
+            n = len(self._whispers)
+            self._whispers = {}
+        self.log.record("whispers_cleared", threads=n)
 
     # ---- player signals (plan doc 3.7) -----------------------------------
 
@@ -256,6 +353,7 @@ class Controller:
         scene = self.config.scenes[scene_name]
         self.current_scene = scene
         self.log.record("scene.apply", name=scene_name)
+        self._session_log("scene", name=scene_name)
         # Each subsystem is attempted independently and CONCURRENTLY: a dead
         # Pixelblaze must not stop the soundscape (plan doc 5.2), and the
         # soundscape must not wait half a second for the lights (5.7).
@@ -275,6 +373,8 @@ class Controller:
         interruption = self.config.interruptions[interruption_name]
         self.log.record("interruption.start", name=interruption_name,
                          reverts_to=self.current_scene.name if self.current_scene else None)
+        self._session_log("card", name=interruption_name,
+                          over=self.current_scene.name if self.current_scene else None)
 
         jobs = []
         if interruption.lights:
@@ -551,10 +651,15 @@ class Controller:
         """
         self._try("display", self.display.set_overlay, mode)
 
-    @action(ParamSpec("player", "str"), ParamSpec("text", "str"))
-    def whisper(self, player: str, text: str) -> None:
-        self._supersede()
-        self.log.record("whisper", player=player, text=text)
+    # `whisper` used to be a stub @action here that logged a line and
+    # delivered nothing. The real implementation is further up, is not an
+    # action, and is reached through /api/whispers/reply -- a private
+    # message to one player has no business being a generic button in the
+    # GM's action vocabulary, next to "set brightness".
+    #
+    # It also silently SHADOWED the real one: defined later in the class,
+    # it simply won, and every whisper call hit the stub. Caught by tests
+    # before it shipped, and worth the note so nobody re-adds it.
 
     # ---- system ------------------------------------------------------
 

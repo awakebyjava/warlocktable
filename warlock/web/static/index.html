@@ -79,6 +79,18 @@
 
   <!-- Initiative (plan doc 3.9). Player turns only. Sits directly above
        Seats because the order is built by tapping the seats below it. -->
+  <!-- Whispers (plan doc 3.7). One thread per player, private to that
+       player. There is no public channel by design. -->
+  <section id="whisper-section" hidden>
+    <h2>Whispers <span class="muted" id="whisper-count"></span></h2>
+    <div id="whisper-tabs" class="check-row"></div>
+    <div id="gm-whisper-log" class="whisper-log"></div>
+    <form id="gm-whisper-form" class="whisper-form" autocomplete="off">
+      <input id="gm-whisper-text" maxlength="500" placeholder="Reply…" />
+      <button id="gm-whisper-send" type="submit">Send</button>
+    </form>
+  </section>
+
   <section id="initiative-section">
     <h2>Initiative <span class="muted" id="init-state"></span></h2>
 

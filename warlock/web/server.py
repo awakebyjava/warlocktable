@@ -129,6 +129,15 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self.controller.initiative_report())
         elif path == "/api/signals":
             self._send_json(self.controller.signal_report())
+        elif path == "/api/whispers":
+            # Every thread. The GM panel's view -- players use
+            # /api/player/whisper?colour=..., which returns only theirs.
+            self._send_json(self.controller.whisper_threads())
+        elif path.startswith("/api/player/whisper"):
+            from urllib.parse import parse_qs
+            query = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            self._send_json(self.controller.whisper_thread(
+                (query.get("colour") or [""])[0]))
         elif path == "/api/status":
             self._send_json(self._status())
         elif path == "/api/vocabulary":
@@ -282,6 +291,39 @@ class _Handler(BaseHTTPRequestHandler):
         # is the GM's vocabulary and anything routed through it shows up as
         # a button on the operator panel. A player raising a hand is not a
         # thing the GM should be able to do on their behalf.
+        if path == "/api/player/whisper":
+            body = self._read_json()
+            try:
+                thread = self.controller.whisper(
+                    colour=str(body.get("colour", "")),
+                    text=str(body.get("text", "")),
+                    sender="player",
+                    name=str(body.get("name", "")))
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json(thread)
+            return
+
+        if path == "/api/whispers/reply":
+            body = self._read_json()
+            try:
+                thread = self.controller.whisper(
+                    colour=str(body.get("colour", "")),
+                    text=str(body.get("text", "")),
+                    sender="gm")
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json(thread)
+            return
+
         if path == "/api/player/signal":
             body = self._read_json()
             try:

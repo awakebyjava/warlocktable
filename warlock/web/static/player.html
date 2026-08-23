@@ -46,7 +46,23 @@
      seat: there is nobody to signal as until the table knows who you are.
      Deliberately unlabelled beyond the marks themselves — everyone at a
      table already knows what a raised hand means. -->
+<!-- Whisper (plan doc 3.7): a conversation with the GM and nobody else.
+     Its own pane rather than a strip on the seat screen, because it is the
+     one thing here you actually read. -->
+<section id="whisper" class="whisper" hidden>
+  <div class="whisper-head">
+    <span id="whisper-who" class="whisper-who">&nbsp;</span>
+    <button id="whisper-close" class="ghost small">Close</button>
+  </div>
+  <div id="whisper-log" class="whisper-log"></div>
+  <form id="whisper-form" class="whisper-form" autocomplete="off">
+    <input id="whisper-text" maxlength="500" placeholder="Whisper the GM…" />
+    <button id="whisper-send" type="submit">Send</button>
+  </form>
+</section>
+
 <section id="signals" class="signals" hidden>
+  <button id="sig-whisper" class="sig" aria-label="Whisper the GM">&#9998;</button>
   <button id="sig-question" class="sig" data-kind="question" aria-label="I have a question">?</button>
   <button id="sig-need" class="sig" data-kind="need" aria-label="I need something">!</button>
   </section>
@@ -165,8 +181,77 @@ async function signal(kind) {
   } catch (e) { /* the table will be there next tap */ }
 }
 
-document.querySelectorAll(".sig").forEach(b =>
+document.querySelectorAll(".sig[data-kind]").forEach(b =>
   b.addEventListener("click", () => signal(b.dataset.kind)));
+
+/* ---------- whisper ---------- */
+
+let whisperSeen = 0;
+let whisperTimer = null;
+
+function renderWhisper(msgs) {
+  const log = $("#whisper-log");
+  if (msgs.length === whisperSeen && log.childElementCount) return;
+  whisperSeen = msgs.length;
+  log.innerHTML = "";
+  msgs.forEach(m => {
+    const row = document.createElement("div");
+    row.className = "bubble " + (m.from === "gm" ? "from-gm" : "from-me");
+    row.textContent = m.text;
+    log.append(row);
+  });
+  // Newest message visible without scrolling for it.
+  log.scrollTop = log.scrollHeight;
+}
+
+async function pollWhisper() {
+  if (!mine || $("#whisper").hidden) return;
+  try {
+    const res = await fetch("/api/player/whisper?colour=" +
+      encodeURIComponent(mine.colour), { cache: "no-store" });
+    const data = await res.json();
+    renderWhisper(data.messages || []);
+  } catch (e) { /* the next tick will do */ }
+}
+
+function openWhisper() {
+  if (!mine) return;
+  $("#whisper").hidden = false;
+  $("#whisper-who").textContent = "Whispering the GM";
+  whisperSeen = -1;
+  pollWhisper();
+  if (!whisperTimer) whisperTimer = setInterval(pollWhisper, 3000);
+}
+
+function closeWhisper() {
+  $("#whisper").hidden = true;
+  if (whisperTimer) { clearInterval(whisperTimer); whisperTimer = null; }
+}
+
+$("#sig-whisper").addEventListener("click", () => {
+  if ($("#whisper").hidden) openWhisper(); else closeWhisper();
+});
+$("#whisper-close").addEventListener("click", closeWhisper);
+
+$("#whisper-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const box = $("#whisper-text");
+  const text = box.value.trim();
+  if (!text || !mine) return;
+  box.value = "";
+  try {
+    const res = await fetch("/api/player/whisper", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colour: mine.colour, text: text, name: mine.name })
+    });
+    const data = await res.json();
+    if (data.messages) { whisperSeen = -1; renderWhisper(data.messages); }
+  } catch (e) {
+    // Put it back rather than losing what they typed.
+    box.value = text;
+  }
+});
 
 // The table drops a signal after 60s. Clear the lit state at the same time
 // so the button never claims to be raised when the GM can no longer see it.
@@ -181,6 +266,7 @@ $("#claim-again").addEventListener("click", () => {
   mine = null; chosen = null; raised = null;
   document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
   $("#signals").hidden = true;
+  closeWhisper();
   $("#claimed").hidden = true;
   $("#claim").hidden = false;
   $("#claim-msg").textContent = " ";

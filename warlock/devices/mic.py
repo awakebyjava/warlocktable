@@ -28,6 +28,8 @@ politely and only escalates if that fails.
 
 from __future__ import annotations
 
+import io
+import json
 import os
 import shutil
 import signal
@@ -129,6 +131,41 @@ class MicRecorder:
                             device=self.device, free_gb=round(free / 1e9, 1))
             return self.status()
 
+    def log_event(self, kind: str, **fields) -> bool:
+        """Append one event to this recording's companion log.
+
+        Rolls, whispers, cards and scenes go in a `.jsonl` beside the WAV,
+        under the matching session name (plan doc 3.7). Each carries `t`,
+        **an offset in seconds from the moment recording started** -- not a
+        wall clock. The offset is the entire point: it is what lets a
+        transcript line "3d6 -> 11" up against the moment somebody groaned.
+
+        Returns False when nothing is recording, which is the normal case
+        and not a failure -- play happens all evening and only the part
+        under the microphone gets written down.
+        """
+        with self._lock:
+            if self._proc is None or not self._path:
+                return False
+            offset = round(time.monotonic() - self._started, 2)
+            path = os.path.splitext(self._path)[0] + ".jsonl"
+
+        entry = {"t": offset, "kind": kind}
+        entry.update(fields)
+        try:
+            # Outside the lock: stop() takes it to shut arecord down
+            # cleanly, and a slow disk must not delay that.
+            with io.open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry) + "\n")
+        except OSError as exc:
+            # Once, not per event. A full disk would otherwise fill the
+            # journal with the news that it cannot write to the disk.
+            if not getattr(self, "_log_broken", False):
+                self._log_broken = True
+                self.log.record("mic.session_log_failed", error=str(exc))
+            return False
+        return True
+
     def stop(self) -> dict:
         with self._lock:
             proc, path = self._proc, self._path
@@ -226,6 +263,13 @@ class FakeMicRecorder:
             self.log.record("mic.recording_stopped",
                             seconds=round(time.monotonic() - self._started, 1))
         return self.status()
+
+    def log_event(self, kind: str, **fields) -> bool:
+        """Same contract as the real one: True only while recording."""
+        if not self._on:
+            return False
+        self.log.record("mic.session_event", event=kind)
+        return True
 
     def close(self) -> None:
         self.stop()
