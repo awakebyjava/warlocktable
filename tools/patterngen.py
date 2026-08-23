@@ -41,6 +41,8 @@ anything is replaced.
 from __future__ import annotations
 
 import argparse
+import colorsys
+import json
 import os
 import textwrap
 from typing import List, Optional, Tuple
@@ -1077,6 +1079,42 @@ for _name, _a in AURAS.items():
 # spend on patterns people actually see.
 
 
+# idle is hand-written rather than generated, so its palette cannot be read
+# off a Pattern. These are the H_DEEP/H_NEON and S_DEEP/S_NEON constants
+# from patterns/idle.js -- if that file's palette changes, change these.
+IDLE_PALETTE = ((0.735, 0.800), (1.00, 0.68))
+
+# How far toward the LIT end of a scene's range to sample. The room should
+# read as the colour the table looks like when something is happening, not
+# the near-black it sits at between events.
+LIT_BIAS = 0.65
+
+
+def scene_colours() -> dict:
+    """Scene name -> [r, g, b], for the Govee accent strips (plan doc 3.13).
+
+    DERIVED, never configured. A scene names a pattern, and it was not
+    obvious the table could know what a pattern looks like -- but the
+    palette is right here, so the room and the table read the same source
+    and cannot drift apart. Retune a scene and the room follows without
+    anyone remembering to.
+    """
+    out = {}
+    for name, pat in SCENES.items():
+        (h0, h1, _), (s0, s1, _) = pat.palette.hue, pat.palette.sat
+        out[name.lower()] = _rgb(h0, h1, s0, s1)
+    (h0, h1), (s0, s1) = IDLE_PALETTE
+    out["idle"] = _rgb(h0, h1, s0, s1)
+    return out
+
+
+def _rgb(h0, h1, s0, s1):
+    h = (h0 * (1 - LIT_BIAS) + h1 * LIT_BIAS) % 1.0
+    s = min(1.0, max(0.0, s0 * (1 - LIT_BIAS) + s1 * LIT_BIAS))
+    r, g, b = colorsys.hsv_to_rgb(h, s, 1.0)
+    return [int(round(r * 255)), int(round(g * 255)), int(round(b * 255))]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1095,6 +1133,13 @@ def main() -> int:
 
     if not args.list:
         os.makedirs(OUT_DIR, exist_ok=True)
+        # Emitted alongside the patterns, because it is derived from them.
+        cpath = os.path.join(REPO, "data", "scene-colours.json")
+        os.makedirs(os.path.dirname(cpath), exist_ok=True)
+        with open(cpath, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(scene_colours(), fh, indent=2, sort_keys=True)
+            fh.write("\n")
+        print("  wrote data/scene-colours.json")
 
     total = 0
     everything = dict(SCENES)

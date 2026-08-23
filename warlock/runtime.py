@@ -23,6 +23,17 @@ from .eventlog import EventLog
 LAST_GOOD_SUFFIX = ".last-good"
 
 
+def scene_colours_path() -> str:
+    """Where the derived scene colours live.
+
+    Written by tools/patterngen.py beside the patterns, because it is
+    derived from them. Deployed with the code rather than living in
+    /var/lib: it is generated output, not operator data.
+    """
+    return os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data", "scene-colours.json")
+
+
 def resolve_logfile(args) -> Optional[str]:
     """Where the event log goes.
 
@@ -280,7 +291,26 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     else:
         display = FakeDisplayDevice(log)
 
+    # Govee accent strips (plan doc 3.13). Follows --real-lights: if the
+    # table's own lighting is real, the room's is too. Configuring no
+    # devices disables it, which is the default and the safe one -- the
+    # alternative is discovering every Govee in the house.
+    if getattr(args, "real_lights", False) and config.govee_devices:
+        from .devices.govee import GoveeAccent
+        govee = GoveeAccent(log, device_ids=config.govee_devices,
+                            colours_path=scene_colours_path(),
+                            brightness=config.govee_brightness,
+                            static_ips=config.govee_static_ips)
+        govee.start()
+    else:
+        from .devices.govee import FakeGoveeAccent
+        govee = FakeGoveeAccent(log)
+
     controller = Controller(config, lights, audio, display, log)
+    # Not a constructor argument: every existing caller builds a Controller
+    # with four devices, and the accent lights are genuinely optional in a
+    # way lights, audio and display are not.
+    controller.govee = govee
 
     store = ConfigStore(config, os.path.abspath(args.config), log,
                         backup_dir=os.path.join(

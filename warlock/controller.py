@@ -79,7 +79,13 @@ class Controller:
         # Per-subsystem health, for the panel status strip and the TV status
         # screen (plan doc 5.1). A subsystem going unhealthy must never stop
         # the others — see _try below.
-        self.subsystem_ok = {"lights": True, "audio": True, "display": True}
+        self.subsystem_ok = {"lights": True, "audio": True, "display": True,
+                             "govee": True}
+
+        # Govee accent strips (plan doc 3.13). Assigned by runtime.py after
+        # construction; a fake stands in when they are not configured, so
+        # nothing here has to check whether they exist.
+        self.govee = None
 
     # ---- internal: fault isolation (plan doc 5.2) ------------------------
 
@@ -464,6 +470,11 @@ class Controller:
                  scene.transition.crossfade_s)]
         if scene.background:
             jobs.append(("display", self.display.set_background, scene.background))
+        if self.govee is not None:
+            # Scenes only, never cards: an Aura is 4-9s and a UDP command
+            # with no acknowledgement is not something to hang a sting on
+            # (plan doc 3.13).
+            jobs.append(("govee", self.govee.set_scene, scene_name))
         self._fanout(*jobs)
 
     @action(ParamSpec("interruption_name", "str",
@@ -544,6 +555,9 @@ class Controller:
                 if scene_to_restore.background:
                     jobs.append(("display", self.display.set_background,
                                  scene_to_restore.background))
+                if self.govee is not None:
+                    jobs.append(("govee", self.govee.set_scene,
+                                 scene_to_restore.name))
                 self._fanout(*jobs)
             else:
                 self.go_idle()
@@ -793,6 +807,9 @@ class Controller:
             jobs.append(("lights", self.lights.set_pattern, idle.lights))
         if idle.background:
             jobs.append(("display", self.display.set_background, idle.background))
+        if self.govee is not None:
+            jobs.append(("govee", self.govee.set_scene,
+                         self.config.idle_scene_name))
         self._fanout(*jobs)
 
     # ---- zones (plan doc 4.7) --------------------------------------------

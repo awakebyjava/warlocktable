@@ -189,6 +189,15 @@ class Config:
     # /home/pi/Documents/MagicTarot/... in every single card branch.
     audio_paths: List[str] = field(default_factory=list)
 
+    # Govee accent strips (plan doc 3.13). Device IDS, not IPs: those are
+    # DHCP and move. An empty list disables the whole thing, which is the
+    # right default -- discovery would otherwise find every Govee device in
+    # the house and the table has no business reaching into other rooms.
+    govee_devices: List[str] = field(default_factory=list)
+    govee_brightness: int = 100
+    # Only for routers that drop multicast; discovery is the normal path.
+    govee_static_ips: List[str] = field(default_factory=list)
+
     # Where to look for display artwork. Scenes reference a background by
     # bare name ("forest.png"); these directories resolve it to a file.
     # Same split as audio (plan doc 3.3): finished renders are media, they
@@ -328,6 +337,9 @@ def load_config(path: str) -> Config:
             "recording_dir", "/var/lib/warlocktable/recordings"),
         fallback_interruption_s=float(
             raw.get("settings", {}).get("fallback_interruption_s", 5.0)),
+        govee_devices=list(raw.get("settings", {}).get("govee_devices", [])),
+        govee_brightness=int(raw.get("settings", {}).get("govee_brightness", 100)),
+        govee_static_ips=list(raw.get("settings", {}).get("govee_static_ips", [])),
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
         background_paths=list(raw.get("settings", {}).get("background_paths", [])),
         audio_device=raw.get("settings", {}).get("audio_device"),
@@ -361,6 +373,9 @@ def to_dict(config: Config) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
 
     out["settings"] = {
+        "govee_devices": list(config.govee_devices),
+        "govee_brightness": config.govee_brightness,
+        "govee_static_ips": list(config.govee_static_ips),
         "audio_paths": list(config.audio_paths),
         "background_paths": list(config.background_paths),
         "audio_device": config.audio_device,
