@@ -208,6 +208,74 @@ The table has a **character** — a personality expressed through a voice that c
 
 - **To expand:** what drives the display (a fullscreen viewer? a custom app?), whether content is oriented to the GM's seat or orientation-neutral, and how visuals stay in sync with lights and audio.
 
+#### Display redesign *(specced 2026-08-23, not built)*
+
+Today the screen shows one finished PNG. Overlays are not overlays: the
+grid and hex variants are **separate pre-rendered files**
+(`forest_3840x2160_grid.png`), chosen by filename. That works for artwork
+shipped with the table and not at all for anything else.
+
+Wanted:
+
+1. **Grid and hex as real overlays**, drawn over whatever is on screen
+   rather than baked into a second copy of every image.
+2. **Any uploaded image usable as a battle map**, fitted to the display
+   with sensible stretch/crop rules.
+3. **A turn indicator** — whose turn it is, on the screen.
+4. **An effects overlay** — running auras, and anything the GM wants to
+   put up as an ongoing effect.
+
+##### Measured first, because it decides the design
+
+Compositing a 4K frame on the Pi, timed 2026-08-23:
+
+| Step | Time |
+|---|---|
+| open + decode a 4K background | 786 ms |
+| resize to 4K | 60 ms |
+| draw a grid (59 lines) | 74 ms |
+| alpha composite | 254 ms |
+| **save PNG, compress_level=1** | **2,256 ms** |
+| **save PNG, compress_level=6** | **12,637 ms** |
+| **save JPEG, q88** | **380 ms** |
+
+**Write JPEG, not PNG.** PNG encoding at this size is 6x slower at its
+*fastest* setting and thirty times slower at the default — twelve seconds
+to change what is on screen is not a feature, it is a fault. feh reads
+JPEG perfectly well. The status screen can stay PNG: it is rendered rarely
+and has flat colour that PNG handles better.
+
+**Cache the base composite.** Background decode is 786ms and the
+background changes far less often than a turn indicator does. Hold the
+composited background+grid in memory, paste the HUD onto a copy, save.
+That puts a turn change at roughly **400ms**, which is the floor without
+abandoning the one-file-and-feh model.
+
+##### The trap: a grid that lies
+
+A grid overlay is only useful if its scale is *meaningful*. If a battle
+map is stretched to fill a 16:9 screen and a grid is laid over it, the
+grid no longer matches the map's own squares, and every distance measured
+on it is wrong. That is worse than no grid, because it looks authoritative.
+
+So: **grid size and offset must be adjustable**, and fitting must default
+to preserving aspect ratio. Stretch should exist but be an explicit
+choice, and probably should disable the grid when used.
+
+##### Open questions
+
+- **Fit mode per image or global?** A portrait map and a 16:9 render want
+  different answers. Likely per-image, remembered.
+- **Does the turn indicator earn its cost?** The table's own LEDs already
+  flash the active seat, and every HUD change costs ~400ms and a full
+  redraw. It may be that the lights are the better channel and the screen
+  should carry only what they cannot.
+- **What is an "effect", concretely?** An aura is a card the table already
+  knows. A GM-authored effect is free text, which is a different feature
+  with an editor attached.
+- **Where do uploaded maps come from?** §4.5 step 3 (upload through the
+  panel) is unbuilt, so today a map arrives by rsync like everything else.
+
 ### 3.7 Control Surfaces (Two-Tier Control)
 The table is controlled through two deliberately separate surfaces:
 
@@ -1772,6 +1840,12 @@ Stand up the core software on the Pi once hardware is trusted.
     `npc_binding` stays defined in the spec and null on every card. The
     nine Person cards work as announcements without it; binding each to a
     named NPC was speculative and nobody has wanted it.
+- [ ] **Display redesign** (§3.6) — real grid/hex overlays, battle maps
+  with fit/crop rules, a turn indicator and an effects overlay. Measured:
+  write JPEG rather than PNG or a redraw costs 2-12 seconds.
+- [ ] **Playing cards** — a deck of MIFARE Ultralight tags. Effect
+  undecided; likely suit and rank combining, with four suit patterns and
+  rank as a parameter rather than 52 patterns. NOT the tarot suits.
 - [ ] Phone-tag NFC support
 - [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
 - [x] **Zone map + per-zone lighting** — built 2026-08-21 (§4.7). The perimeter divides between the GM and 1–7 players, each seat lit its own colour; `patterns/zones.js` is on the device and confirmed working. **Unblocks player phones.**
