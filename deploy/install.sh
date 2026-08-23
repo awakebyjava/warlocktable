@@ -82,6 +82,11 @@ cp -r "$SRC/patterns"       "$CODE_DIR/" 2>/dev/null || true
 # branding/ is small and versioned with the code (unlike backgrounds/,
 # which is media and syncs separately) - the status screen needs it.
 cp -r "$SRC/branding"       "$CODE_DIR/" 2>/dev/null || true
+# Derived data the code reads at runtime. NOT $DATA_DIR: that is
+# operator-owned and never overwritten, whereas this is generated output
+# that must travel with the code it was generated from.
+install -d -m 755 "$CODE_DIR/data"
+cp    "$SRC/data/scene-colours.json" "$CODE_DIR/data/" 2>/dev/null || true
 cp    "$SRC/run_service.py" "$CODE_DIR/"
 cp    "$SRC/run_table.py"   "$CODE_DIR/"
 find "$CODE_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
