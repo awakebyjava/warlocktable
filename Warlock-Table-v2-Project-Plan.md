@@ -617,21 +617,44 @@ happening in the room, with the table entirely unaffected.**
 Devices are addressed in **named groups** rather than individually — a
 scene wants to say "room" and "under-table", not recite MAC addresses.
 
-#### Open questions, to answer before building
+#### Scope, settled 2026-08-23
 
-1. **Where does the colour come from?** A scene names a Pixelblaze
-   *pattern*, not a colour, and the table cannot ask a running pattern what
-   it looks like. So either every scene carries an explicit Govee colour in
-   config, or the Govee lights take a single per-scene colour chosen by
-   hand. Leaning explicit-per-scene: it is one more field and it is honest.
-2. **Do cards drive it too, or only scenes?** An Aura is 4–9 seconds; the
-   room flaring for the Tower would be striking, or it would be exhausting.
-3. **How often to reconcile?** UDP gives no acknowledgement, so a lost
-   packet leaves the room out of step until something else changes it. A
-   periodic `devStatus` and re-send is the fix, and its interval is a
-   trade against network chatter.
-4. **What happens at idle, and at shutdown?** Does the room stay lit, fade
-   to something low, or go out?
+**Accent strips that mirror the general colour of the table lights.** Solid
+colour and brightness. That is the whole feature.
+
+**Scenes only — not cards.** An Aura runs 4–9 seconds and the room flaring
+for the Tower was tempting, but a UDP command with no acknowledgement, to a
+device whose own response time is unknown, is not something to hang a
+four-second sting on. It would also be exhausting over an evening. Scenes
+change rarely and hold, which is exactly what this suits.
+
+**The colour is DERIVED, not configured.** A scene names a pattern, and it
+was not obvious the table could know what that pattern looks like — but it
+can, because `tools/patterngen.py` holds every scene's palette. Taking the
+hue and saturation weighted toward the lit end of each range gives:
+
+| Scene | Colour |
+|---|---|
+| Forest | `#7AFF14` |
+| Island | `#5FFAFF` |
+| Mountain | `#FF9152` |
+| Plains | `#FFBB35` |
+| Swamp | `#CD0CFF` |
+| idle | `#BB35FF` *(from `patterns/idle.js`'s own constants)* |
+
+So no new config field, no colours picked by hand, and **no way for the
+room to drift out of step with the table** — both read the same source. If
+a scene's palette is retuned, the room follows without anyone remembering
+to update it. Emitting these from the generator alongside the patterns is
+the obvious implementation.
+
+#### Still open
+
+- **How often to reconcile?** UDP has no acknowledgement, so a dropped
+  packet leaves the room out of step until the next scene change. A
+  periodic `devStatus` and re-send fixes it; the interval trades against
+  network chatter.
+- **What does the room do at shutdown?** Stay lit, fade down, or go out.
 
 ### 3.12 (Future) Virtual Desktop / Remote Access
 - Possibly add a second computer running a virtual desktop.
