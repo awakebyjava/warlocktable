@@ -490,11 +490,24 @@ same. Two consequences, both learned the hard way:
 - **Cheaper operations barely help.** Removing *every* division and
   `floor()` from the inner loops — the wrap became two compares, widths
   became precomputed reciprocals — bought 3–20%, not the 2–3x predicted.
-- **Fewer iterations is the only real lever.** Aura-Star tests all 764
+- **Fewer iterations is the only real lever.** Aura-Star tested all 764
   pixels against all 9 blooms, 6,876 iterations, to light about 72 pixels:
-  over 98% of that work produces nothing. The fix is to scatter rather
-  than gather — walk each bloom's own span in `beforeRender` into a
-  per-pixel buffer, and let `render` do one lookup. Not built yet.
+  over 98% of that work produced nothing. **Fixed 2026-08-23 by scattering
+  rather than gathering** — each bloom walks its own span in
+  `beforeRender` into a ring buffer, and `render` does one lookup:
+
+  | Pattern | Before | After |
+  |---|---|---|
+  | Aura-Star (9 blooms, 4 wide) | 11.3 | **33.6** |
+  | idle (6 eyes, 26 wide, + surge) | 10.5 | **23.8** |
+  | Forest (3 blooms, 70 wide) | 15.1 | **22.8** |
+
+  Narrow blooms win most, because clearing the buffer is a fixed 764
+  writes and wide blooms had less waste to remove. `vmerr` 0 throughout;
+  the extra buffer costs ~820 memory units against 9,444 free.
+
+  **The op-budget model above predicted this and the two cheaper fixes it
+  did not.** Worth trusting next time: count iterations, not operations.
 
 Also fixed: a bloom's envelope was evaluated *per pixel* rather than per
 bloom. Correct to hoist, but it saved almost nothing, which an A/B against
