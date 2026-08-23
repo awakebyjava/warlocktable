@@ -310,6 +310,86 @@ Three front doors, all on the same server:
   Encoded with `segno` — pure Python, no ARM wheel trouble — and optional at
   runtime, degrading to printing the URL, because a join page that 500s over
   a missing decoration is far worse than an address people can type.
+#### GM panel redesign *(specced 2026-08-23, not built)*
+
+**Target: an iPad mini, held landscape.** 1133 x 744. That is the device
+and the orientation; everything below follows from it.
+
+##### What is wrong, measured
+
+| | |
+|---|---|
+| Page height today | **5,542 px** |
+| **Screens of scrolling** | **7.4** |
+| Sections stacked in one column | 13 |
+| Cards section alone | 2,165 px — 39% of the page |
+
+The panel is a single column with a 940px max-width. On its target device
+it wastes half the width and scrolls seven screens. It grew a section at a
+time and nobody ever laid it out.
+
+##### Panels, side by side
+
+Four panels the GM moves between horizontally, plus one overlay:
+
+| | Panel | Holds |
+|---|---|---|
+| ← | **Settings** | sound, output, brightness, recording, mic |
+| ● | **Players** *(landing)* | Show Join/Status, player list, initiative, seats |
+| → | **Run** | scenes, cards, random tables, dice, screen overlays |
+| →→ | **Check** | run check, test lights & sound |
+| ▼ | **Whisper** | drops over whatever is showing, then goes away |
+
+**Players is where the GM lands**, because the first thing that happens at
+a table is people arriving: put the join code up, watch seats fill.
+
+**Card management does NOT get a panel.** It is 2,165px of configuration
+that nobody touches mid-game, and giving it a swipe position next to
+"scenes" invites editing the table's wiring during play. It belongs behind
+Settings.
+
+**Whisper drops over, rather than being a fifth panel.** It is a
+conversation you return from, not a place you go — and a half-typed reply
+must survive being interrupted by a card tap.
+
+##### Layout notes from the table
+
+- **`Set Initiative Order` and `Run Initiative` should not be full width.**
+  Nothing about them earns 1133px.
+- **Seat count, Set Initiative Order and Show Seat Colours share one row** —
+  seat count as a dropdown rather than a row of numbered buttons. The
+  player list sits under them.
+- The header is the only thing that survives a panel switch, so signals
+  stay reachable from anywhere. That is already true and must remain so.
+
+##### Status screen changes
+
+- **Drop "The Circle Holds".** It says nothing. `WARLOCK TABLE` alone.
+- **Make the QR bigger.** It is the most useful thing on the screen at the
+  start of a session and currently it is a footnote.
+- **Run the check at startup and show the result.** `tablecheck` is
+  sub-second and already exists; the screen currently reports fewer
+  subsystems than the table actually has — Govee is not on it at all.
+- Footer, version and clock stay. The idle pattern stays.
+
+##### Technical notes *(analysis, not spec)*
+
+- **744px vertical is the real constraint, not width.** The header is 164px
+  today; add a panel switcher and the content budget is around 500px. The
+  header has to shrink, and status chips and the player bar probably have
+  to share a row.
+- **Use the width.** Inside a panel, two columns beat one — Players wants
+  initiative beside seats, not above it.
+- **Tabs, not swipe.** Swipe is natural horizontally but conflicts with
+  scrolling inside a panel and is invisible to anyone who has not been
+  told. A GM mid-session should not have to discover anything.
+- **Panel state must survive switching.** A typed whisper, a selected
+  initiative order, a half-entered dice count.
+- **Phones still reach `/gm`.** Four panels side by side need a sensible
+  answer at 400px wide, even if that answer is that they stack.
+- **This is downstream of the branding work**, which is in progress. The
+  structure above can be settled now; type, colour and texture cannot.
+
 #### Phone tools — specified 2026-08-23, none built
 
 Three additions beyond seat claiming. The scope of the phone was
@@ -1840,6 +1920,9 @@ Stand up the core software on the Pi once hardware is trusted.
     `npc_binding` stays defined in the spec and null on every card. The
     nine Person cards work as announcements without it; binding each to a
     named NPC was speculative and nobody has wanted it.
+- [ ] **GM panel redesign** (§3.7) — four side-by-side panels for an iPad
+  mini in landscape, plus a whisper overlay. Measured: 7.4 screens of
+  scrolling today on the device it is built for.
 - [ ] **Display redesign** (§3.6) — real grid/hex overlays, battle maps
   with fit/crop rules, a turn indicator and an effects overlay. Measured:
   write JPEG rather than PNG or a redraw costs 2-12 seconds.
