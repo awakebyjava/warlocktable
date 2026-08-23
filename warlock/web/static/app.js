@@ -413,6 +413,58 @@ function renderPlayerBar(signals) {
   });
 }
 
+/* ---------- dice, GM side (plan doc 3.7) ---------- */
+
+// Same behaviour as the phone's pad: the result stays up until a digit is
+// pressed. Duplicated rather than shared because the two live in different
+// documents; if a third ever appears, that is the moment to extract it.
+const GM_DICE = [4, 6, 8, 10, 12, 20];
+let gmEntry = "";
+let gmHolding = false;
+
+function gmPadShow(t) { $("#gm-pad-display").textContent = t; }
+
+function gmDigit(d) {
+  if (gmHolding) { gmEntry = ""; gmHolding = false; }
+  if (gmEntry.length >= 3) return;
+  gmEntry = (gmEntry === "0" ? "" : gmEntry) + d;
+  gmPadShow(gmEntry || "0");
+}
+
+async function gmRoll(sides) {
+  const count = Math.max(1, parseInt(gmEntry || "1", 10));
+  try {
+    const data = await api("/api/roll", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count: count, sides: sides })
+    });
+    gmPadShow(String(data.total));
+    gmHolding = true; gmEntry = "";
+    $("#rolls-log").dataset.stamp = "";
+    refreshRolls();
+  } catch (e) { gmPadShow("—"); gmHolding = true; }
+}
+
+function buildGmDice() {
+  const box = $("#gm-dice-shapes");
+  if (box.childElementCount) return;
+  GM_DICE.forEach(sides => {
+    const b = el("button");
+    b.className = "die";
+    b.append(document.createTextNode("d" + sides));
+    b.addEventListener("click", () => gmRoll(sides));
+    box.append(b);
+  });
+}
+
+document.querySelectorAll(".gm-key[data-d]").forEach(b =>
+  b.addEventListener("click", () => gmDigit(b.dataset.d)));
+$("#gm-pad-clear").addEventListener("click", () => {
+  gmEntry = ""; gmHolding = false; gmPadShow("0");
+});
+buildGmDice();
+
 /* ---------- dice log, GM side (plan doc 3.7) ---------- */
 
 async function refreshRolls() {
@@ -420,10 +472,8 @@ async function refreshRolls() {
   try { data = await api("/api/rolls"); }
   catch (e) { return; }
   const rows = data.rolls || [];
-  const sec = $("#rolls-section");
-  if (!rows.length) { sec.hidden = true; return; }
-  sec.hidden = false;
   const log = $("#rolls-log");
+  if (!rows.length) { log.innerHTML = ""; log.dataset.stamp = ""; return; }
   const stamp = rows.length + ":" + (rows[0] || {}).at;
   if (log.dataset.stamp === stamp) return;
   log.dataset.stamp = stamp;

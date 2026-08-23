@@ -243,6 +243,11 @@ class Controller:
     # ---- dice (plan doc 3.7) ---------------------------------------------
 
     DICE = (4, 6, 8, 10, 12, 20)
+    # The GM rolls too, and has no seat. Their rolls land in the GM's own
+    # log and nowhere else -- players read only their own thread of rolls,
+    # so this is behind the screen by construction rather than by a rule
+    # somebody has to remember to enforce.
+    GM_KEY = "gm"
     MAX_DICE = 100             # see roll(); a rail, not a rule
     ROLL_HISTORY = 500         # per player
 
@@ -298,6 +303,7 @@ class Controller:
                   for z in self.config.zones
                   for p in self.config.players
                   if p.zone_id == z.id}
+        seated[self.GM_KEY] = "GM"
         rows = []
         with self._rolls_lock:
             for colour, entries in self._rolls.items():

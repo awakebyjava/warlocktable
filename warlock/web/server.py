@@ -298,6 +298,26 @@ class _Handler(BaseHTTPRequestHandler):
         # is the GM's vocabulary and anything routed through it shows up as
         # a button on the operator panel. A player raising a hand is not a
         # thing the GM should be able to do on their behalf.
+        # The GM's own roller. Separate from the player endpoint so the
+        # two identities cannot be confused, and so a GM roll is obviously
+        # a GM roll in the log rather than a seat colour nobody sits at.
+        if path == "/api/roll":
+            body = self._read_json()
+            try:
+                entry = self.controller.roll(
+                    colour=self.controller.GM_KEY,
+                    count=body.get("count", 0),
+                    sides=body.get("sides", 0),
+                    name="GM")
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json(entry)
+            return
+
         if path == "/api/player/roll":
             body = self._read_json()
             try:

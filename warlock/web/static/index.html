@@ -82,8 +82,30 @@
   <!-- Whispers (plan doc 3.7). One thread per player, private to that
        player. There is no public channel by design. -->
   <!-- The GM's record of every roll (plan doc 3.7). -->
-  <section id="rolls-section" hidden>
+  <!-- The GM rolls here too. Not hidden like the log was: a roller you
+       cannot see until you have used it is not a roller. -->
+  <section id="rolls-section">
     <h2>Dice</h2>
+    <div class="dice-panels">
+      <div class="pad">
+        <div id="gm-pad-display" class="pad-display">0</div>
+        <div class="pad-keys">
+          <button class="key gm-key" data-d="1">1</button>
+          <button class="key gm-key" data-d="2">2</button>
+          <button class="key gm-key" data-d="3">3</button>
+          <button class="key gm-key" data-d="4">4</button>
+          <button class="key gm-key" data-d="5">5</button>
+          <button class="key gm-key" data-d="6">6</button>
+          <button class="key gm-key" data-d="7">7</button>
+          <button class="key gm-key" data-d="8">8</button>
+          <button class="key gm-key" data-d="9">9</button>
+          <button id="gm-pad-clear" class="key wide-key">Clear</button>
+          <button class="key gm-key" data-d="0">0</button>
+          <span></span>
+        </div>
+      </div>
+      <div id="gm-dice-shapes" class="shapes"></div>
+    </div>
     <div id="rolls-log" class="roll-history"></div>
   </section>
 
