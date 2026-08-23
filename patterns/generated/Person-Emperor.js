@@ -11,6 +11,8 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+halfLen = pathLen / 2
+invPathLen = 1 / pathLen
 cueEl = 0
 lStart = 0
 lSoft = 0.06
@@ -39,7 +41,7 @@ export function beforeRender(delta) {
 export function render(index) {
   p = pathPos[index]
   if (p < 0) { rgb(0, 0, 0); return }
-  u = p / pathLen
+  u = p * invPathLen
   raw = fillField(u)
   f = raw
   h = hA + (hB - hA) * (f)

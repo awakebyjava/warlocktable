@@ -11,8 +11,11 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+halfLen = pathLen / 2
+invPathLen = 1 / pathLen
 cueEl = 0
 vWide = 26
+invVWide = 0.038461538
 vAct = 0.22
 vt = 0
 hA = 0.95
@@ -29,10 +32,11 @@ function convergeField(pp) {
     hp = a
     if (vi == 1) hp = b
     dd = pp - hp
-    dd = dd - pathLen * floor(dd / pathLen + 0.5)
+    if (dd > halfLen) dd = dd - pathLen
+    if (dd < -halfLen) dd = dd + pathLen
     dd = abs(dd)
     if (dd < vWide) {
-      fl = 1 - dd / vWide
+      fl = 1 - dd * invVWide
       acc = acc + fl * fl
     }
   }
@@ -47,7 +51,7 @@ export function beforeRender(delta) {
 export function render(index) {
   p = pathPos[index]
   if (p < 0) { rgb(0, 0, 0); return }
-  u = p / pathLen
+  u = p * invPathLen
   raw = convergeField(p)
   f = raw
   h = hA + (hB - hA) * (f)

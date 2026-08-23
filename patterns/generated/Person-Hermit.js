@@ -11,6 +11,8 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+halfLen = pathLen / 2
+invPathLen = 1 / pathLen
 cueEl = 0
 gate = 0
 cWide = 30
@@ -25,6 +27,7 @@ vA = 0
 vB = 0.68
 N = 4
 bWide = 7
+invWide = 0.14285714
 bGain = 0.3
 bMin = 0.6
 bVar = 1.4
@@ -45,7 +48,8 @@ function cometField(pp) {
   for (ci = 0; ci < cN; ci++) {
     hp = (ct + ci / cN) * pathLen
     dd = pp - hp
-    dd = dd - pathLen * floor(dd / pathLen + 0.5)
+    if (dd > halfLen) dd = dd - pathLen
+    if (dd < -halfLen) dd = dd + pathLen
     wide = cWide
     if (dd < 0) wide = cWide * cTail
     dd = abs(dd)
@@ -84,7 +88,7 @@ export function beforeRender(delta) {
 export function render(index) {
   p = pathPos[index]
   if (p < 0) { rgb(0, 0, 0); return }
-  u = p / pathLen
+  u = p * invPathLen
   raw = cometField(p)
   f = raw
   h = hA + (hB - hA) * (f)
@@ -94,10 +98,11 @@ export function render(index) {
   for (j = 0; j < N; j++) {
     if (bAmp[j] > 0) {
       dd = p - bPos[j]
-      dd = dd - pathLen * floor(dd / pathLen + 0.5)
+      if (dd > halfLen) dd = dd - pathLen
+      if (dd < -halfLen) dd = dd + pathLen
       dd = abs(dd)
       if (dd < bWide) {
-        fall = 1 - dd / bWide
+        fall = 1 - dd * invWide
         b = b + fall * fall * bAmp[j]
       }
     }

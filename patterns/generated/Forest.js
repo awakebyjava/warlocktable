@@ -11,6 +11,8 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+halfLen = pathLen / 2
+invPathLen = 1 / pathLen
 wfA = 3
 wsA = 0.16
 wfB = 7
@@ -23,6 +25,7 @@ vA = 0.05
 vB = 0.4
 N = 3
 bWide = 70
+invWide = 0.014285714
 bGain = 0.55
 bMin = 5
 bVar = 6
@@ -56,17 +59,18 @@ export function beforeRender(delta) {
 export function render(index) {
   p = pathPos[index]
   if (p < 0) { rgb(0, 0, 0); return }
-  u = p / pathLen
+  u = p * invPathLen
   raw = wave(u * wfA + tA) * 0.6 + wave(u * wfB - tB) * 0.4
   f = raw * raw
   b = 0
   for (j = 0; j < N; j++) {
     if (bAmp[j] > 0) {
       dd = p - bPos[j]
-      dd = dd - pathLen * floor(dd / pathLen + 0.5)
+      if (dd > halfLen) dd = dd - pathLen
+      if (dd < -halfLen) dd = dd + pathLen
       dd = abs(dd)
       if (dd < bWide) {
-        fall = 1 - dd / bWide
+        fall = 1 - dd * invWide
         b = b + fall * fall * bAmp[j]
       }
     }

@@ -25,6 +25,13 @@ for (s = 0; s < 8; s++) {
     if (idx < pixelCount) { pathPos[idx] = pathLen; pathLen = pathLen + 1 }
   }
 }
+// Precomputed once. Division and floor() are the priciest ops in this VM,
+// and the eye loop was doing both per eye per pixel -- 9,168 divisions and
+// 4,584 floor() calls a frame, to measure a distance on a ring.
+halfLen    = pathLen / 2
+invPathLen = 1 / pathLen
+invEyeWide = 1 / 26
+invSurgeWide = 1 / 90
 
 // --- palette ---------------------------------------------------------
 // Neon is not simply "bright purple": it is bright AND less saturated.
@@ -120,7 +127,7 @@ export function beforeRender(delta) {
 export function render(index) {
   p = pathPos[index]
   if (p < 0) { rgb(0, 0, 0); return }
-  u = p / pathLen
+  u = p * invPathLen
 
   // Base: cubed so the mid-tones are crushed and the ring stays dark.
   // Without this the whole table sits at a flat dim lilac and the eyes
@@ -132,10 +139,15 @@ export function render(index) {
   for (j = 0; j < EYES; j++) {
     if (eyeAmp[j] > 0) {
       d = p - eyePos[j]
-      d = d - pathLen * floor(d / pathLen + 0.5)   // seam-correct wrap
+      // Two compares instead of floor+divide+multiply: p - pos is always
+      // within +-pathLen, so the general wrap formula was doing far more
+      // work than the range needs. Same seam correctness, a fraction of
+      // the cost.
+      if (d > halfLen) d = d - pathLen
+      if (d < -halfLen) d = d + pathLen
       d = abs(d)
       if (d < EYE_WIDE) {
-        fall = 1 - d / EYE_WIDE
+        fall = 1 - d * invEyeWide
         f = f + fall * fall * eyeAmp[j]
       }
     }
@@ -143,10 +155,11 @@ export function render(index) {
 
   if (surgeAmp > 0.002) {
     d = p - surgePos
-    d = d - pathLen * floor(d / pathLen + 0.5)
+    if (d > halfLen) d = d - pathLen
+    if (d < -halfLen) d = d + pathLen
     d = abs(d)
     if (d < SURGE_WIDE) {
-      fall = 1 - d / SURGE_WIDE
+      fall = 1 - d * invSurgeWide
       f = f + fall * fall * surgeAmp * 0.9
     }
   }
