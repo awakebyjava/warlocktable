@@ -648,6 +648,31 @@ a scene's palette is retuned, the room follows without anyone remembering
 to update it. Emitting these from the generator alongside the patterns is
 the obvious implementation.
 
+#### Proven on the real network, 2026-08-23
+
+Discovery and status both work from the Pi. Four devices answered:
+
+| Device id | SKU | Notes |
+|---|---|---|
+| `5A:BE:C6:35:34:35:4A:64` | H6076 | |
+| `75:54:E8:55:05:06:4C:95` | H802A | |
+| `C4:E9:60:74:F4:29:CE:CF` | H619E | |
+| `D9:97:D0:35:33:35:2F:57` | H6076 | |
+
+`devStatus` returns `onOff`, `brightness` (1–100), `color` as RGB and
+`colorTemInKelvin`, so the read path is confirmed as well as the write
+format. Nothing has been written to any device yet.
+
+**ADDRESS DEVICES BY THEIR ID, NEVER BY IP.** Those IPs came from DHCP on
+a network where the Pi has moved three times and the Pixelblaze once, in a
+single day. A config file full of addresses would be broken by the next
+lease renewal. The device id is stable; discovery maps id → current IP at
+startup, and re-running it is the fix when something stops responding.
+
+That also means **discovery is not optional** — the explicit-IP fallback
+in the constraints above is for routers that block multicast, not the
+normal path.
+
 #### Still open
 
 - **How often to reconcile?** UDP has no acknowledgement, so a dropped
