@@ -2,8 +2,14 @@
 """Identify NFC tags: what the reader sees, and what kind of chip it is.
 
     sudo systemctl stop warlocktable
-    /opt/warlocktable/venv/bin/python tools/tag_probe.py
+    /opt/warlocktable/venv/bin/python -u tools/tag_probe.py
     sudo systemctl start warlocktable
+
+RUN IT YOURSELF, IN A TERMINAL. Identifying a drawer of unknown tags is a
+loop of tap-look-decide, and driving it remotely means tapping blind for
+several minutes and reading the results afterwards -- which is useless for
+working out which physical tag was which. Note the `-u`: without it Python
+buffers stdout when it is not a terminal and nothing appears until exit.
 
 RUNS ON THE PI, and the service must be stopped first: the controller
 holds the PN532's SPI bus and GPIO reset pin, and the two cannot share it.
