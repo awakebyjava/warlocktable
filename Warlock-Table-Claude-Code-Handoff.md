@@ -68,7 +68,15 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Join page + seat claiming** — QR to `/`, which asks player-or-GM. The player page does exactly one thing: pick a seat. §3.7.
 - **Volume and output switching** — including the `hdmi:` vs `plughw:` trap. §3.3.
 
-**Built 2026-08-22:**
+**Built 2026-08-22 (later session):**
+- **Card effects start when the card is tapped.** One-shot envelopes ran on `time()`, a free-running wall clock, so a Boon's flash sat at a fixed offset in an 18s cycle unrelated to the tap — the four Aces and the Magician showed nothing most of the time. They now run off `cueEl`, zeroed at activation.
+- **Auras are stings, capped at 10s** (Tower 4s, most 8–9s), each with a one-shot gate so it arrives, plays and leaves instead of being chopped off mid-cycle at 60s. `duration_s` matches each pattern's own length.
+- **The Hermit carries the lantern** — was a static point on a corner ring half the table could not see.
+- **The status screen is selectable and carries the join QR**, with a panel button.
+- **Display auto-recovery** — feh dying no longer means a black TV until someone restarts the service.
+- **Unbuffered logging** — journald now reflects the present, not four kilobytes ago.
+
+**Built 2026-08-22 (earlier):**
 - **All patterns generated** from `tools/patterngen.py` — 30 of them, on the device. The five terrain scenes were compared against the hand-written originals on the table before replacing them; originals kept in `patterns/legacy/`.
 - **The tarot system** — 26 cards with config entries pointing at their own patterns, and all 32 physical cards enrolled. Wheel of Fortune draws a random Aura. Silent for now: `Interruption.audio` is optional so the cards work before the clips exist.
 - **Stock patterns pruned** — 39 removed after archiving, then the 40 aura×scene combos on top: 42 patterns on the device, 730KB free.
@@ -82,6 +90,13 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Input-to-effect latency** (§5.7) — the NFC read is the biggest single delay and sits upstream of everything. **Measure before changing anything.**
 - Audio upload and scene authoring in the panel (§4.5 steps 3–4)
 - Govee, voice/personality, dice, session recap — Phase 3+. Overseer is explicitly **not planned**.
+
+**Before measuring frame rate, read §5.3.** `getStatistics()` turns on
+preview streaming and its fps figure lags a pattern switch by seconds. Read
+carelessly it reports the PREVIOUS pattern, which makes per-pattern render
+cost look like the device degrading. That cost real time on 2026-08-22 and
+produced two pointless reboots and one confidently wrong answer. Fresh
+connection, set, drop the socket, wait 14s, reconnect, one reading.
 
 **Before touching the Pixelblaze, read §3.8 and §5.3.** An unattended bulk
 upload wedged it, cost a power cycle, and lost the entire LED configuration

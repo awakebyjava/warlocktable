@@ -259,7 +259,8 @@ Three front doors, all on the same server:
 ### 3.8 Pixelblaze Patterns — Authoring & Upload *(built 2026-08-22)*
 
 **Patterns are generated, not hand-written.** `tools/patterngen.py` emits all
-70 from a small vocabulary of fields, envelopes, palettes and features. The
+30 from a small vocabulary of fields, envelopes, palettes and features (plus
+two hand-written: `patterns/zones.js` and `patterns/idle.js`). The
 five terrain scenes were transcribed into it and compared side by side
 against the hand-written originals on the table before replacing them; the
 originals are in `patterns/legacy/`.
@@ -432,6 +433,68 @@ Two complementary options; not mutually exclusive.
 - **To expand:** why (what workload needs it), which VD tech, how it fits the table physically. Flagged as a stretch/later goal.
 
 ---
+
+#### A cue begins when the card is tapped *(fixed 2026-08-22)*
+
+`time()` on the Pixelblaze is a free-running wall clock, not a timer you
+start. Every one-shot envelope and one-shot field was built on it, so a
+Boon's 4-second flash lived at a fixed offset inside an 18-second cycle
+that had nothing to do with anybody touching a card. Tapping at a random
+moment showed nothing about 78% of the time; the Magician, whose flash is
+1.8s of 18, was invisible about 90% of the time. Reported from the table
+as "no visible pattern on any of the boons".
+
+One-shots now run off `cueEl`, which counts from zero when the pattern is
+activated. Cyclic envelopes — breathe, strobe, metronome, flicker,
+heartbeat — still free-run, because ambience has no beginning.
+
+**`action` is in absolute seconds**, converted once at construction. It
+used to be a fraction of the period, which only ever meant "this many
+seconds of an 18-second period" and silently meant something else the
+moment the period changed.
+
+#### Auras have a shape, and a ceiling *(2026-08-22)*
+
+An Aura is a **sting**, capped at 10s and usually shorter — the length is
+per-card because the right one is a property of the pattern: three
+heartbeats is 8s, five metronome ticks is 8s, a hard strobe is 4s and not
+a second more. `duration_s` in config matches the pattern's own length, so
+the revert lands as the visual ends.
+
+Their envelopes are cyclic, so they had no ending — the revert timer just
+chopped them off. `Pattern(window=(attack, release, total))` adds a
+one-shot gate multiplied into brightness at render time, giving every card
+an arrival and a departure without touching its character. Applied at
+render rather than folded into `env`, because flicker feeds back on its
+own previous value and gating in place compounds the fade.
+
+#### What actually costs frames
+
+Measured 2026-08-22, and **not** what anyone guessed:
+
+| Shape | fps |
+|---|---|
+| uniform field, no loop | 42–44 |
+| 3 blooms | ~15 |
+| 6 eyes | ~10 |
+| 9 blooms | ~11 |
+
+The VM executes roughly **300,000 operations per second, flat**. Frame rate
+is total ops divided into that budget, and every operation costs about the
+same. Two consequences, both learned the hard way:
+
+- **Cheaper operations barely help.** Removing *every* division and
+  `floor()` from the inner loops — the wrap became two compares, widths
+  became precomputed reciprocals — bought 3–20%, not the 2–3x predicted.
+- **Fewer iterations is the only real lever.** Aura-Star tests all 764
+  pixels against all 9 blooms, 6,876 iterations, to light about 72 pixels:
+  over 98% of that work produces nothing. The fix is to scatter rather
+  than gather — walk each bloom's own span in `beforeRender` into a
+  per-pixel buffer, and let `render` do one lookup. Not built yet.
+
+Also fixed: a bloom's envelope was evaluated *per pixel* rather than per
+bloom. Correct to hoist, but it saved almost nothing, which an A/B against
+the previous Forest showed plainly.
 
 ## 4. Architecture
 
@@ -1066,6 +1129,50 @@ they were lost silently once and nothing noticed.
   `IncompleteRead`, empty source read-backs, occasional write failures —
   and the device is healthy immediately after each. Retrying works. Small
   batches with pauses are reliable where long runs are not.
+- **`savePattern` APPENDS, it does not replace.** Saving over a name that
+  already exists leaves TWO patterns with that name. The verifier resolves
+  by name and can compare against the stale one, reporting "source read
+  back does not match" on a perfectly good write — and the controller
+  resolves by name too, so the table may keep playing the old copy with
+  nothing reporting a fault. `upload_watched.py --only` now deletes every
+  existing copy before writing.
+- **`getStatistics()` enables preview-frame streaming, and the fps figure
+  is a lagging average.** Read over a shared connection or too soon after
+  a pattern switch, it reports the PREVIOUS pattern. That made per-pattern
+  render cost look like device-wide degradation on 2026-08-22, and led to
+  two pointless reboots and a wrong answer to the user about diffuser
+  optics. **To measure honestly: fresh connection, set the pattern, drop
+  the socket, wait 14s, reconnect, take ONE reading.**
+
+**The viewer can die, and nothing used to bring it back (2026-08-22).**
+`feh` was launched once at startup. When it exited, `status()` flipped
+unhealthy and every `set_background()` after that raised — the TV went
+black and stayed black until someone restarted the service. Mid-session
+that is the entire visual half of the table, with nobody at a keyboard.
+
+It happened for real: no OOM, no segfault, 3.2GB free, and nothing in any
+log saying why. We cannot prevent an exit we cannot explain, so a watcher
+thread now notices within ~2s and relaunches. Nothing needs restoring —
+the picture is whatever is in `.current.png`, and feh exiting does not
+touch that file. `RESPAWN_MAX_TRIES` guards a spawn loop that will never
+work and **resets on every success**, so a viewer that dies nightly keeps
+being rescued. `tablecheck` WARNs once it has needed rescuing: self-healing
+nobody can see is how a flapping display stays hidden until the night it
+does not come back.
+
+Two traps fixed in the same path:
+
+- feh's stderr went to a **pipe nobody drained** after the 0.6s startup
+  check. Once it wrote ~64KB it would block forever on write — picture
+  frozen, process still passing a `poll()` check. It goes to a file now.
+- `set_background()` refused while unhealthy, which would have dropped a
+  card tap for the ~2s a respawn takes.
+
+**journald showed a stale picture (2026-08-22).** stdout to journald is a
+pipe, so Python block-buffered it and log lines surfaced in ~4KB bursts,
+minutes after the events they described — worst exactly during an
+incident, when you end up debugging a table that has already moved on.
+`Environment=PYTHONUNBUFFERED=1` in the unit.
 
 ### 5.4 "Table Check" — pre-session self-test *(built)*
 
@@ -1286,7 +1393,7 @@ Stand up the core software on the Pi once hardware is trusted.
 
 **Reliability work (per §5) — fold in alongside the above, not after:**
 - [x] Status strip on the panel — done, and it reflects each device's own health, not just failed calls.
-- [x] **Status screen on the TV — done.** Rendered to a PNG and shown through the *same* feh instance as the artwork, so only one thing ever draws on the screen. Shows per-subsystem marks, current scene, the panel URL and the deployed version. Appears automatically at startup, and on demand via the `show_status_screen` action. Styled to `warlock-table-style-guide.html` **exactly** — Syne, IBM Plex Sans and IBM Plex Mono are bundled in `warlock/web/static/fonts/` (SIL OFL) and served locally rather than from the Google CDN, so the table never needs the internet to render its own surfaces. The same font files feed both the TV and the iPad panel, so the two use identical type.
+- [x] **Status screen on the TV — done.** Rendered to a PNG and shown through the *same* feh instance as the artwork, so only one thing ever draws on the screen. Shows per-subsystem marks, current scene, the panel URL and the deployed version. **It also carries the join QR, and is selectable (2026-08-22):** it appears in `available_backgrounds()` — listed first, because it is the one entry that is not artwork and burying it alphabetically hides what you reach for when something is wrong — with a **Show Join / Status Screen** button on the panel, lit while it is on screen. `set_background` previously took free text with no choice list at all, so there was nothing to pick from. The controller routes that name to `show_status_screen()`, since the screen must be RENDERED from live status the display device knows nothing about. **The QR encodes a LAN IP, not the `.local` name:** the web server can use the client's Host header because it is answering a request, but this renders at boot with nobody connected, and `.local` needs mDNS that many Android phones will not resolve — a join code that works for half the table reads as the table being broken. The footer prints that same address so the type-it-in fallback works for exactly the phones that could not scan. Drawn from segno's raw matrix rather than a PNG round-trip so modules land on whole pixels, with a quiet zone in whole modules; a missing segno returns False rather than raising, because this screen is what you look at WHEN things are broken. Appears automatically at startup, and on demand via the `show_status_screen` action. Styled to `warlock-table-style-guide.html` **exactly** — Syne, IBM Plex Sans and IBM Plex Mono are bundled in `warlock/web/static/fonts/` (SIL OFL) and served locally rather than from the Google CDN, so the table never needs the internet to render its own surfaces. The same font files feed both the TV and the iPad panel, so the two use identical type.
 - [x] Config validation with last-known-good fallback — done, three levels (requested → `.last-good` → minimal built-in that still lights the table).
 - [x] mDNS — `raspberrypi.local` works (avahi).
 - [ ] **DHCP reservations** for the Pi and Pixelblaze — not done. Discovery covers the Pixelblaze; the Pi's address moving would still break a bookmarked IP.

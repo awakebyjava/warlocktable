@@ -65,6 +65,7 @@ warlock/
 deploy/            install.sh, update.sh, the systemd unit
 tools/             laptop-side, for the Pixelblaze and the live config:
                      patterngen.py       generate all 30 patterns
+                     prune_patterns.py   delete patterns, one at a time
                      upload_watched.py   upload one at a time, verifying each
                      upload_pattern.py   upload a single named pattern
                      archive_patterns.py copy sources off before deleting
@@ -109,8 +110,10 @@ card editing, visual identity.
 initiative on the lights, the join/QR page with seat claiming, and volume
 plus audio-output switching.
 `v0.4.0` *(unreleased)* — all patterns generated from one vocabulary; the
-26 tarot cards specced, built and pointing at their own patterns; session
-recording.
+26 tarot cards specced, built, enrolled and firing on tap; aura-over-scene
+layering abandoned in favour of shorter stings; a hand-written idle
+pattern; the status screen selectable and carrying the join QR; the TV
+viewer recovering on its own; session recording.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.
