@@ -590,6 +590,15 @@ button.wide { width: 100%; }
   border-color: var(--purple);
 }
 
+/* The `hidden` attribute only works while nothing outcompetes it. Author
+   CSS setting `display: flex` on a panel beats the UA stylesheet's
+   `[hidden] { display: none }`, so both overlay panes were permanently on
+   screen -- dice painting over whisper, the close button appearing dead
+   because setting .hidden changed nothing, and the dice never drawing
+   because they are built when the pane OPENS and it never did. One rule,
+   once, so no future panel can repeat it. */
+[hidden] { display: none !important; }
+
 /* --- whispers (plan doc 3.7) --------------------------------------------- */
 .whisper {
   position: fixed; inset: 0; z-index: 30;
