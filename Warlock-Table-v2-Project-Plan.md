@@ -336,9 +336,24 @@ Four panels the GM moves between horizontally, plus one overlay:
 |---|---|---|
 | ← | **Settings** | sound, output, brightness, recording, mic |
 | ● | **Players** *(landing)* | Show Join/Status, player list, initiative, seats |
-| → | **Run** | scenes, cards, random tables, dice, screen overlays |
+| → | **Run** | scenes, cards, random tables, dice, screen overlays, **Return to Idle** |
 | →→ | **Check** | run check, test lights & sound |
 | ▼ | **Whisper** | drops over whatever is showing, then goes away |
+
+**The player page gets the same treatment** — bottom tabs, four
+destinations, mirroring the GM so one pattern serves both:
+
+| Tab | Holds |
+|---|---|
+| **Dice** | pad, dice, roll log |
+| **Messages** | the GM conversation |
+| **Seat** | who you are, which lights are yours |
+| **Table** | *placeholder.* A table-interaction page is wanted but not designed |
+
+`?` and `!` stay in the header on every tab, as they are now. The Table tab
+ships empty rather than being added later: an empty fourth tab is honest
+about what is coming, and adding a tab to a finished bar re-tests every
+width.
 
 **Players is where the GM lands**, because the first thing that happens at
 a table is people arriving: put the join code up, watch seats fill.
@@ -387,11 +402,10 @@ must survive being interrupted by a card tap.
   It is proven in this codebase: `.idle-bar` is already a bottom-fixed bar
   handling `env(safe-area-inset-bottom)`, and the page already sets
   `viewport-fit=cover`.
-- **The bottom edge is already taken.** `.idle-bar` — the always-available
-  Go Idle button — lives exactly where the tabs want to be. Either it
-  becomes part of the tab bar, or it moves. It is arguably a fifth
-  destination rather than a button, since "put the table back to rest" is
-  a place the GM goes.
+- **Return to Idle moves into the Run panel** *(decided 2026-08-23)*. It
+  belongs with scenes, cards and the other table actions — it is one of
+  them, not a destination. That clears the bottom edge for the tabs, which
+  is the other reason it works.
 - **The vertical budget, with tabs.** At 744px, minus a 56px tab bar and
   ~21px of safe area:
 
@@ -440,10 +454,18 @@ Nothing to undo; this is greenfield.
 
 **The wide breakpoint is the interesting one.** Tabs exist to solve a
 space problem. On a 1400px browser there is no space problem, and a tab
-bar that hides two thirds of the interface behind a tap is a downgrade —
-show Settings, Players and Run at once. That is what "varied by device"
-should mean: the navigation model changes when the constraint that
-justified it goes away, not that the same screen wears three skins.
+bar that hides most of the interface behind a tap is a downgrade. That is
+what "varied by device" should mean: the navigation model changes when the
+constraint that justified it goes away, not that the same screen wears
+three skins.
+
+**What to promote at ≥1200px, decided rather than "show everything":**
+**Players and Run side by side.** Those are the two used *during* a
+session — watching the table fill and firing scenes and cards — and having
+both visible removes the one interaction a GM repeats all evening.
+Settings and Check stay behind tabs, because they are setup and teardown,
+not play. Four panels at 1200px would be 300px each, which is narrower
+than a phone and helps nobody.
 
 **Tabs come to the player page too**, moved to the bottom to match the GM
 panel. The player page already has them (Dice / Whisper / Seat), so this
