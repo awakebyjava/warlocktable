@@ -40,6 +40,15 @@
     <h2 id="claimed-name">&nbsp;</h2>
     <p class="muted" id="claimed-seat">&nbsp;</p>
     <button id="claim-again" class="ghost">That is not my seat</button>
+</section>
+
+<!-- Signals (plan doc 3.7). A corner of the screen, only once you have a
+     seat: there is nobody to signal as until the table knows who you are.
+     Deliberately unlabelled beyond the marks themselves — everyone at a
+     table already knows what a raised hand means. -->
+<section id="signals" class="signals" hidden>
+  <button id="sig-question" class="sig" data-kind="question" aria-label="I have a question">?</button>
+  <button id="sig-need" class="sig" data-kind="need" aria-label="I need something">!</button>
   </section>
 </main>
 
@@ -130,14 +139,48 @@ $("#claim").addEventListener("submit", async (ev) => {
 function showClaimed() {
   $("#claim").hidden = true;
   $("#claimed").hidden = false;
+  $("#signals").hidden = false;
   $("#claimed-name").textContent = mine.name;
   $("#claimed-seat").textContent = "You are the " + mine.colour + " lights";
   $("#claimed-swatch").style.setProperty("--seat", mine.colour);
 }
 
+// Pressing the same mark again takes it back; pressing the other swaps.
+// The button's own lit state IS the feedback -- there is no toast, because
+// a phone held under a table at arm's length is not somewhere to read one.
+let raised = null;
+
+async function signal(kind) {
+  if (!mine) return;
+  try {
+    const res = await fetch("/api/player/signal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colour: mine.colour, kind: kind, name: mine.name })
+    });
+    if (!res.ok) return;
+    raised = (raised === kind) ? null : kind;
+    document.querySelectorAll(".sig").forEach(b =>
+      b.classList.toggle("on", b.dataset.kind === raised));
+  } catch (e) { /* the table will be there next tap */ }
+}
+
+document.querySelectorAll(".sig").forEach(b =>
+  b.addEventListener("click", () => signal(b.dataset.kind)));
+
+// The table drops a signal after 60s. Clear the lit state at the same time
+// so the button never claims to be raised when the GM can no longer see it.
+setInterval(() => {
+  if (!raised) return;
+  document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
+  raised = null;
+}, 60000);
+
 $("#claim-again").addEventListener("click", () => {
   localStorage.removeItem("warlock-seat");
-  mine = null; chosen = null;
+  mine = null; chosen = null; raised = null;
+  document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
+  $("#signals").hidden = true;
   $("#claimed").hidden = true;
   $("#claim").hidden = false;
   $("#claim-msg").textContent = " ";

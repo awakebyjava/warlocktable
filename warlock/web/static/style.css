@@ -531,3 +531,61 @@ button.wide { width: 100%; }
 }
 
 #rec-note.warn { color: var(--bad); }
+
+/* --- player bar (plan doc 3.7) -------------------------------------------
+   Pinned in the header so a signal cannot scroll out of sight. */
+.players-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+  padding-top: 10px; border-top: 1px solid var(--line);
+}
+.player-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 5px 10px 5px 6px; border-radius: 2px;
+  background: transparent; color: var(--bone-dim);
+  border: 1px solid var(--line); cursor: default;
+}
+.player-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--seat, var(--line));
+  box-shadow: 0 0 0 1px rgba(0,0,0,.4) inset;
+  flex: none;
+}
+/* A raised signal. The MARK carries the meaning and the blink carries the
+   urgency -- colour alone would be invisible to anyone who cannot
+   distinguish it, and a table is not the place to find that out. */
+.player-pill.signalling { color: var(--bone); border-color: var(--purple-deep); cursor: pointer; }
+.player-mark {
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px;
+  line-height: 1; color: var(--purple);
+  animation: signal-blink 1s steps(1, end) infinite;
+}
+@keyframes signal-blink { 50% { opacity: 0.15; } }
+/* Respect the setting. A blinking element is a genuine problem for some
+   people, and the mark still says which signal it is without moving. */
+@media (prefers-reduced-motion: reduce) {
+  .player-mark { animation: none; }
+}
+
+/* --- player signals (plan doc 3.7) ---------------------------------------
+   Bottom corner, thumb-reachable, and big: this is pressed one-handed under
+   a table in low light, often without looking. */
+.signals {
+  position: fixed; right: 16px; bottom: 16px;
+  display: flex; gap: 12px; z-index: 20;
+}
+.sig {
+  width: 64px; height: 64px; border-radius: 50%;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px;
+  line-height: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel, #17141c); color: var(--bone-dim);
+  border: 1px solid var(--line);
+  /* 64px against the 44px minimum: the extra is for a dim room and a
+     glance that does not want to become a look. */
+}
+.sig.on {
+  background: var(--purple-deep); color: var(--bone);
+  border-color: var(--purple);
+}

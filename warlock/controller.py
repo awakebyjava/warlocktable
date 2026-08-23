@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import random
 import threading
+import time
 from typing import List, Optional
 
 from .config import Config, Interruption, Scene, Target
@@ -46,6 +47,17 @@ class Controller:
         # Restores the scene after flash_player(). Separate from the
         # interruption revert timer so the two cannot cancel each other.
         self._flash_timer = None
+
+        # Player signals -- the `?` and `!` from a phone (plan doc 3.7).
+        # In memory only: a signal is meaningless sixty seconds after it is
+        # raised, by its own definition, so there is nothing to persist and
+        # writing it would be SD wear for nothing.
+        #
+        # Its own lock. _lock guards the revert timer, and taking two locks
+        # in inconsistent orders is how you get a deadlock nobody can
+        # reproduce.
+        self._signals = {}                    # colour -> {kind, name, at}
+        self._signals_lock = threading.Lock()
 
         # Per-subsystem health, for the panel status strip and the TV status
         # screen (plan doc 5.1). A subsystem going unhealthy must never stop
@@ -125,11 +137,93 @@ class Controller:
         for t in threads:
             t.join(timeout=self.FANOUT_JOIN_S)
 
+    # ---- player signals (plan doc 3.7) -----------------------------------
+
+    SIGNAL_TTL_S = 60.0
+    SIGNAL_KINDS = ("question", "need")
+
+    def _live_signals(self):
+        """Drop anything past its life. Caller holds the lock.
+
+        Expiry is computed on READ rather than run off a timer. Sixty
+        one-shot timers competing with the revert timer is a lot of moving
+        parts for something a comparison against a clock settles, and a
+        timer that fires after a service restart does not exist to fire.
+        """
+        cutoff = time.time() - self.SIGNAL_TTL_S
+        for colour in [c for c, r in self._signals.items() if r["at"] < cutoff]:
+            del self._signals[colour]
+        return self._signals
+
+    def raise_signal(self, colour: str, kind: str, name: str = "") -> dict:
+        """A player pressing `?` or `!`.
+
+        NOT an @action. The registry is the GM's vocabulary and the panel
+        builds its buttons from it; a player-initiated signal has no
+        business putting a button on the GM's screen.
+
+        Pressing the SAME one again takes it back -- a player who sorts it
+        out themselves should not have to wait for the GM to notice. A
+        different one replaces it, because a player wanting both at once is
+        not a thing that needs modelling.
+        """
+        colour = (colour or "").strip().lower()
+        kind = (kind or "").strip().lower()
+        if not colour:
+            raise ValueError("a seat colour is needed")
+        if kind not in self.SIGNAL_KINDS:
+            raise ValueError("kind must be one of %s" % (self.SIGNAL_KINDS,))
+        with self._signals_lock:
+            live = self._live_signals()
+            existing = live.get(colour)
+            if existing and existing["kind"] == kind:
+                del live[colour]
+                out = self._snapshot(live)
+                action = "lowered"
+            else:
+                live[colour] = {"kind": kind, "name": (name or "").strip()[:24],
+                                "at": time.time()}
+                out = self._snapshot(live)
+                action = "raised"
+        # `mark`, not `kind`: EventLog.record()'s own first parameter is
+        # named kind, so a field by that name is a TypeError at the call.
+        self.log.record("player.signal", colour=colour, mark=kind, action=action)
+        return out
+
+    def clear_signal(self, colour: str = "") -> dict:
+        """The GM acknowledging one, or all of them."""
+        colour = (colour or "").strip().lower()
+        with self._signals_lock:
+            live = self._live_signals()
+            if colour:
+                live.pop(colour, None)
+            else:
+                live.clear()
+            out = self._snapshot(live)
+        self.log.record("player.signal_cleared", colour=colour or "all")
+        return out
+
+    def signal_report(self) -> dict:
+        with self._signals_lock:
+            return self._snapshot(self._live_signals())
+
+    def _snapshot(self, live):
+        now = time.time()
+        return {"signals": [
+            {"colour": c, "kind": r["kind"], "name": r["name"],
+             # What the panel needs to fade one out as it ages, without
+             # every client having to agree about the wall clock.
+             "age_s": round(now - r["at"], 1)}
+            for c, r in sorted(live.items())]}
+
     def status(self) -> dict:
         """What the panel status strip and TV status screen render (5.1)."""
         return {
             "subsystems": dict(self.subsystem_ok),
             "scene": self.current_scene.name if self.current_scene else None,
+            # Rides on the poll the panel already does, rather than adding a
+            # second one just for this.
+            "signals": self.signal_report()["signals"],
         }
 
     # ---- internal: precedence ------------------------------------------

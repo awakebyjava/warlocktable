@@ -93,6 +93,8 @@ function render(s) {
     b.classList.toggle("active", b.dataset.name === currentScene);
   });
 
+  renderPlayerBar(s.signals || []);
+
   // Table screen: reflect the device's own state rather than what we last
   // asked for, so the controls cannot drift out of sync with reality.
   const dd = s.display_device;
@@ -350,6 +352,65 @@ const STATUS_SCREEN = "(status screen)";
 $("#show-status").addEventListener("click", (e) =>
   fire("set_background", { name: STATUS_SCREEN }, e.currentTarget));
 
+/* ---------- player bar + signals (plan doc 3.7) ---------- */
+
+const SIGNAL_MARK = { question: "?", need: "!" };
+
+// Seats come from /api/zones, signals ride on /api/status. Kept apart
+// because the seats change when somebody claims one and the signals change
+// every few seconds; redrawing the whole bar on every poll would fight a
+// finger that is mid-tap.
+let barSeats = [];
+
+function renderPlayerBar(signals) {
+  const bar = $("#players-bar");
+  const seated = barSeats.filter(z => z.player);
+  if (!seated.length) { bar.hidden = true; bar.innerHTML = ""; return; }
+  bar.hidden = false;
+
+  const byColour = {};
+  signals.forEach(sig => { byColour[sig.colour] = sig; });
+
+  const want = seated.map(z =>
+    z.colour + "|" + z.player + "|" + (byColour[z.colour] || {}).kind).join(",");
+  if (bar.dataset.want === want) return;
+  bar.dataset.want = want;
+
+  bar.innerHTML = "";
+  seated.forEach(z => {
+    const sig = byColour[z.colour];
+    const pill = el("span");
+    pill.className = "player-pill" + (sig ? " signalling" : "");
+    pill.style.setProperty("--seat", z.colour);
+    const dot = el("span"); dot.className = "player-dot";
+    const nm = el("span"); nm.append(document.createTextNode(z.player));
+    pill.append(dot, nm);
+    if (sig) {
+      const mark = el("span");
+      mark.className = "player-mark";
+      mark.append(document.createTextNode(SIGNAL_MARK[sig.kind] || "!"));
+      pill.append(mark);
+      pill.title = "Tap to clear";
+      pill.addEventListener("click", async () => {
+        // Clear locally first so the tap feels answered; the next poll is
+        // the source of truth either way.
+        pill.classList.remove("signalling");
+        const m = pill.querySelector(".player-mark");
+        if (m) m.remove();
+        bar.dataset.want = "";
+        try {
+          await api("/api/signals/clear", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ colour: z.colour })
+          });
+        } catch (e) { /* the poll will put it back if it did not land */ }
+      });
+    }
+    bar.append(pill);
+  });
+}
+
 const OVERLAY_LABEL = { none: "No Overlay", grid: "Square Grid", hex: "Hex Grid" };
 
 function renderOverlayButtons(dd) {
@@ -495,6 +556,9 @@ function tapSeat(zone) {
 // keyword, so the swatch needs no lookup table that could drift from the
 // palette the table actually lights.
 function renderSeats(z) {
+  // The bar needs the same seat rows, so it is filled from the fetch that
+  // already happens rather than polling /api/zones a second time.
+  barSeats = z.zones || [];
   const row = $("#seat-count-row");
   if (row.dataset.max !== String(z.max_players)) {
     row.dataset.max = String(z.max_players);

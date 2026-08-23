@@ -29,6 +29,11 @@
     <span class="chip" data-sys="display">display</span>
   </div>
   <div id="scene-now" class="scene-now">&nbsp;</div>
+  <!-- Player bar. Lives in the sticky header so it does not scroll away:
+       this is where a player's `?` or `!` appears, and it replaced push
+       notifications precisely because a panel that is always on screen
+       needs no notification. Tapping a player clears their signal. -->
+  <div id="players-bar" class="players-bar" hidden></div>
 </header>
 
 <main>

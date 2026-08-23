@@ -127,6 +127,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self.controller.audio_report())
         elif path == "/api/initiative":
             self._send_json(self.controller.initiative_report())
+        elif path == "/api/signals":
+            self._send_json(self.controller.signal_report())
         elif path == "/api/status":
             self._send_json(self._status())
         elif path == "/api/vocabulary":
@@ -274,6 +276,39 @@ class _Handler(BaseHTTPRequestHandler):
             return
 
         # --- Seats: what a player's phone posts (plan doc 4.5) ---
+        # --- player phone: the `?` and `!` (plan doc 3.7) -----------------
+        #
+        # Under /api/player/, not /api/action/, deliberately. /api/action
+        # is the GM's vocabulary and anything routed through it shows up as
+        # a button on the operator panel. A player raising a hand is not a
+        # thing the GM should be able to do on their behalf.
+        if path == "/api/player/signal":
+            body = self._read_json()
+            try:
+                report = self.controller.raise_signal(
+                    colour=str(body.get("colour", "")),
+                    kind=str(body.get("kind", "")),
+                    name=str(body.get("name", "")))
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json(report)
+            return
+
+        if path == "/api/signals/clear":
+            body = self._read_json()
+            try:
+                report = self.controller.clear_signal(
+                    str(body.get("colour", "")))
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json(report)
+            return
+
         if path == "/api/seats/claim":
             body = self._read_json()
             name = str(body.get("name", "")).strip()
