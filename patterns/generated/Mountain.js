@@ -35,6 +35,7 @@ bPos = array(N)
 bAge = array(N)
 bLife = array(N)
 bAmp = array(N)
+bBuf = array(pathLen)
 for (i = 0; i < N; i++) {
   bPos[i] = random(pathLen)
   bLife[i] = bMin + random(bVar)
@@ -57,6 +58,22 @@ export function beforeRender(delta) {
       bAmp[i] = e * e * bGain
     }
   }
+  for (si = 0; si < pathLen; si++) bBuf[si] = 0
+  for (i = 0; i < N; i++) {
+    if (bAmp[i] > 0) {
+      bc = bPos[i]
+      for (sx = floor(bc - bWide); sx <= floor(bc + bWide) + 1; sx++) {
+        sd = abs(sx - bc)
+        if (sd < bWide) {
+          si = sx
+          if (si < 0) si = si + pathLen
+          if (si >= pathLen) si = si - pathLen
+          sfall = 1 - sd * invWide
+          bBuf[si] = bBuf[si] + sfall * bAmp[i]
+        }
+      }
+    }
+  }
 }
 export function render(index) {
   p = pathPos[index]
@@ -67,19 +84,7 @@ export function render(index) {
   h = hA + (hB - hA) * (f * f)
   sa = sA + (sB - sA) * (f * f * f)
   v = vA + (vB - vA) * (f)
-  b = 0
-  for (j = 0; j < N; j++) {
-    if (bAmp[j] > 0) {
-      dd = p - bPos[j]
-      if (dd > halfLen) dd = dd - pathLen
-      if (dd < -halfLen) dd = dd + pathLen
-      dd = abs(dd)
-      if (dd < bWide) {
-        fall = 1 - dd * invWide
-        b = b + fall * bAmp[j]
-      }
-    }
-  }
+  b = bBuf[p]
   if (b > 0) {
     bk = min(b, 1)
     h = h + (bHue - h) * bk

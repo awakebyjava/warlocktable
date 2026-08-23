@@ -65,6 +65,7 @@ eyeAge  = array(EYES)
 eyeLife = array(EYES)
 eyeGain = array(EYES)
 eyeAmp  = array(EYES)   // this frame's brightness -- see beforeRender
+lightBuf = array(pathLen)  // eyes + surge, scattered once a frame
 for (i = 0; i < EYES; i++) {
   eyePos[i]  = random(pathLen)
   eyeLife[i] = EYE_MIN + random(EYE_VAR)
@@ -122,6 +123,40 @@ export function beforeRender(delta) {
       surgeAmp = 1
     }
   }
+
+  // SCATTER, not gather. Every pixel used to ask all six eyes how far away
+  // they were -- 4,584 distance tests a frame to light a few hundred
+  // pixels. Each eye now walks its own 52-pixel span once and adds itself
+  // into a ring buffer, and render() reads one number. The surge rides in
+  // the same buffer.
+  for (si = 0; si < pathLen; si++) lightBuf[si] = 0
+  for (i = 0; i < EYES; i++) {
+    if (eyeAmp[i] > 0) {
+      ec = eyePos[i]
+      for (sx = floor(ec - EYE_WIDE); sx <= floor(ec + EYE_WIDE) + 1; sx++) {
+        sd = abs(sx - ec)
+        if (sd < EYE_WIDE) {
+          si = sx
+          if (si < 0) si = si + pathLen
+          if (si >= pathLen) si = si - pathLen
+          sfall = 1 - sd * invEyeWide
+          lightBuf[si] = lightBuf[si] + sfall * sfall * eyeAmp[i]
+        }
+      }
+    }
+  }
+  if (surgeAmp > 0.002) {
+    for (sx = floor(surgePos - SURGE_WIDE); sx <= floor(surgePos + SURGE_WIDE) + 1; sx++) {
+      sd = abs(sx - surgePos)
+      if (sd < SURGE_WIDE) {
+        si = sx
+        if (si < 0) si = si + pathLen
+        if (si >= pathLen) si = si - pathLen
+        sfall = 1 - sd * invSurgeWide
+        lightBuf[si] = lightBuf[si] + sfall * sfall * surgeAmp * 0.9
+      }
+    }
+  }
 }
 
 export function render(index) {
@@ -136,33 +171,7 @@ export function render(index) {
   base = base * base * base
   f = base * 0.30 * breath
 
-  for (j = 0; j < EYES; j++) {
-    if (eyeAmp[j] > 0) {
-      d = p - eyePos[j]
-      // Two compares instead of floor+divide+multiply: p - pos is always
-      // within +-pathLen, so the general wrap formula was doing far more
-      // work than the range needs. Same seam correctness, a fraction of
-      // the cost.
-      if (d > halfLen) d = d - pathLen
-      if (d < -halfLen) d = d + pathLen
-      d = abs(d)
-      if (d < EYE_WIDE) {
-        fall = 1 - d * invEyeWide
-        f = f + fall * fall * eyeAmp[j]
-      }
-    }
-  }
-
-  if (surgeAmp > 0.002) {
-    d = p - surgePos
-    if (d > halfLen) d = d - pathLen
-    if (d < -halfLen) d = d + pathLen
-    d = abs(d)
-    if (d < SURGE_WIDE) {
-      fall = 1 - d * invSurgeWide
-      f = f + fall * fall * surgeAmp * 0.9
-    }
-  }
+  f = f + lightBuf[p]
 
   if (f > 1) f = 1
 

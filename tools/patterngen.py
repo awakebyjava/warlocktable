@@ -218,8 +218,11 @@ class Blooms:
         if self.hue_pull is not None:
             out.append("bHue = %g" % self.hue_pull)
         # bAmp: this bloom's brightness THIS FRAME. See before().
+        # bAmp: this bloom's brightness THIS FRAME. See before().
+        # bBuf: the whole ring's bloom light, scattered once per frame so
+        #       render() is a single lookup. See before() and accumulate().
         out += ["bPos = array(N)", "bAge = array(N)", "bLife = array(N)",
-                "bAmp = array(N)"]
+                "bAmp = array(N)", "bBuf = array(pathLen)"]
         return out
 
     def init(self) -> List[str]:
@@ -262,29 +265,39 @@ class Blooms:
             out.append("    e = triangle(bAge[i] / bLife[i])")
         out += ["    bAmp[i] = e * e * bGain",
                 "  }", "}"]
+
+        # SCATTER, not gather. Every pixel used to ask every bloom how far
+        # away it was: 764 x N iterations to light a handful of pixels. With
+        # 9 blooms 4 wide that is 6,876 distance tests to light about 72 --
+        # over 98% of the work producing nothing.
+        #
+        # Each bloom now walks its OWN span once and adds itself into a ring
+        # buffer, so the per-pixel cost drops to a single array read. The
+        # fixed cost is clearing the buffer, which is why this wins most on
+        # narrow blooms and least on wide ones.
+        term = "sfall" if self.env == "decay" else "sfall * sfall"
+        out += ["for (si = 0; si < pathLen; si++) bBuf[si] = 0",
+                "for (i = 0; i < N; i++) {",
+                "  if (bAmp[i] > 0) {",
+                "    bc = bPos[i]",
+                "    for (sx = floor(bc - bWide); sx <= floor(bc + bWide) + 1; sx++) {",
+                "      sd = abs(sx - bc)",
+                "      if (sd < bWide) {",
+                "        si = sx",
+                "        if (si < 0) si = si + pathLen",
+                "        if (si >= pathLen) si = si - pathLen",
+                "        sfall = 1 - sd * invWide",
+                "        bBuf[si] = bBuf[si] + %s * bAmp[i]" % term,
+                "      }",
+                "    }",
+                "  }",
+                "}"]
         return out
 
     def accumulate(self) -> List[str]:
-        # bAmp[j] is already this frame's brightness (see before()), and a
-        # zero means resting -- so that test replaces the old rest check
-        # AND skips the wrap arithmetic for a bloom contributing nothing.
-        out = ["b = 0", "for (j = 0; j < N; j++) {",
-               "  if (bAmp[j] > 0) {"]
-        indent = "    "
-        # Wrapped signed distance. NOT min(d, pathLen - d), which loses the
-        # sign across the seam and glitches once per lap.
-        out += [indent + "dd = p - bPos[j]",
-                indent + "if (dd > halfLen) dd = dd - pathLen",
-                indent + "if (dd < -halfLen) dd = dd + pathLen",
-                indent + "dd = abs(dd)",
-                indent + "if (dd < bWide) {",
-                indent + "  fall = 1 - dd * invWide"]
-        if self.env == "decay":
-            out.append(indent + "  b = b + fall * bAmp[j]")
-        else:
-            out.append(indent + "  b = b + fall * fall * bAmp[j]")
-        out += [indent + "}", "  }", "}"]
-        return out
+        """One array read. The work happened in before() -- see the scatter
+        note there."""
+        return ["b = bBuf[p]"]
 
     def apply_tint(self) -> List[str]:
         """Blend TOWARD the bloom colour rather than adding to it.
