@@ -433,7 +433,12 @@ class _Handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-        out = {"subsystems": subs, "scene": st["scene"]}
+        # Carry through anything else the controller reported -- signals
+        # ride here so the player bar costs no extra poll. Copying the
+        # two keys by hand is why signals silently never reached the
+        # panel the first time.
+        out = {k: v for k, v in st.items() if k != "subsystems"}
+        out["subsystems"] = subs
 
         lights = getattr(self.runtime.lights, "status", None)
         if callable(lights):
