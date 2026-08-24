@@ -9,14 +9,21 @@
  * dinosaur. That distinction matters mid-session - it tells you the iPad is
  * fine and the table is not.
  */
-const CACHE = "warlock-shell-v3";
+// BUMP THIS whenever the shell changes shape. The activate handler deletes
+// every cache that is not this one, so a new name is what guarantees the
+// old shell is actually gone rather than merely out of favour.
+const CACHE = "warlock-shell-v4";
 const SHELL = [
   // "/" is now the join chooser and "/gm" is the panel. Both are cached:
   // the GM's installed app opens /gm, and a player who scanned the code
   // gets a real page rather than a browser error if the Pi blinks.
   "/", "/gm", "/player", "/style.css", "/app.js",
   "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png",
-  "/fonts/Syne.ttf", "/fonts/IBMPlexSans.ttf",
+  // Must match what style.css actually asks for. Syne was dropped for
+  // Playfair Display when the brand kit landed and lingered here; a name
+  // that 404s is worse than useless, because addAll() rejects ATOMICALLY
+  // and one missing file means the whole shell fails to cache.
+  "/fonts/IBMPlexSans.ttf", "/fonts/PlayfairDisplay-ExtraBold.ttf",
   "/fonts/IBMPlexMono-Regular.ttf", "/fonts/IBMPlexMono-Medium.ttf"
 ];
 

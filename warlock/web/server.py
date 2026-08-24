@@ -82,15 +82,45 @@ class _Handler(BaseHTTPRequestHandler):
             ctype = "font/woff2"
         with open(path, "rb") as fh:
             body = fh.read()
+
+        # An ETag so revalidation costs a 304 rather than the whole file.
+        # mtime and size, not a hash of the body: this runs on a Pi serving
+        # a tablet over wifi, and hashing every asset on every request buys
+        # nothing a deploy-shaped change cannot already be seen in.
+        st = os.stat(path)
+        etag = '"%x-%x"' % (int(st.st_mtime), st.st_size)
+
+        is_font = "/fonts/" in path.replace("\\", "/")
+        if not is_font and self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            return
+
         self.send_response(200)
         self.send_header("Content-Type", ctype or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
-        # The service worker must never be cached, or a stale one pins an
-        # old app shell forever and the panel stops updating.
-        if path.endswith("sw.js"):
-            self.send_header("Cache-Control", "no-cache")
-        elif "/fonts/" in path.replace("\\", "/"):
+        if is_font:
+            # Fonts are the one thing here that genuinely does not change;
+            # when one does it arrives under a new filename.
             self.send_header("Cache-Control", "public, max-age=604800")
+        else:
+            # EVERYTHING ELSE MUST REVALIDATE. This previously sent no
+            # cache headers at all for the HTML, CSS and JS, which does not
+            # mean "do not cache" -- with no directive and no validator a
+            # browser may reuse a response indefinitely on its own
+            # judgement. It did: a deployed redesign kept rendering with
+            # the previous stylesheet, panels stacked in one column with no
+            # tab bar, and the only clue was that the files on the Pi were
+            # demonstrably correct.
+            #
+            # `no-cache` is not `no-store`: the copy is still kept, and the
+            # service worker still has a shell to serve when the table is
+            # unreachable. It just has to ask first, and the ETag makes
+            # asking cheap.
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("ETag", etag)
         self.end_headers()
         self.wfile.write(body)
 

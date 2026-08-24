@@ -407,8 +407,14 @@ function renderPlayerBar(signals) {
     seated = seated.filter(z => raised.has(z.colour));
   }
 
-  if (!seated.length) { bar.hidden = true; bar.innerHTML = ""; bar.dataset.want = ""; return; }
+  if (!seated.length) {
+    bar.hidden = true; bar.innerHTML = ""; bar.dataset.want = "";
+    measureChrome();
+    return;
+  }
+  const wasHidden = bar.hidden;
   bar.hidden = false;
+  if (wasHidden) measureChrome();
 
   const byColour = {};
   signals.forEach(sig => { byColour[sig.colour] = sig; });
@@ -538,18 +544,37 @@ async function refreshRolls() {
 let waColour = null;
 let waSeen = {};
 let waThreads = [];
+// Seated players merged with existing threads -- see refreshWhispers.
+let waPeople = [];
 
 async function refreshWhispers() {
   let data;
   try { data = await api("/api/whispers"); }
   catch (e) { return; }
   waThreads = data.threads || [];
-  // The overlay is opened by the GM, never by the poll: a thread arriving
-  // mid-sentence must not throw a panel over what they were doing. All the
-  // poll may do is light the button in the header.
+  // WHO YOU CAN WHISPER IS WHO IS SITTING DOWN, not who has already
+  // written. Building the tab list from the threads alone meant the GM
+  // could only ever REPLY -- with nobody having messaged there was no
+  // button, no list and no way to start one, which is the wrong way round:
+  // the GM is the one who most often needs to say something quietly first.
+  // The controller opens a thread on the first message either way, so a
+  // player with no history is a tab with an empty log, not a special case.
+  const seatedFirst = barSeats.filter(z => z.player && z.zone > 0);
+  const byColour = {};
+  seatedFirst.forEach(z => { byColour[z.colour] = { colour: z.colour, name: z.player,
+                                                    messages: [], last_from: null }; });
+  waThreads.forEach(t => { byColour[t.colour] = t; });
+  // Seated players in seat order, then any thread from someone who has
+  // since left -- their history should not vanish because they stood up.
+  const people = seatedFirst.map(z => byColour[z.colour])
+    .concat(waThreads.filter(t => !seatedFirst.some(z => z.colour === t.colour)));
+  waPeople = people;
+
   const open = $("#whisper-open");
-  open.hidden = !waThreads.length;
-  if (!waThreads.length) { closeWhispers(); return; }
+  open.hidden = !people.length;
+  if (!people.length) { closeWhispers(); return; }
+  // Land on somebody, so the reply box always has a destination.
+  if (!waColour || !people.some(t => t.colour === waColour)) waColour = people[0].colour;
 
   let unread = 0;
   waThreads.forEach(t => {
@@ -562,13 +587,13 @@ async function refreshWhispers() {
   $("#whisper-count").textContent = unread ? "· " + unread : "";
   $("#whisper-open").classList.toggle("waiting", unread > 0);
 
-  const key = waThreads.map(t => t.colour + ":" + t.messages.length).join(",")
+  const key = people.map(t => t.colour + ":" + t.messages.length).join(",")
               + "|" + waColour;
   const tabs = $("#whisper-tabs");
   if (tabs.dataset.key !== key) {
     tabs.dataset.key = key;
     tabs.innerHTML = "";
-    waThreads.forEach(t => {
+    people.forEach(t => {
       const b = el("button");
       b.className = "whisper-tab"
         + (t.colour === waColour ? " active" : "")
@@ -586,7 +611,7 @@ async function refreshWhispers() {
     });
   }
   if (waColour) {
-    waSeen[waColour] = (waThreads.find(t => t.colour === waColour) || {})
+    waSeen[waColour] = (people.find(t => t.colour === waColour) || {})
       .messages?.length || 0;
   }
   renderGmThread();
@@ -594,8 +619,8 @@ async function refreshWhispers() {
 
 function renderGmThread() {
   const log = $("#gm-whisper-log");
-  const t = waThreads.find(x => x.colour === waColour);
-  if (!t) { log.innerHTML = ""; return; }
+  const t = waPeople.find(x => x.colour === waColour);
+  if (!t) { log.innerHTML = ""; log.dataset.stamp = ""; return; }
   const stamp = t.colour + ":" + t.messages.length;
   if (log.dataset.stamp === stamp) return;
   log.dataset.stamp = stamp;
@@ -1137,6 +1162,22 @@ function measureChrome() {
 
 measureChrome();
 addEventListener("resize", measureChrome);
-// The header changes height when the player bar comes and goes, and that
-// happens on a poll rather than on an event we could listen for.
-new ResizeObserver(measureChrome).observe(document.querySelector("header"));
+
+// The header changes height when the player bar comes and goes, which is
+// driven by a poll rather than by any event we could listen for -- hence
+// an observer.
+//
+// THE rAF IS NOT DECORATION. Writing --chrome from inside the callback
+// re-runs layout on the element being observed, the browser sees a
+// resize loop, and it responds by silently dropping the notification --
+// no error, no warning, the observer simply stops working. That shipped:
+// with two players seated the header grew from 53px to 140px, --chrome
+// stayed at its startup value, and the columns overflowed the page by
+// 18px. Deferring the write to the next frame ends the callback before
+// the layout it causes, which breaks the loop.
+let chromePending = false;
+new ResizeObserver(() => {
+  if (chromePending) return;
+  chromePending = true;
+  requestAnimationFrame(() => { chromePending = false; measureChrome(); });
+}).observe(document.querySelector("header"));

@@ -1022,6 +1022,28 @@ body.locked { overflow: hidden; }
      panel, it is the one thing here that SHOULD scroll as a whole. */
   .panel.page { grid-template-columns: 1fr; }
   .panel.page .panel-col { max-height: none; overflow: visible; }
+
+  /* DICE IS NOT AN EVEN SPLIT. An even split gave the roll log half the
+     panel to show short lines, and spent the other half stacking the pad
+     ABOVE the dice -- which pushed the dice off the bottom, so you could
+     not see what you were about to roll while typing how many. The rolls
+     are "Alys 3d6=11": a narrow column is the right shape for them. */
+  #panel-dice { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+
+  /* The dice stand in a column BESIDE the keypad rather than under it, so
+     the thing you are choosing stays visible while you type the count. */
+  .dice-panels { display: flex; gap: 14px; align-items: stretch; }
+  .dice-panels .pad { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .dice-panels .shapes {
+    display: grid; grid-template-columns: 1fr;
+    grid-auto-rows: 1fr; gap: 8px;
+    flex: 0 0 5.2rem;
+  }
+  .dice-panels .die { min-height: 0; }
+
+  /* Inside a column that already scrolls itself, a second cap just makes
+     the log shorter than the space it has. */
+  #rolls-log { max-height: none; }
 }
 
 /* ==================== >= 1200px -- browser ========================== */
