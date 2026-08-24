@@ -334,11 +334,24 @@ Four panels the GM moves between horizontally, plus one overlay:
 
 | | Panel | Holds |
 |---|---|---|
-| ← | **Settings** | sound, output, brightness, recording, mic |
+| ← | **Settings** | sound, output, brightness, recording, mic, **subsystem status and the checks** |
 | ● | **Players** *(landing)* | Show Join/Status, player list, initiative, seats |
-| → | **Run** | scenes, cards, random tables, dice, screen overlays, **Return to Idle** |
-| →→ | **Check** | run check, test lights & sound |
-| ▼ | **Whisper** | drops over whatever is showing, then goes away |
+| → | **Run** | scenes, cards, random tables, screen overlays, **Return to Idle** |
+| →→ | **Dice** | pad, six dice, the roll log |
+| ▼ | **Whisper** | full-height overlay; the panel behind it keeps polling |
+
+Four, matching the player's four. **Card management is a separate PAGE**, not
+a panel and not a modal — it is configuration, it is large, and it has no
+business in the swipe order beside "scenes".
+
+**Dice earned its own panel.** It was in Run, and Run did not fit: 25
+interruption cards, six scenes, the tables, the overlays and a dice pad add
+to roughly 900px of content in a ~600px budget. Dice is self-contained,
+it is already a tab on the player side, and moving it fixes the overflow
+without inventing sub-navigation.
+
+**Check folded into Settings** rather than being its own destination.
+Running a test belongs next to the thing being tested.
 
 **The player page gets the same treatment** — bottom tabs, four
 destinations, mirroring the GM so one pattern serves both:
@@ -406,18 +419,30 @@ must survive being interrupted by a card tap.
   belongs with scenes, cards and the other table actions — it is one of
   them, not a destination. That clears the bottom edge for the tabs, which
   is the other reason it works.
-- **The vertical budget, with tabs.** At 744px, minus a 56px tab bar and
-  ~21px of safe area:
+- **NO STATUS IN THE HEADER** *(decided 2026-08-23)*. The strip of
+  subsystem chips comes out entirely. A row that says everything is fine,
+  all evening, every evening, is spending the scarcest space on the screen
+  to tell you nothing — and when it finally does say something, you have
+  long stopped looking at it. **Subsystem status moves into Settings**,
+  beside the checks that test it, and onto the TV status screen where it is
+  read deliberately rather than ambiently.
+
+  The dome lamps built for it are not wasted: Settings and the status
+  screen are where they belong and where they are big enough to read.
+
+- **What the header actually holds**: the table's name and the current
+  scene, with the **player bar directly underneath it**. That is all. The
+  `?` and `!` a player raises show up on their pill in that bar, which is
+  the GM's notification and needs nothing else.
+
+- **The vertical budget.** At 744px, minus a 56px tab bar and ~21px of safe
+  area. Dropping the status strip is what makes the header target
+  reachable rather than aspirational:
 
   | Header | Content left |
   |---|---|
-  | 164px (today) | 503px |
-  | 120px | 547px |
-  | 90px | **577px** |
-
-  So the header must come down to roughly 90px for a panel to hold
-  anything substantial. That is the single most constraining number in
-  this redesign.
+  | 164px (as built) | 503px |
+  | ~80px (name + scene + player bar) | **~590px** |
 - **Panel state must survive switching.** A typed whisper, a selected
   initiative order, a half-entered dice count.
 - **The GM panel must work on a phone too** *(confirmed 2026-08-23)*, not
