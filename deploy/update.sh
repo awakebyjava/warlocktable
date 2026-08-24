@@ -36,7 +36,13 @@ done
 cd "$REPO"
 
 # Fail fast rather than deploying something that cannot identify itself.
-if [[ "${SUDO_UID:-}" == "0" || ( -z "${SUDO_USER:-}" && "$(id -u)" -eq 0 ) ]]; then
+#
+# The test is simply "am I root", because this script has no business
+# being root at all -- it elevates only for install.sh. Testing SUDO_UID
+# here was wrong: running `sudo ./deploy/update.sh` as pi sets SUDO_UID to
+# pi's own 1000, and it is only the NESTED sudo, from root, that turns it
+# into 0 and breaks git's ownership check further down.
+if [[ "$(id -u)" -eq 0 ]]; then
     echo "Run this WITHOUT sudo - it elevates itself for the install step." >&2
     echo "As root, git refuses the repo as dubious ownership and the" >&2
     echo "deployed VERSION becomes useless. See the header of this file." >&2
