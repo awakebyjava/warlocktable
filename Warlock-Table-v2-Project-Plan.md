@@ -435,6 +435,20 @@ must survive being interrupted by a card tap.
   `?` and `!` a player raises show up on their pill in that bar, which is
   the GM's notification and needs nothing else.
 
+- **The player bar is OPTIONAL, set in Settings** *(decided 2026-08-23)*.
+  Not every GM wants a permanent roster on screen, and it costs ~34px of
+  the scarcest space on the panel. A per-device preference rather than
+  table config: it is a view preference, not something about the table, and
+  two GMs on two devices should not fight over it. `localStorage`, the same
+  way the player page already remembers a seat.
+
+  **The consequence that must not be shipped by accident:** if the bar is
+  off, a player pressing `?` has nowhere to appear. Their button would
+  light up while nobody is watching, which is a promise the table cannot
+  keep. So either "off" means *unpinned* rather than *gone*, or turning it
+  off has to give signals somewhere else to land. Decide before building,
+  not after a player wonders why nobody answered.
+
 - **The vertical budget.** At 744px, minus a 56px tab bar and ~21px of safe
   area. Dropping the status strip is what makes the header target
   reachable rather than aspirational:
