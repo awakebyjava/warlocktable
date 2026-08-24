@@ -117,20 +117,24 @@ h2 {
   text-transform: uppercase; letter-spacing: 0.28em; color: var(--brass);
 }
 
-.strip { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip {
+/* The subsystem row. Lives in SETTINGS now, not the header -- see the
+   .lamp block at the foot of this file for why, and for the lamps
+   themselves. Bordered chips became lit lamps: a chip has to be read, a
+   lamp is seen. */
+.strip {
+  display: flex; flex-wrap: wrap; gap: 10px 22px;
+  margin-bottom: 16px;
+}
+.sys {
+  display: flex; align-items: center; gap: 8px;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px; font-weight: 500;
-  padding: 5px 12px; border-radius: 2px;
-  background: transparent; color: var(--bone-dim);
-  border: 1px solid var(--line);
+  font-size: 11px; font-weight: 500; color: var(--bone-dim);
   text-transform: uppercase; letter-spacing: 0.12em;
 }
-/* Purple = alive. Brass would only say "exists". */
-.chip.ok  { color: var(--purple); border-color: var(--purple-deep); }
-.chip.bad { color: var(--bad); border-color: rgba(201,90,90,0.45);
-            background: rgba(201,90,90,0.10); }
-.chip.absent { opacity: 0.35; }
+.sys .lamp { --d: 16px; }
+.sys.ok     { color: var(--bone); }
+.sys.bad    { color: var(--rust-bright); }
+.sys.absent { opacity: 0.4; }
 
 .scene-now {
   margin-top: 10px; font-size: 13px; color: var(--bone-mid);
@@ -138,7 +142,8 @@ h2 {
 }
 .scene-now b { color: var(--bone); font-weight: 500; }
 
-main { padding: 0 20px 130px; max-width: 940px; margin: 0 auto; }
+/* Panel geometry lives in the LAYOUT block at the foot of this file. */
+main { padding: 0 20px; margin: 0 auto; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 
 /* Buttons — guide IV, Instruments. */
@@ -173,12 +178,10 @@ button.busy { opacity: 0.45; }
   text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;
 }
 
-.idle-bar {
-  position: fixed; left: 0; right: 0; bottom: 0;
-  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(0deg, var(--black) 62%, rgba(11,10,8,0));
-}
-.idle-btn { width: 100%; max-width: 940px; margin: 0 auto; display: block; font-weight: 500; letter-spacing: 0.1em; }
+/* Return to Idle is a button in the Run panel now, not a fixed bar. It is
+   one of the table's actions rather than a destination, and vacating the
+   bottom edge is what made room for the tab bar. */
+.idle-btn { font-weight: 500; letter-spacing: 0.1em; }
 
 .bright-row { display: flex; align-items: center; gap: 16px; }
 input[type=range] { flex: 1; height: 40px; accent-color: var(--purple); background: transparent; }
@@ -245,7 +248,7 @@ input[type=range] { flex: 1; height: 40px; accent-color: var(--purple); backgrou
 .modal-box {
   background: var(--black-2); border: 1px solid var(--brass-dim);
   border-radius: 3px; padding: 24px; width: 100%; max-width: 540px;
-  max-height: 90vh; overflow-y: auto;
+  max-height: 90dvh; overflow-y: auto;
 }
 .modal-box h3 {
   font-family: 'Playfair Display', Georgia, serif; font-weight: 700;
@@ -277,7 +280,7 @@ input[type=range] { flex: 1; height: 40px; accent-color: var(--purple); backgrou
 .err   { color: var(--bad); font-size: 12px; font-family: 'IBM Plex Mono', monospace; }
 
 footer {
-  padding: 0 20px 104px; max-width: 940px; margin: 0 auto;
+  padding: 0 20px 16px; margin: 0 auto;
   display: flex; justify-content: space-between; gap: 12px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px; color: var(--bone-dim); letter-spacing: 0.06em;
@@ -285,7 +288,7 @@ footer {
 
 /* Unreachable must be unmistakable, not silently stale. */
 body.offline header { background: rgba(201,90,90,0.16); }
-body.offline .chip  { opacity: 0.3; }
+body.offline .sys   { opacity: 0.3; }
 
 /* ---------- seats (plan doc 4.7) ---------- */
 
@@ -607,7 +610,7 @@ button.wide { width: 100%; }
 .whisper-log {
   flex: 1; overflow-y: auto; padding: 12px 0;
   display: flex; flex-direction: column; gap: 8px;
-  min-height: 120px; max-height: 46vh;
+  min-height: 120px; max-height: 46dvh;
 }
 .bubble {
   max-width: 78%; padding: 8px 12px; border-radius: 3px;
@@ -660,7 +663,7 @@ button.small { padding: 4px 10px; font-size: 10px; }
 .die:active { background: var(--purple-deep); }
 
 .roll-history {
-  margin-top: 12px; max-height: 34vh; overflow-y: auto;
+  margin-top: 12px; max-height: 34dvh; overflow-y: auto;
   border-top: 1px solid var(--line); padding-top: 10px;
   font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: var(--bone-mid);
 }
@@ -699,16 +702,14 @@ button.small { padding: 4px 10px; font-size: 10px; }
 }
 .sig.on { background: var(--purple-deep); color: var(--bone); border-color: var(--purple); }
 
-.tabs { display: flex; gap: 6px; margin: 12px 0; }
-.tab {
-  flex: 1; min-height: 40px;
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  background: transparent; color: var(--bone-dim);
-  border: 1px solid var(--line); border-radius: 2px;
-}
-.tab.on { background: var(--purple-deep); color: var(--bone); border-color: var(--purple); }
+/* The player page's tabs were a row of pills inside the column. They are
+   the same bar as the GM's now -- fixed to the bottom, word labels, one
+   pattern across both surfaces. The rules live in the LAYOUT block at the
+   foot of this file; only the panel padding is page-specific. */
 .tab-panel { display: flex; flex-direction: column; gap: 10px; }
+.tab-panel[hidden] { display: none; }
+/* Clears the fixed bar, so the last dice shape is not sitting under it. */
+#app { padding-bottom: 84px; }
 
 /* Dice, stacked for a phone: read the display, type, then reach the dice
    at the bottom where a thumb already is. */
@@ -717,7 +718,7 @@ button.small { padding: 4px 10px; font-size: 10px; }
 .die { min-height: 56px; }
 
 .whisper-log {
-  min-height: 40vh; max-height: 52vh; overflow-y: auto;
+  min-height: 40dvh; max-height: 52dvh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 8px; padding: 4px 0;
 }
 
@@ -820,3 +821,269 @@ button.small { padding: 4px 10px; font-size: 10px; }
 .lamp.blink { animation: lampblink 1.15s steps(1, end) infinite; }
 @keyframes lampblink { 50% { opacity: .42; } }
 @media (prefers-reduced-motion: reduce) { .lamp.blink { animation: none; } }
+
+
+/* ==================================================================== */
+/* LAYOUT                                                               */
+/*                                                                      */
+/* ONE design across three widths, not three designs. Same classes,     */
+/* same tab pattern, same components; the differences are the media     */
+/* queries below and nothing else. Six bespoke layouts is where this    */
+/* kind of thing dies -- a change to the dice pad has to be made in     */
+/* three places, they drift, and nobody knows which is authoritative.   */
+/*                                                                      */
+/*   <= 600px     phone       one column, bottom tabs                   */
+/*   601-1199px   tablet      bottom tabs, two columns inside a panel   */
+/*   >= 1200px    browser     Players and Run side by side, tabs gone   */
+/*                                                                      */
+/* Fluid between those, with a floor at 320px (iPhone SE). Below that   */
+/* nothing sane works and no phone in use is narrower.                  */
+/*                                                                      */
+/* dvh EVERYWHERE, never vh. Mobile Safari and Android Chrome grow and  */
+/* shrink the viewport as their toolbars hide, and 100vh is the LARGEST */
+/* it ever gets -- so a vh-sized page is taller than the screen while   */
+/* the toolbar shows, which would put the tab bar below the fold on     */
+/* exactly the devices most likely to see it.                           */
+/* ==================================================================== */
+
+/* ---------- the header, which is all that survives a panel switch ---- */
+
+.head-line {
+  display: flex; align-items: baseline; gap: 14px;
+}
+.head-line h1 { margin: 0; flex: none; }
+.head-line .scene-now { margin: 0; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Whispers is a conversation you return from, so it opens from the header
+   and stays reachable from every panel -- the same argument as signals. */
+.whisper-open {
+  flex: none; margin: 0; padding: 6px 12px;
+  border-color: var(--purple-deep); color: var(--bone);
+}
+.whisper-open.waiting { border-color: var(--gold); color: var(--gold); }
+
+/* ---------- panels -------------------------------------------------- */
+
+#panels { padding-bottom: 96px; }        /* clears the fixed tab bar */
+
+.panel { display: block; }
+.panel[hidden] { display: none; }        /* beats the rule above */
+.panel-col > section:first-child > h2 { margin-top: 14px; }
+
+.wide-col { width: 100%; }
+
+.page-head {
+  display: flex; align-items: center; gap: 14px;
+  margin-top: 16px;
+}
+.page-head h2 { margin: 0; }
+.page-head button { margin-top: 0; }
+
+/* Seat count as a dropdown rather than seven numbered buttons, sharing one
+   row with two controls that were full width for no reason. Nothing about
+   "Set Initiative Order" earns 1133px. */
+.seat-controls {
+  display: flex; flex-wrap: wrap; align-items: end; gap: 10px;
+  margin-top: 12px;
+}
+.seat-controls button { margin-top: 0; }
+.field {
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--bone-dim);
+}
+.field select {
+  background: var(--black-2); color: var(--bone);
+  border: 1px solid var(--line); border-radius: 2px;
+  padding: 9px 10px; font-size: 13px; min-height: 40px;
+}
+
+.toggle {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--bone); cursor: pointer;
+}
+.toggle input { width: 20px; height: 20px; accent-color: var(--purple); }
+
+/* ---------- the bottom tab bar -------------------------------------- */
+
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--black-2);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab {
+  margin: 0; border: 0; border-radius: 0; background: transparent;
+  padding: 15px 4px 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--bone-dim);
+  min-height: 52px;                      /* thumb target on the smallest phone */
+}
+/* The active tab is marked by a rule along its top edge as well as by
+   colour, so it survives being read in a dark room by someone who does not
+   separate hues well. */
+.tab.active {
+  color: var(--gold);
+  box-shadow: inset 0 2px 0 var(--gold);
+}
+.tab:focus-visible { outline: 1px solid var(--purple); outline-offset: -3px; }
+
+/* ---------- the whisper overlay ------------------------------------- */
+
+/* Full height, and it takes the scroll with it: body.locked is what stops
+   the panel underneath pulling when you drag inside the thread. */
+.overlay {
+  position: fixed; inset: 0; z-index: 40;
+  background: rgba(11, 10, 8, 0.86);
+  display: flex; justify-content: center;
+}
+.overlay[hidden] { display: none; }
+.overlay-box {
+  display: flex; flex-direction: column;
+  width: 100%; max-width: 620px; height: 100dvh;
+  background: var(--black-2);
+  border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+  padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+}
+.overlay-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex: none;
+}
+.overlay-head h3 {
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 800;
+  margin: 0; font-size: 17px; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--bone);
+}
+.overlay-head button { margin-top: 0; }
+/* The log is the only thing that scrolls; the tabs and the reply box are
+   pinned, so a half-typed reply never slides out from under the thumb. */
+.overlay-box #whisper-tabs { flex: none; margin: 12px 0; }
+.overlay-box .whisper-log {
+  flex: 1; min-height: 0; max-height: none; margin: 0;
+}
+.overlay-box .whisper-form { flex: none; margin-top: 12px; }
+
+body.locked { overflow: hidden; }
+
+/* ==================== <= 600px -- phone ============================= */
+/* One column. This is the floor case and it is checked at 320px. */
+@media (max-width: 600px) {
+  header { padding: 10px 14px 8px; }
+  h1 { font-size: 16px; }
+  .head-line { flex-wrap: wrap; gap: 8px 12px; }
+  .head-line .scene-now { flex-basis: 100%; }
+  main { padding: 0 14px; }
+  footer { padding: 0 14px 16px; }
+  .panel-col + .panel-col { margin-top: 4px; }
+  /* At the floor each of the four labels has about 74px. Tightening the
+     tracking is what keeps "Settings" on one line rather than forcing a
+     drop to icons. */
+  .tab { font-size: 10px; letter-spacing: 0.08em; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+}
+
+/* ==================== 601-1199px -- tablet ========================== */
+/* iPad mini landscape is 1133, which is the device this was designed
+   against. Two columns inside a panel: Players wants initiative BESIDE
+   seats, not below it. */
+@media (min-width: 601px) {
+  main   { max-width: 1180px; }
+  footer { max-width: 1180px; padding-bottom: 60px; }
+  /* The columns cap themselves against --chrome, so the panel no longer
+     needs to reserve room for the tab bar -- the footer does, below. */
+  #panels { padding-bottom: 0; }
+  .panel {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0 32px; align-items: start;
+  }
+  .panel[hidden] { display: none; }
+
+  /* EACH COLUMN SCROLLS ITSELF, and the panel as a whole does not.
+     Measured on the target device: Run's left column is 424px of scenes,
+     overlays and Return to Idle, its right column 727px of interruption
+     cards. Scrolling the panel as one would push Return to Idle off the
+     bottom to reach card 25 -- so the tall column takes its own scrollbar
+     and the short one stays put. --chrome is the header plus the tab bar,
+     kept accurate by app.js because the header's height changes when the
+     player bar appears. */
+  .panel-col {
+    max-height: calc(100dvh - var(--chrome, 150px));
+    overflow-y: auto;
+    /* Room for the scrollbar so it does not sit on top of the buttons. */
+    padding-right: 6px;
+  }
+
+  /* Card management is one wide column. Splitting 32 cards into two makes
+     the list harder to scan, not easier -- and being a page rather than a
+     panel, it is the one thing here that SHOULD scroll as a whole. */
+  .panel.page { grid-template-columns: 1fr; }
+  .panel.page .panel-col { max-height: none; overflow: visible; }
+}
+
+/* ==================== >= 1200px -- browser ========================== */
+/* Tabs exist to solve a space problem. On a 1400px browser there is no
+   space problem, and a bar that hides most of the interface behind a tap
+   is a downgrade -- so the NAVIGATION MODEL changes, rather than the same
+   screen wearing a third skin.
+
+   Players and Run get promoted, decided rather than "show everything":
+   those are the two used DURING a session, and having both visible removes
+   the one switch a GM otherwise repeats all evening. Settings, Dice and
+   Cards are setup and teardown, so they stay behind a control. Four panels
+   at 1200px would be 300px each -- narrower than a phone, helping nobody. */
+@media (min-width: 1200px) {
+  .tabbar { display: none; }
+  main   { max-width: 1500px; }
+  footer { max-width: 1500px; }
+  #panels {
+    padding-bottom: 24px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0 36px;
+    align-items: start;
+  }
+
+  /* Both live panels on screen at once, each a single column.
+
+     THE !important IS LOAD-BEARING and not a shortcut. This stylesheet
+     carries a global `[hidden] { display: none !important }` -- added
+     because author `display:` rules were silently beating the hidden
+     attribute on the player page and leaving panes permanently open. That
+     guard is worth keeping, so overriding it has to be explicit.
+
+     Overriding it is correct here: the tab controller keeps tracking a
+     current panel so that shrinking the window lands somewhere sensible,
+     and at this width its choice BETWEEN THESE TWO does not apply. They
+     are both on screen because there is room for both. */
+  #panel-players, #panel-run,
+  #panel-players[hidden], #panel-run[hidden] { display: block !important; }
+
+  /* Dice, Settings and Cards drop OVER the pair rather than replacing them
+     -- the same argument as the whisper overlay, and it keeps the table's
+     state visible behind whatever was opened. */
+  #panel-dice, #panel-settings, #panel-cards {
+    position: fixed; inset: 0; z-index: 30;
+    overflow-y: auto;
+    background: var(--black);
+    padding: 20px 28px calc(20px + env(safe-area-inset-bottom));
+    grid-template-columns: 1fr 1fr; gap: 0 36px;
+  }
+  #panel-dice[hidden], #panel-settings[hidden], #panel-cards[hidden] {
+    display: none;
+  }
+
+  /* The way back out, since the tab bar is not there to provide one. */
+  body.panel-over .wide-close { display: block; }
+}
+
+/* Hidden at every width except browser, and even there only while one of
+   the three overlay panels is open -- see body.panel-over in app.js. */
+.wide-close {
+  display: none;
+  position: fixed; z-index: 31;
+  top: 18px; right: 28px; margin: 0;
+  padding: 9px 18px;
+  border-color: var(--gold-dim); color: var(--gold);
+}

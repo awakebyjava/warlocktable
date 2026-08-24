@@ -17,197 +17,305 @@
 </head>
 <body>
 
+<!-- The header is the ONLY thing that survives a panel switch, which is why
+     signals live here: a player's `?` must be reachable from wherever the GM
+     happens to be. It holds the table's name, the current scene and the
+     player bar. The subsystem status strip that used to sit here is gone --
+     a row saying everything is fine, all evening, spends the scarcest space
+     on the panel to say nothing. It moved into Settings, beside the checks
+     that test it. -->
 <header>
-  <h1>Warlock&nbsp;Table</h1>
-  <!-- The status strip. Section 3.7 originally deferred this; it was moved
-       into v1 because it is what turns "it's broken and I don't know why"
-       into "the Pixelblaze lost power". -->
-  <div id="strip" class="strip">
-    <span class="chip" data-sys="lights">lights</span>
-    <span class="chip" data-sys="audio">audio</span>
-    <span class="chip" data-sys="nfc">nfc</span>
-    <span class="chip" data-sys="display">display</span>
+  <div class="head-line">
+    <h1>Warlock&nbsp;Table</h1>
+    <div id="scene-now" class="scene-now">&nbsp;</div>
+    <button id="whisper-open" class="whisper-open" hidden>
+      Whispers <span id="whisper-count" class="muted"></span>
+    </button>
   </div>
-  <div id="scene-now" class="scene-now">&nbsp;</div>
-  <!-- Player bar. Lives in the sticky header so it does not scroll away:
-       this is where a player's `?` or `!` appears, and it replaced push
-       notifications precisely because a panel that is always on screen
-       needs no notification. Tapping a player clears their signal. -->
+  <!-- Tapping a player clears their signal. Hidden entirely when nobody is
+       seated, and unpinnable from Settings -- but see app.js: unpinned means
+       UNPINNED, not gone. A raised signal pulls it back. -->
   <div id="players-bar" class="players-bar" hidden></div>
 </header>
 
-<main>
-  <!-- Table Check (plan doc 5.4). First thing on the page on purpose:
-       it is what you run before people arrive, not something to hunt for. -->
-  <section>
-    <h2>Table Check <span class="muted">before a session</span></h2>
-    <div class="check-row">
-      <button id="check-run">Run Check</button>
-      <button id="check-full">Run + Test Lights &amp; Sound</button>
-    </div>
-    <div id="check-results" class="check-results"></div>
-  </section>
+<main id="panels">
 
-  <section>
-    <h2>Scenes</h2>
-    <div id="scenes" class="grid"></div>
-  </section>
+  <!-- ============================================================ PLAYERS
+       The landing panel, because the first thing that happens at a table is
+       people arriving: put the join code up, watch the seats fill. -->
+  <section class="panel" id="panel-players" data-panel="players">
 
-  <section>
-    <h2>Interruptions</h2>
-    <div id="interruptions" class="grid"></div>
-  </section>
-
-  <section id="tables-section">
-    <h2>Random Tables</h2>
-    <div id="tables" class="grid"></div>
-  </section>
-
-  <section id="display-section">
-    <h2>Table Screen</h2>
-    <!-- Three explicit buttons rather than one cycling toggle: mid-session
-         in low light you should be able to hit the state you want, not
-         guess where a cycle will land. -->
-    <!-- Put the join code up. Its own full-width button above the overlay
-         row because it is a different KIND of decision: the overlays
-         change how a scene is drawn, this replaces what is on screen. -->
-    <button id="show-status" class="wide">Show Join / Status Screen</button>
-    <div id="overlay-row" class="check-row"
-         style="grid-template-columns:repeat(3,1fr);margin-top:.8rem"></div>
-    <p class="note" id="display-note"></p>
-  </section>
-
-  <!-- Initiative (plan doc 3.9). Player turns only. Sits directly above
-       Seats because the order is built by tapping the seats below it. -->
-  <!-- Whispers (plan doc 3.7). One thread per player, private to that
-       player. There is no public channel by design. -->
-  <!-- The GM's record of every roll (plan doc 3.7). -->
-  <!-- The GM rolls here too. Not hidden like the log was: a roller you
-       cannot see until you have used it is not a roller. -->
-  <section id="rolls-section">
-    <h2>Dice</h2>
-    <div class="dice-panels">
-      <div class="pad">
-        <div id="gm-pad-display" class="pad-display">0</div>
-        <div class="pad-keys">
-          <button class="key gm-key" data-d="1">1</button>
-          <button class="key gm-key" data-d="2">2</button>
-          <button class="key gm-key" data-d="3">3</button>
-          <button class="key gm-key" data-d="4">4</button>
-          <button class="key gm-key" data-d="5">5</button>
-          <button class="key gm-key" data-d="6">6</button>
-          <button class="key gm-key" data-d="7">7</button>
-          <button class="key gm-key" data-d="8">8</button>
-          <button class="key gm-key" data-d="9">9</button>
-          <button id="gm-pad-clear" class="key wide-key">Clear</button>
-          <button class="key gm-key" data-d="0">0</button>
-          <span></span>
+    <div class="panel-col">
+      <section id="seats-section">
+        <h2>Seats <span class="muted">who is at the table</span></h2>
+        <!-- Join code first: it is the single most useful control at the
+             start of a session, and it used to be buried in Table Screen. -->
+        <button id="show-status" class="wide">Show Join / Status Screen</button>
+        <div class="seat-controls">
+          <label class="field">Players
+            <select id="seat-count"></select>
+          </label>
+          <button id="seat-show">Show Seat Colours</button>
+          <button id="init-set">Set Initiative Order</button>
         </div>
-      </div>
-      <div id="gm-dice-shapes" class="shapes"></div>
+        <!-- Kept because app.js still renders the numbered row into it, and
+             still reads `.active` off it. Hidden: the dropdown replaced it. -->
+        <div id="seat-count-row" class="check-row" hidden></div>
+        <div id="seat-list" class="seats"></div>
+        <p class="note" id="seat-note"></p>
+      </section>
     </div>
-    <div id="rolls-log" class="roll-history"></div>
+
+    <div class="panel-col">
+      <!-- Initiative (plan doc 3.9). Player turns only. Beside the seats
+           rather than above them: the order is built by tapping those seats,
+           and the two want to be visible at the same time. -->
+      <section id="initiative-section">
+        <h2>Initiative <span class="muted" id="init-state"></span></h2>
+        <p class="note" id="init-help" hidden>
+          Tap the players in turn order. Tap again to remove.
+        </p>
+        <ol id="init-list" class="init-list"></ol>
+        <div class="init-controls">
+          <button id="init-prev" class="arrow" title="Previous player">&#9664;</button>
+          <button id="init-run">Run Initiative</button>
+          <button id="init-next" class="arrow" title="Next player">&#9654;</button>
+        </div>
+      </section>
+    </div>
   </section>
 
-  <section id="whisper-section" hidden>
-    <h2>Whispers <span class="muted" id="whisper-count"></span></h2>
+  <!-- ================================================================ RUN
+       Everything that drives the table during play. Return to Idle lives
+       here now: it is one of these actions, not a destination, and moving
+       it off the bottom edge is what cleared room for the tab bar. -->
+  <section class="panel" id="panel-run" data-panel="run" hidden>
+
+    <div class="panel-col">
+      <section>
+        <h2>Scenes</h2>
+        <div id="scenes" class="grid"></div>
+      </section>
+
+      <section id="tables-section">
+        <h2>Random Tables</h2>
+        <div id="tables" class="grid"></div>
+      </section>
+
+      <section id="display-section">
+        <h2>Table Screen</h2>
+        <!-- Three explicit buttons rather than one cycling toggle: mid-session
+             in low light you should be able to hit the state you want, not
+             guess where a cycle will land. -->
+        <div id="overlay-row" class="check-row"
+             style="grid-template-columns:repeat(3,1fr)"></div>
+        <p class="note" id="display-note"></p>
+      </section>
+
+      <section>
+        <h2>Return to Idle</h2>
+        <button id="idle" class="idle-btn wide">Return to Idle</button>
+      </section>
+    </div>
+
+    <div class="panel-col">
+      <section>
+        <h2>Interruptions</h2>
+        <div id="interruptions" class="grid"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- =============================================================== DICE
+       Its own panel rather than a corner of Run. Run did not fit: 25
+       interruptions, six scenes, the tables and the overlays already fill
+       the vertical budget, and dice is self-contained. -->
+  <section class="panel" id="panel-dice" data-panel="dice" hidden>
+    <div class="panel-col">
+      <section id="rolls-section">
+        <h2>Dice</h2>
+        <div class="dice-panels">
+          <div class="pad">
+            <div id="gm-pad-display" class="pad-display">0</div>
+            <div class="pad-keys">
+              <button class="key gm-key" data-d="1">1</button>
+              <button class="key gm-key" data-d="2">2</button>
+              <button class="key gm-key" data-d="3">3</button>
+              <button class="key gm-key" data-d="4">4</button>
+              <button class="key gm-key" data-d="5">5</button>
+              <button class="key gm-key" data-d="6">6</button>
+              <button class="key gm-key" data-d="7">7</button>
+              <button class="key gm-key" data-d="8">8</button>
+              <button class="key gm-key" data-d="9">9</button>
+              <button id="gm-pad-clear" class="key wide-key">Clear</button>
+              <button class="key gm-key" data-d="0">0</button>
+              <span></span>
+            </div>
+          </div>
+          <div id="gm-dice-shapes" class="shapes"></div>
+        </div>
+      </section>
+    </div>
+    <div class="panel-col">
+      <section>
+        <h2>Rolls <span class="muted">everyone at the table</span></h2>
+        <div id="rolls-log" class="roll-history"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- =========================================================== SETTINGS
+       Setup and teardown, plus the subsystem status the header no longer
+       carries. Running a test belongs next to the thing being tested, so
+       Table Check folded in here rather than earning its own destination. -->
+  <section class="panel" id="panel-settings" data-panel="settings" hidden>
+
+    <div class="panel-col">
+      <section>
+        <h2>Table Check <span class="muted">before a session</span></h2>
+        <!-- The lamps. Big enough to read here, which they never were in a
+             header, and next to the buttons that make them change. -->
+        <div id="strip" class="strip">
+          <span class="sys" data-sys="lights"><i class="lamp"></i>lights</span>
+          <span class="sys" data-sys="audio"><i class="lamp"></i>sound</span>
+          <span class="sys" data-sys="display"><i class="lamp"></i>screen</span>
+          <span class="sys" data-sys="nfc"><i class="lamp"></i>cards</span>
+          <span class="sys" data-sys="room"><i class="lamp"></i>room</span>
+        </div>
+        <div class="check-row">
+          <button id="check-run">Run Check</button>
+          <button id="check-full">Run + Test Lights &amp; Sound</button>
+        </div>
+        <div id="check-results" class="check-results"></div>
+      </section>
+
+      <section id="audio-section">
+        <h2>Sound</h2>
+        <div class="bright-row">
+          <input type="range" id="vol" min="0" max="100" value="80" step="5">
+          <span id="vol-val">80%</span>
+        </div>
+        <div id="audio-out-row" class="check-row" style="margin-top:.8rem"></div>
+        <p class="note" id="audio-note"></p>
+      </section>
+
+      <section>
+        <h2>Brightness</h2>
+        <div class="bright-row">
+          <input type="range" id="bright" min="0" max="100" value="100" step="5">
+          <span id="bright-val">100%</span>
+        </div>
+        <p class="note">Scales within the device's power-budget ceiling. It cannot
+           exceed it &mdash; see the LED reference.</p>
+      </section>
+    </div>
+
+    <div class="panel-col">
+      <!-- Session recording (plan doc 3.10). One button. Transcription and
+           recaps are a later decision; the thing you cannot do afterwards is
+           record, so this exists first. -->
+      <section id="record-section">
+        <h2>Recording</h2>
+        <div class="bright-row">
+          <button id="rec-toggle" class="wide">Record Session</button>
+        </div>
+        <p class="note" id="rec-note"></p>
+      </section>
+
+      <section>
+        <h2>This Device</h2>
+        <!-- A view preference, not table config: two GMs on two devices
+             should not fight over it, so it lives in localStorage the same
+             way the player page already remembers a seat. -->
+        <label class="toggle">
+          <input type="checkbox" id="pref-playerbar" checked>
+          <span>Pin the player bar</span>
+        </label>
+        <p class="note">Unpinned, the roster stays out of the way and gives you
+           back about 34&nbsp;px &mdash; but a raised <b>?</b> or <b>!</b> still
+           pulls it down, because a signal nobody can see is a promise the table
+           cannot keep.</p>
+      </section>
+
+      <section>
+        <h2>Cards</h2>
+        <p class="note">Which tag fires what. Configuration, not play &mdash; which
+           is why it is deliberately not one of the tabs.</p>
+        <button id="open-cards" class="wide">Card Management</button>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============================================================== CARDS
+       A page rather than a panel: two thousand-odd pixels of configuration
+       that nobody touches mid-game, and giving it a position in the tab
+       order beside "scenes" invites editing the table's wiring during play. -->
+  <section class="panel page" id="panel-cards" data-panel="cards" hidden>
+    <div class="panel-col wide-col">
+      <div class="page-head">
+        <button id="cards-back" class="ghost">&#9664; Settings</button>
+        <h2>Card Management</h2>
+      </div>
+
+      <!-- Unassigned tags: tap an unknown card on the reader and it shows up
+           here ready to name. Replaces V1 printing into a terminal nobody read. -->
+      <section id="unassigned-section" style="display:none">
+        <h2>Unregistered Cards <span class="muted">just tapped</span></h2>
+        <div id="unassigned" class="cards"></div>
+      </section>
+
+      <section>
+        <h2>Cards <span class="muted" id="card-count"></span></h2>
+        <div id="cards" class="cards"></div>
+      </section>
+    </div>
+  </section>
+
+</main>
+
+<!-- Bottom rather than top: on a held tablet the thumbs are already there,
+     and on a phone it is the native pattern. Words rather than symbols, by
+     request. The old `.idle-bar` proved this position already handles the
+     safe area. Gone entirely at browser width, where the space problem the
+     tabs exist to solve does not exist. -->
+<nav class="tabbar" id="tabbar">
+  <button class="tab" data-goto="players">Players</button>
+  <button class="tab" data-goto="run">Run</button>
+  <button class="tab" data-goto="dice">Dice</button>
+  <button class="tab" data-goto="settings">Settings</button>
+</nav>
+
+<!-- Only ever visible at browser width, where the tab bar is gone and Dice,
+     Settings and Cards drop over the pair of live panels. Without it those
+     three would be a room with no door. -->
+<button id="wide-close" class="wide-close">Close</button>
+
+<footer>
+  <span id="version" class="muted"></span>
+  <span id="err" class="err"></span>
+</footer>
+
+<!-- Whispers (plan doc 3.7). One thread per player, private to that player.
+     There is no public channel by design.
+
+     An overlay rather than a fifth panel: it is a conversation you return
+     from, not a place you go, and a half-typed reply has to survive being
+     interrupted by a card tap. Full height, and it takes the scroll with it
+     so the panel underneath stops pulling. -->
+<div id="whisper-section" class="overlay" hidden>
+  <div class="overlay-box">
+    <div class="overlay-head">
+      <h3>Whispers</h3>
+      <button id="whisper-close" class="ghost">Close</button>
+    </div>
     <div id="whisper-tabs" class="check-row"></div>
     <div id="gm-whisper-log" class="whisper-log"></div>
     <form id="gm-whisper-form" class="whisper-form" autocomplete="off">
       <input id="gm-whisper-text" maxlength="500" placeholder="Reply…" />
       <button id="gm-whisper-send" type="submit">Send</button>
     </form>
-  </section>
-
-  <section id="initiative-section">
-    <h2>Initiative <span class="muted" id="init-state"></span></h2>
-
-    <button id="init-set" class="wide">Set Initiative Order</button>
-
-    <p class="note" id="init-help" hidden>
-      Tap the players below in turn order. Tap again to remove.
-    </p>
-
-    <ol id="init-list" class="init-list"></ol>
-
-    <div class="init-controls">
-      <button id="init-prev" class="arrow" title="Previous player">&#9664;</button>
-      <button id="init-run">Run Initiative</button>
-      <button id="init-next" class="arrow" title="Next player">&#9654;</button>
-    </div>
-  </section>
-
-  <!-- Seats: how many players are at the table, which is what divides the
-       perimeter into zones (plan doc 4.7). Placed next to Table Screen
-       rather than with the cards because it is session setup - something
-       you set once when people sit down, not during play. -->
-  <section id="seats-section">
-    <h2>Seats <span class="muted">who is at the table</span></h2>
-    <div id="seat-count-row" class="check-row"
-         style="grid-template-columns:repeat(7,1fr)"></div>
-    <div class="bright-row" style="margin-top:.7rem">
-      <button id="seat-show">Show Seat Colours</button>
-    </div>
-    <div id="seat-list" class="seats"></div>
-    <p class="note" id="seat-note"></p>
-  </section>
-
-  <!-- Sound. Volume is a slider like brightness; output is two explicit
-       buttons rather than a toggle, for the same reason the overlay row is:
-       mid-session you want to hit the state you want, not guess where a
-       toggle will land. -->
-  <!-- Session recording (plan doc 3.10). One button. Transcription and
-       recaps are a later decision; the thing you cannot do afterwards is
-       record, so this exists first. -->
-  <section id="record-section">
-    <h2>Recording</h2>
-    <div class="bright-row">
-      <button id="rec-toggle" class="wide">Record Session</button>
-    </div>
-    <p class="note" id="rec-note"></p>
-  </section>
-
-  <section id="audio-section">
-    <h2>Sound</h2>
-    <div class="bright-row">
-      <input type="range" id="vol" min="0" max="100" value="80" step="5">
-      <span id="vol-val">80%</span>
-    </div>
-    <div id="audio-out-row" class="check-row" style="margin-top:.8rem"></div>
-    <p class="note" id="audio-note"></p>
-  </section>
-
-  <section>
-    <h2>Brightness</h2>
-    <div class="bright-row">
-      <input type="range" id="bright" min="0" max="100" value="100" step="5">
-      <span id="bright-val">100%</span>
-    </div>
-    <p class="note">Scales within the device's power-budget ceiling. It cannot
-       exceed it &mdash; see the LED reference.</p>
-  </section>
-
-  <!-- Unassigned tags: tap an unknown card on the reader and it shows up
-       here ready to name. Replaces V1 printing into a terminal nobody read. -->
-  <section id="unassigned-section" style="display:none">
-    <h2>Unregistered Cards <span class="muted">just tapped</span></h2>
-    <div id="unassigned" class="cards"></div>
-  </section>
-
-  <section>
-    <h2>Cards <span class="muted" id="card-count"></span></h2>
-    <div id="cards" class="cards"></div>
-  </section>
-</main>
-
-<div class="idle-bar">
-  <button id="idle" class="idle-btn">Return to Idle</button>
+  </div>
 </div>
-
-<footer>
-  <span id="version" class="muted"></span>
-  <span id="err" class="err"></span>
-</footer>
 
 <!-- Card editor. A dialog rather than inline, so a mis-tap during a
      session cannot silently change what a card does. -->

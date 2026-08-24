@@ -54,11 +54,6 @@
               aria-label="I need something">!</button>
     </header>
 
-    <nav class="tabs">
-      <button class="tab on" data-tab="dice">Dice</button>
-      <button class="tab" data-tab="whisper">Whisper</button>
-      <button class="tab" data-tab="seat">Seat</button>
-    </nav>
 
     <!-- ---- dice ---- -->
     <div id="tab-dice" class="tab-panel">
@@ -101,6 +96,26 @@
       <p class="muted" id="claimed-seat">&nbsp;</p>
       <button id="claim-again" class="ghost">That is not my seat</button>
     </div>
+
+    <!-- ---- table ----
+         A PLACEHOLDER, and shipped as one deliberately. Table interaction
+         is wanted and not designed; an empty fourth tab is honest about
+         what is coming, and adding a tab to a finished bar later would
+         re-test every width for nothing. -->
+    <div id="tab-table" class="tab-panel" hidden>
+      <p class="muted">Nothing here yet.</p>
+      <p class="note">This is where you will reach the table itself &mdash;
+         what you can see, what you can touch. It is not built.</p>
+    </div>
+
+    <!-- Same bar as the GM panel: bottom, fixed, words not symbols. One
+         pattern serving both surfaces rather than two that drift. -->
+    <nav class="tabbar">
+      <button class="tab active" data-tab="dice">Dice</button>
+      <button class="tab" data-tab="whisper">Messages</button>
+      <button class="tab" data-tab="seat">Seat</button>
+      <button class="tab" data-tab="table">Table</button>
+    </nav>
   </section>
 </main>
 
@@ -217,7 +232,7 @@ $("#claim-again").addEventListener("click", () => {
 
 function showTab(name) {
   document.querySelectorAll(".tab").forEach(t =>
-    t.classList.toggle("on", t.dataset.tab === name));
+    t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach(p =>
     p.hidden = (p.id !== "tab-" + name));
   // Only poll the conversation while it is the thing being looked at.

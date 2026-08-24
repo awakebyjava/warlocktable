@@ -13,6 +13,11 @@ after the spec was written -- four panels, bottom tabs, a placeholder tab
 on the player page, Return to Idle moving into Run. Regenerating a list
 from one place beats maintaining two lists that disagree.
 
+It drifted again the moment the panels were built: Check stopped being a
+destination and Dice became one, and the three status states turned out
+not to need artwork at all -- they are CSS dome lamps. Both corrected
+here.
+
 WHAT MATTERS TO THE PERSON DRAWING THEM
 
 Priority, not completeness. TAB icons are load-bearing: they sit in a
@@ -43,8 +48,8 @@ ICONS = [
      "The people at the table: seats, initiative, the join code. The landing panel", "24px", "ESSENTIAL"),
     ("GM tab", "Run", "GM bottom bar",
      "Driving the table: scenes, cards, tables, dice, back to idle", "24px", "ESSENTIAL"),
-    ("GM tab", "Check", "GM bottom bar",
-     "Is the table healthy. Pre-session, not play", "24px", "ESSENTIAL"),
+    ("GM tab", "Dice", "GM bottom bar",
+     "The GM's own pad and the whole table's roll log", "24px", "ESSENTIAL"),
 
     # ---- Player bottom tabs. ---------------------------------------------
     ("Player tab", "Dice", "Player bottom bar",
@@ -73,8 +78,8 @@ ICONS = [
      "The NFC reader", "16px", "HIGH"),
     ("Status", "Room", "GM status strip, TV status screen",
      "Govee accent lighting. NEW -- not in the old spec", "16px", "HIGH"),
-    ("Status", "OK / Warn / Fail", "Beside every status",
-     "Three states. Must differ in SHAPE, not only colour", "16px", "HIGH"),
+    # The three states are DONE -- drawn in CSS as dome lamps, not artwork.
+    # They are listed here only so nobody draws them a second time.
 
     # ---- Run panel. ------------------------------------------------------
     ("Run", "Scene", "Run panel", "Enter a persisting place", "24px", "MEDIUM"),
@@ -91,6 +96,8 @@ ICONS = [
     # ---- Players panel. --------------------------------------------------
     ("Players", "Join code", "Players panel",
      "Put the QR up on the television. First thing at a session", "24px", "HIGH"),
+    ("Players", "Whispers", "GM header, every panel",
+     "Opens the private threads. Carries an unread count", "20px", "HIGH"),
     ("Players", "Initiative", "Players panel", "Turn order", "24px", "MEDIUM"),
     ("Players", "Previous / Next turn", "Players panel",
      "Step the order. Currently the glyphs and", "24px", "MEDIUM"),
@@ -107,9 +114,10 @@ ICONS = [
     ("Settings", "Card management", "Settings panel",
      "Admin: which tag fires what. Behind Settings, never on a play panel", "24px", "LOW"),
 
-    # ---- Check panel. ----------------------------------------------------
-    ("Check", "Run check", "Check panel", "Sub-second health check", "24px", "MEDIUM"),
-    ("Check", "Test lights and sound", "Check panel",
+    # ---- Table Check, inside Settings. Not its own destination: running
+    # ---- a test belongs beside the thing being tested. -------------------
+    ("Settings", "Run check", "Settings panel", "Sub-second health check", "24px", "MEDIUM"),
+    ("Settings", "Test lights and sound", "Settings panel",
      "Actually flash and play -- software cannot confirm photons", "24px", "MEDIUM"),
 
     # ---- Dice, both surfaces. -------------------------------------------

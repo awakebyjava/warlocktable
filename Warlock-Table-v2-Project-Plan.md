@@ -310,7 +310,7 @@ Three front doors, all on the same server:
   Encoded with `segno` — pure Python, no ARM wheel trouble — and optional at
   runtime, degrading to printing the URL, because a join page that 500s over
   a missing decoration is far worse than an address people can type.
-#### GM panel redesign *(specced 2026-08-23, not built)*
+#### GM panel redesign *(specced 2026-08-23, BUILT 2026-08-24)*
 
 **Target: an iPad mini, held landscape.** 1133 x 744. That is the device
 and the orientation; everything below follows from it.
@@ -323,6 +323,23 @@ and the orientation; everything below follows from it.
 | **Screens of scrolling** | **7.4** |
 | Sections stacked in one column | 13 |
 | Cards section alone | 2,165 px — 39% of the page |
+
+**Measured after the rebuild, same device (1133 × 744):**
+
+| | Before | After |
+|---|---|---|
+| Header | 164 px | **53 px** |
+| Screens of scrolling | 7.4 | **none** — no panel scrolls the page |
+| Tallest panel | — | Players, 557 px into a 557 px budget |
+
+Each *column* takes its own scrollbar rather than the panel scrolling as
+a whole. That came out of the measurement: Run's left column is 424 px of
+scenes, overlays and Return to Idle against 727 px of interruption cards
+on the right, so scrolling the panel as one unit would push Return to
+Idle off the bottom to reach card 25. The column budget is a CSS
+variable that `app.js` keeps accurate, because the header changes height
+when the player bar appears and a hard-coded number is wrong on some
+device the day somebody sits down.
 
 The panel is a single column with a 940px max-width. On its target device
 it wastes half the width and scrolls seven screens. It grew a section at a
@@ -445,9 +462,15 @@ must survive being interrupted by a card tap.
   **The consequence that must not be shipped by accident:** if the bar is
   off, a player pressing `?` has nowhere to appear. Their button would
   light up while nobody is watching, which is a promise the table cannot
-  keep. So either "off" means *unpinned* rather than *gone*, or turning it
-  off has to give signals somewhere else to land. Decide before building,
-  not after a player wonders why nobody answered.
+  keep.
+
+  **Decided 2026-08-24: "off" means UNPINNED, not gone.** The bar hides
+  only while it has nothing to say. A raised signal pulls it back showing
+  just whoever raised it; clearing the last one lets it go again. Quiet
+  when quiet, present when it matters — and the GM never has to have
+  trusted a preference for a signal to arrive. Verified in the browser
+  against a live seat: hidden when quiet, back with the mark on a raised
+  `?`, gone again on clear.
 
 - **The vertical budget.** At 744px, minus a 56px tab bar and ~21px of safe
   area. Dropping the status strip is what makes the header target
@@ -2130,9 +2153,11 @@ Stand up the core software on the Pi once hardware is trusted.
     `npc_binding` stays defined in the spec and null on every card. The
     nine Person cards work as announcements without it; binding each to a
     named NPC was speculative and nobody has wanted it.
-- [ ] **GM panel redesign** (§3.7) — four side-by-side panels for an iPad
-  mini in landscape, plus a whisper overlay. Measured: 7.4 screens of
-  scrolling today on the device it is built for.
+- [x] **GM panel redesign** (§3.7) — four panels behind a bottom tab bar,
+  plus a whisper overlay and a card-management page. 7.4 screens of
+  scrolling became none on the device it is built for. *Done 2026-08-24.*
+  Still open: the drawn symbols, which the tab bar carries in words until
+  they arrive.
 - [ ] **Display redesign** (§3.6) — real grid/hex overlays, battle maps
   with fit/crop rules, a turn indicator and an effects overlay. Measured:
   write JPEG rather than PNG or a redraw costs 2-12 seconds.

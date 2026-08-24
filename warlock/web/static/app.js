@@ -56,10 +56,24 @@ async function fire(action, params, btn) {
 
 /* ---------- rendering ---------- */
 
+// The subsystem row, in SETTINGS rather than the header. `state` is one of
+// ok / bad / absent; the lamp carries the colour and the row carries the
+// label. A failure BLINKS as well as going red, because roughly one man in
+// twelve cannot separate red from green and a second channel costs nothing.
+const LAMP_HUE = { ok: 132, bad: 4, absent: 44 };
+
 function chip(name, state) {
-  const c = $(`.chip[data-sys="${name}"]`);
-  if (!c) return;
-  c.className = "chip " + state;
+  const row = $(`.sys[data-sys="${name}"]`);
+  if (!row) return;
+  row.className = "sys " + state;
+  const lamp = row.querySelector(".lamp");
+  if (!lamp) return;
+  lamp.style.setProperty("--hue", LAMP_HUE[state] || 44);
+  // Absent is a lamp that never came on, which is a different statement
+  // from one that went out -- and it is the honest one for a subsystem the
+  // table was started without.
+  lamp.style.setProperty("--lit", state === "absent" ? 0 : 1);
+  lamp.classList.toggle("blink", state === "bad");
 }
 
 function render(s) {
@@ -70,6 +84,10 @@ function render(s) {
   chip("lights",  sub.lights  ? "ok" : "bad");
   chip("audio",   sub.audio   ? "ok" : "bad");
   chip("display", sub.display ? "ok" : "bad");
+  // Govee accent lighting (plan doc 3.13). Absent rather than broken when
+  // the strips were never configured -- the table runs fine without them.
+  if (sub.govee === undefined) chip("room", "absent");
+  else chip("room", sub.govee ? "ok" : "bad");
 
   // NFC is a separate input, not a controller subsystem - and it is absent
   // rather than broken when the service runs without --nfc.
@@ -363,11 +381,33 @@ const SIGNAL_MARK = { question: "?", need: "!" };
 // every few seconds; redrawing the whole bar on every poll would fight a
 // finger that is mid-tap.
 let barSeats = [];
+// Kept so the bar can be redrawn when the pin preference changes, without
+// waiting up to three seconds for the next poll to supply the signals.
+let lastSignals = [];
 
 function renderPlayerBar(signals) {
+  signals = signals || [];
+  lastSignals = signals;
   const bar = $("#players-bar");
-  const seated = barSeats.filter(z => z.player);
-  if (!seated.length) { bar.hidden = true; bar.innerHTML = ""; return; }
+  let seated = barSeats.filter(z => z.player);
+
+  // UNPINNED MEANS UNPINNED, NOT GONE.
+  //
+  // The bar costs about 34px of the scarcest space on the panel, so a GM
+  // may reasonably not want a permanent roster. But if "off" meant "gone",
+  // a player pressing `?` would light their own button while nobody was
+  // watching -- a promise the table cannot keep, and the player has no way
+  // to discover it was never received.
+  //
+  // So unpinned hides the bar only while it has nothing to say. A raised
+  // signal pulls it back, showing just whoever raised it; clearing the
+  // last one lets it go again. Quiet when quiet, present when it matters.
+  if (!barPinned()) {
+    const raised = new Set(signals.map(sig => sig.colour));
+    seated = seated.filter(z => raised.has(z.colour));
+  }
+
+  if (!seated.length) { bar.hidden = true; bar.innerHTML = ""; bar.dataset.want = ""; return; }
   bar.hidden = false;
 
   const byColour = {};
@@ -504,9 +544,12 @@ async function refreshWhispers() {
   try { data = await api("/api/whispers"); }
   catch (e) { return; }
   waThreads = data.threads || [];
-  const sec = $("#whisper-section");
-  if (!waThreads.length) { sec.hidden = true; return; }
-  sec.hidden = false;
+  // The overlay is opened by the GM, never by the poll: a thread arriving
+  // mid-sentence must not throw a panel over what they were doing. All the
+  // poll may do is light the button in the header.
+  const open = $("#whisper-open");
+  open.hidden = !waThreads.length;
+  if (!waThreads.length) { closeWhispers(); return; }
 
   let unread = 0;
   waThreads.forEach(t => {
@@ -516,7 +559,8 @@ async function refreshWhispers() {
     if (t.colour !== waColour && t.messages.length > seen &&
         t.last_from === "player") unread++;
   });
-  $("#whisper-count").textContent = unread ? unread + " waiting" : "";
+  $("#whisper-count").textContent = unread ? "· " + unread : "";
+  $("#whisper-open").classList.toggle("waiting", unread > 0);
 
   const key = waThreads.map(t => t.colour + ":" + t.messages.length).join(",")
               + "|" + waColour;
@@ -751,6 +795,26 @@ function renderSeats(z) {
     b.classList.toggle("active", b.dataset.count === String(z.player_count));
   });
 
+  // The visible control. Seven numbered buttons ate a whole row to express
+  // one number; a select says the same thing in one field and leaves the
+  // row for the two controls beside it.
+  const sel = $("#seat-count");
+  if (sel.dataset.max !== String(z.max_players)) {
+    sel.dataset.max = String(z.max_players);
+    sel.innerHTML = "";
+    for (let n = 1; n <= z.max_players; n++) {
+      const o = document.createElement("option");
+      o.value = String(n);
+      o.textContent = String(n);
+      sel.append(o);
+    }
+    sel.addEventListener("change", async () => {
+      await fire("set_player_count", { count: Number(sel.value) });
+      refreshSeats();
+    });
+  }
+  sel.value = String(z.player_count);
+
   // Keep a lookup so the initiative list can show colours and names
   // without fetching the seats again on every render.
   seatsByZone = {};
@@ -933,3 +997,146 @@ document.addEventListener("visibilitychange", () => {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
+
+/* ---------- navigation (plan doc 3.7 redesign) ----------
+ *
+ * Four panels and a card page, swapped by a bottom tab bar. No router and
+ * no history: the browser back button on a wall-mounted iPad is not a
+ * navigation control anybody reaches for, and a history stack would mean
+ * a GM's third card tap could be undone by a stray swipe.
+ *
+ * PANEL STATE SURVIVES A SWITCH because nothing is destroyed -- panels are
+ * hidden, not rebuilt. A half-typed dice count, a selected initiative
+ * order and a part-written whisper are all still there on return. That is
+ * the whole reason this is `hidden` toggling rather than re-rendering.
+ *
+ * At >= 1200px the CSS overrides Players and Run to both be visible and
+ * drops the tab bar; `current` keeps being tracked anyway, so shrinking
+ * the window lands somewhere sensible rather than nowhere.
+ */
+
+const PANELS = ["players", "run", "dice", "settings", "cards"];
+const LANDING = "players";      // people arriving is what happens first
+let current = LANDING;
+
+function goto(name) {
+  if (!PANELS.includes(name)) return;
+  current = name;
+  PANELS.forEach(n => {
+    const panel = document.getElementById("panel-" + n);
+    if (panel) panel.hidden = n !== name;
+  });
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.goto === name));
+  // Cards is not a tab, so no tab lights up for it. Settings stays lit
+  // while you are inside it, because that is where you came from and
+  // where the back button returns you.
+  if (name === "cards") {
+    const t = document.querySelector('.tab[data-goto="settings"]');
+    if (t) t.classList.add("active");
+  }
+  // At browser width these three are fixed overlays; the body class is
+  // what reveals the close control the missing tab bar would have been.
+  document.body.classList.toggle(
+    "panel-over", name === "dice" || name === "settings" || name === "cards");
+  // A panel switch scrolls to the top of the new panel, not to wherever
+  // the last one was left.
+  window.scrollTo(0, 0);
+}
+
+document.querySelectorAll(".tab").forEach(t =>
+  t.addEventListener("click", () => goto(t.dataset.goto)));
+
+$("#open-cards").addEventListener("click", () => goto("cards"));
+$("#cards-back").addEventListener("click", () => goto("settings"));
+$("#wide-close").addEventListener("click", () => goto(LANDING));
+
+goto(LANDING);
+
+/* ---------- the whisper overlay ----------
+ *
+ * Opened deliberately, closed deliberately. `body.locked` stops the panel
+ * underneath scrolling while a finger drags inside the thread -- without
+ * it the page behind pulls, which is the specific complaint this replaced.
+ */
+
+function openWhispers() {
+  $("#whisper-section").hidden = false;
+  document.body.classList.add("locked");
+  // Mark whatever thread is showing as read on open rather than on poll:
+  // opening it is the act of reading it.
+  if (waColour) {
+    const t = waThreads.find(x => x.colour === waColour);
+    if (t) waSeen[waColour] = t.messages.length;
+  }
+  refreshWhispers();
+}
+
+function closeWhispers() {
+  $("#whisper-section").hidden = true;
+  document.body.classList.remove("locked");
+}
+
+$("#whisper-open").addEventListener("click", openWhispers);
+$("#whisper-close").addEventListener("click", closeWhispers);
+// Escape closes it on a browser; on a tablet the button is the only way,
+// which is why the button is not optional.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("#whisper-section").hidden) closeWhispers();
+});
+
+/* ---------- per-device view preferences ----------
+ *
+ * localStorage rather than table config: this is how one GM likes to look
+ * at the panel, not something true about the table, and two GMs on two
+ * devices should not fight over it. Same mechanism the player page already
+ * uses to remember a seat.
+ */
+
+const PREF_BAR = "wt.playerbar";
+
+function barPinned() {
+  return localStorage.getItem(PREF_BAR) !== "0";
+}
+
+function applyBarPref() {
+  const on = barPinned();
+  $("#pref-playerbar").checked = on;
+  document.body.classList.toggle("bar-unpinned", !on);
+  renderPlayerBar(lastSignals);
+}
+
+$("#pref-playerbar").addEventListener("change", (e) => {
+  localStorage.setItem(PREF_BAR, e.currentTarget.checked ? "1" : "0");
+  applyBarPref();
+});
+
+applyBarPref();
+
+/* ---------- chrome measurement ----------
+ *
+ * The panel columns size themselves against the space the header and the
+ * tab bar leave behind. That number is not a constant: the header grows by
+ * ~34px when the player bar appears and shrinks again when it goes, and it
+ * reflows entirely between breakpoints. Measuring beats guessing -- a
+ * hard-coded value is wrong on one device the day somebody sits down.
+ */
+function measureChrome() {
+  const head = document.querySelector("header").getBoundingClientRect().height;
+  const bar = document.getElementById("tabbar");
+  // display:none at browser width, where it contributes nothing.
+  const tabs = getComputedStyle(bar).display === "none"
+    ? 0 : bar.getBoundingClientRect().height;
+  // The footer counts too: version and the error line sit below the
+  // panels, and a column tall enough to push them under the tab bar would
+  // hide the one place errors are reported.
+  const foot = document.querySelector("footer").getBoundingClientRect().height;
+  document.documentElement.style.setProperty(
+    "--chrome", Math.ceil(head + tabs + foot + 20) + "px");
+}
+
+measureChrome();
+addEventListener("resize", measureChrome);
+// The header changes height when the player bar comes and goes, and that
+// happens on a poll rather than on an event we could listen for.
+new ResizeObserver(measureChrome).observe(document.querySelector("header"));
