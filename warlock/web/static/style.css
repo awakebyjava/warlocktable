@@ -720,3 +720,103 @@ button.small { padding: 4px 10px; font-size: 10px; }
   min-height: 40vh; max-height: 52vh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 8px; padding: 4px 0;
 }
+
+
+/* --- status lamps (plan doc 3.7) -----------------------------------------
+   Where they belong: the SETTINGS panel, beside the checks that test each
+   subsystem, and the TV status screen. Deliberately NOT the header -- a row
+   saying everything is fine, all evening, spends the scarcest space on the
+   panel to say nothing, and by the time it has something to say nobody is
+   looking at it any more.
+
+   Colour is not the only signal. A failing lamp also blinks: roughly one man
+   in twelve cannot separate red from green, and a blink is a second channel
+   that costs nothing.
+*/
+/* ============================================================ THE LAMP ====
+   A moulded dome lens, seen from above. NO BEZEL -- the lens is the whole
+   lamp. Losing the ring also loses the argument the brand kit would have
+   had with it: there is no gold here to be flat or otherwise.
+
+   Two layers:
+     .lamp::before  the LENS. A repeating conic gradient for the sixteen
+                    moulded ribs, over a radial gradient for the dome. The
+                    ribs are what say "tall" -- a shaded disc reads flat
+                    however well it is shaded.
+     .lamp::after   the APEX, where the ribs converge. The cheapest detail
+                    here and it does most of the work.
+
+   The rim darkens inside the GRADIENT rather than via an inset shadow. A
+   dome turns away from you at its edge, so that darkening is the dome's own
+   shading. An inset shadow read as something cast ONTO the lens, which told
+   the eye the ring was the higher surface -- the exact opposite of the
+   truth, and the reason the bezel had to go or be fixed.
+
+   Everything scales from --d.                                              */
+.lamp {
+  --d: 16px;
+  --hue: 128;
+  --lit: 1;
+  width: var(--d); height: var(--d);
+  box-sizing: border-box;
+  border-radius: 50%;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  box-shadow:
+    /* seated on the panel, and glowing when lit */
+    0 calc(var(--d) * .05) calc(var(--d) * .12) rgba(0,0,0,.75),
+    0 0 calc(var(--d) * .60 * var(--lit)) calc(var(--d) * .10 * var(--lit))
+      hsl(var(--hue) 95% 48% / calc(.5 * var(--lit)));
+}
+
+.lamp::before {
+  content: ""; display: block;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  background:
+    /* sixteen moulded facets, 22.5deg each, offset half a facet so a rib
+       CENTRE sits at the top rather than a seam */
+    repeating-conic-gradient(from 11.25deg,
+      hsl(var(--hue) 88% calc(28% + var(--lit) * 44%) / .52)  0deg 11.25deg,
+      hsl(var(--hue) 96% calc(12% + var(--lit) * 19%) / .52)  11.25deg 22.5deg),
+    /* the dome, falling away hard at the rim because it curves away */
+    radial-gradient(circle at 50% 42%,
+      hsl(var(--hue) 92% calc(42% + var(--lit) * 44%)) 0%,
+      hsl(var(--hue) 95% calc(28% + var(--lit) * 30%)) 38%,
+      hsl(var(--hue) 92% calc(16% + var(--lit) * 16%)) 72%,
+      hsl(var(--hue) 90% calc(6%  + var(--lit) * 6%))  92%,
+      hsl(var(--hue) 88% calc(4%  + var(--lit) * 4%))  100%);
+}
+
+/* apex: the ribs converge, and a small hot point sits where they meet */
+.lamp::after {
+  content: ""; position: absolute;
+  left: 50%; top: 42%;
+  width: 30%; height: 30%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    hsl(var(--hue) 60% calc(60% + var(--lit) * 38%) / calc(.35 + var(--lit) * .55)) 0%,
+    hsl(var(--hue) 80% calc(50% + var(--lit) * 30%) / 0) 70%);
+}
+
+.ok   { --hue: 132; }
+.warn { --hue: 44;  }
+.fail { --hue: 4;   }
+.off  { --lit: 0; }
+
+/* A fault also BLINKS. Roughly one man in twelve cannot separate red from
+   green, and a blink is a second channel that costs nothing -- and real
+   panels of this era did exactly that. */
+.blink { animation: lampblink 1.15s steps(1,end) infinite; }
+@keyframes lampblink { 50% { opacity: .42; } }
+@media (prefers-reduced-motion: reduce) { .blink { animation: none; } }
+.lamp.ok    { --hue: 132; }
+.lamp.warn  { --hue: 44;  }
+.lamp.fail  { --hue: 4;   }
+.lamp.out   { --lit: 0; }
+
+.lamp.blink { animation: lampblink 1.15s steps(1, end) infinite; }
+@keyframes lampblink { 50% { opacity: .42; } }
+@media (prefers-reduced-motion: reduce) { .lamp.blink { animation: none; } }
