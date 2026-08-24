@@ -143,6 +143,10 @@
     <div class="panel-col">
       <section id="rolls-section">
         <h2>Dice</h2>
+        <!-- Preset rolls, paged by system. Above the pad because these are
+             the rolls you reach for without thinking; the pad is for the
+             ones you have to think about. -->
+        <div id="gm-presets" class="presets"></div>
         <div class="dice-panels">
           <div class="pad">
             <div id="gm-pad-display" class="pad-display">0</div>
@@ -371,6 +375,7 @@
   </div>
 </div>
 
+<script src="/dice-presets.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

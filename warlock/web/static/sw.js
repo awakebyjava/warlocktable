@@ -12,12 +12,12 @@
 // BUMP THIS whenever the shell changes shape. The activate handler deletes
 // every cache that is not this one, so a new name is what guarantees the
 // old shell is actually gone rather than merely out of favour.
-const CACHE = "warlock-shell-v5";
+const CACHE = "warlock-shell-v6";
 const SHELL = [
   // "/" is now the join chooser and "/gm" is the panel. Both are cached:
   // the GM's installed app opens /gm, and a player who scanned the code
   // gets a real page rather than a browser error if the Pi blinks.
-  "/", "/gm", "/player", "/style.css", "/app.js",
+  "/", "/gm", "/player", "/style.css", "/app.js", "/dice-presets.js",
   "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png",
   "/favicon-64.png",
   // Must match what style.css actually asks for. Syne was dropped for

@@ -486,8 +486,10 @@ function gmDigit(d) {
   gmPadShow(gmEntry || "0");
 }
 
-async function gmRoll(sides) {
-  const count = Math.max(1, parseInt(gmEntry || "1", 10));
+async function gmRoll(sides, presetCount) {
+  // A preset knows its own count. Everything else falls back to whatever
+  // is on the pad, so tapping a bare die still rolls one.
+  const count = presetCount || Math.max(1, parseInt(gmEntry || "1", 10));
   try {
     const data = await api("/api/roll", {
       method: "POST",
@@ -499,6 +501,11 @@ async function gmRoll(sides) {
     $("#rolls-log").dataset.stamp = "";
     refreshRolls();
   } catch (e) { gmPadShow("—"); gmHolding = true; }
+}
+
+function buildGmPresets() {
+  if (typeof buildPresetBar !== "function") return;   // file failed to load
+  buildPresetBar($("#gm-presets"), (n, d) => gmRoll(d, n), "wt.gm.preset");
 }
 
 function buildGmDice() {
@@ -519,6 +526,7 @@ $("#gm-pad-clear").addEventListener("click", () => {
   gmEntry = ""; gmHolding = false; gmPadShow("0");
 });
 buildGmDice();
+buildGmPresets();
 
 /* ---------- dice log, GM side (plan doc 3.7) ---------- */
 

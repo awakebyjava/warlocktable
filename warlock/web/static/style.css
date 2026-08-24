@@ -1052,6 +1052,43 @@ body.locked { overflow: hidden; }
   #rolls-log { max-height: none; }
 }
 
+/* --- preset roll bar (dice-presets.js) --------------------------------
+   Paged by system rather than shown all at once: three systems' worth of
+   common rolls in one strip is a wall, and a GM runs one game at a time.
+   The arrows wrap, so there is no dead control at either end. */
+.presets { margin-bottom: 12px; }
+.preset-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 8px;
+}
+.preset-name {
+  flex: 1; text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--gold);
+}
+.preset-arrow {
+  margin: 0; flex: none;
+  min-width: 40px; min-height: 40px;
+  font-size: 18px; line-height: 1;
+  padding: 0 12px;
+  color: var(--bone-dim);
+}
+.preset-rolls {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.preset {
+  margin: 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px; letter-spacing: 0.04em;
+  text-transform: none;
+  padding: 10px 14px;
+  min-height: 44px;                    /* a thumb target, on the smallest phone */
+  border-color: var(--purple-deep);
+  color: var(--bone);
+}
+.preset:active { background: var(--purple-deep); }
+
 .build-box {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px; color: var(--bone-dim);

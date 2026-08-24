@@ -59,6 +59,9 @@
     <!-- ---- dice ---- -->
     <div id="tab-dice" class="tab-panel">
       <div id="pad-display" class="pad-display">0</div>
+      <!-- Same preset bar as the GM's, from the same file -- see
+           dice-presets.js for why that is shared rather than copied. -->
+      <div id="presets" class="presets"></div>
 
       <div class="pad-keys">
         <button class="key" data-d="1">1</button>
@@ -120,6 +123,7 @@
   </section>
 </main>
 
+<script src="/dice-presets.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 let chosen = null;
@@ -215,6 +219,7 @@ function showApp() {
   $("#claimed-seat").textContent = "You are the " + mine.colour + " lights";
   $("#claimed-swatch").style.setProperty("--seat", mine.colour);
   buildShapes();
+  buildPresets();
   padClear();
 }
 
@@ -314,6 +319,11 @@ function padDigit(d) {
 
 function padClear() { entry = ""; holding = false; padShow("0"); }
 
+function buildPresets() {
+  if (typeof buildPresetBar !== "function") return;   // file failed to load
+  buildPresetBar($("#presets"), (n, d) => rollDice(d, n), "wt.preset");
+}
+
 function buildShapes() {
   const box = $("#dice-shapes");
   if (box.childElementCount) return;
@@ -326,9 +336,10 @@ function buildShapes() {
   });
 }
 
-async function rollDice(sides) {
+async function rollDice(sides, presetCount) {
   if (!mine) return;
-  const count = Math.max(1, parseInt(entry || "1", 10));
+  // A preset carries its own count; a bare die tap still uses the pad.
+  const count = presetCount || Math.max(1, parseInt(entry || "1", 10));
   try {
     const res = await fetch("/api/player/roll", {
       method: "POST",
