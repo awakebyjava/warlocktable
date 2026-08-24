@@ -336,9 +336,15 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
                  store=store, unassigned=unassigned, mic=mic)
     # Back-reference so show_status_screen() can read live device status.
     controller._runtime = rt
-    for candidate in ("/opt/warlocktable/branding/warlockandtext.jpg",
+    # The hero the status screen draws. Pointed at the wordmark rather than
+    # the older logo: this overrides statusscreen's own default, so leaving
+    # it on the previous file meant the screen kept drawing the old art no
+    # matter what the module preferred -- which is exactly what happened,
+    # and only showed up on the table because the fallback looked right
+    # everywhere else.
+    for candidate in ("/opt/warlocktable/branding/warlock-hero-wordmark.png",
                       os.path.join(os.path.dirname(__file__), "..",
-                                   "branding", "warlockandtext.jpg")):
+                                   "branding", "warlock-hero-wordmark.png")):
         if os.path.exists(candidate):
             controller._branding_path = os.path.abspath(candidate)
             break

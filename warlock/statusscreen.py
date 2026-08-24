@@ -573,8 +573,13 @@ def build_report(rt, check: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     else:
         add("Room", False, "simulated", absent=True)
 
+    # IDLE IS A SCENE, NOT AN ABSENCE. This reported "warn" whenever
+    # current_scene was unset, which is the table's normal resting state --
+    # so a perfectly healthy table drew a hollow mark and, once non-ok rows
+    # started getting a full explanatory line of their own, a line reading
+    # "Scene / idle" as though something needed attention.
     scene = rt.controller.current_scene
-    rows.append({"name": "Scene", "state": "ok" if scene else "warn",
+    rows.append({"name": "Scene", "state": "ok",
                  "detail": scene.name if scene else "idle"})
 
     # Fold in whatever tablecheck found that a device probe structurally
