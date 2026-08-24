@@ -56,6 +56,16 @@ DISPLAY_FONT = os.path.join(BUNDLED, "Syne.ttf")
 BODY_FONT    = os.path.join(BUNDLED, "IBMPlexSans.ttf")
 MONO_FONT    = os.path.join(BUNDLED, "IBMPlexMono-Regular.ttf")
 
+# The table's own marks (plan doc 3.6). Two sigils are inlaid in the real
+# tabletop, and the screen echoes them rather than inventing a third: the
+# procedural "wheel" that used to sit here was a placeholder from before
+# there was any artwork, and it never appeared on the physical table at all.
+BRANDING_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "..", "branding")
+HERO      = "warlock-hero-wordmark.png"
+SIGIL_L   = "Goetia_seal_of_solomon.svg.webp"
+SIGIL_R   = "3733_the-astaroth-sigil.png"
+
 # apt-installed copies, if the bundled ones are somehow missing.
 SYSTEM_DIR   = "/usr/share/fonts/truetype/ibm-plex"
 FALLBACKS = {
@@ -91,36 +101,59 @@ def _font(path, size, weight=None):
     return ImageFont.load_default()
 
 
-def _sigil(draw, cx, cy, r, active=True):
-    """The signature mark from the style guide §V.
+def _asset(name):
+    """Open a branding asset, or None. Never raises.
 
-    One geometric form reused with intention — the same ring that is the
-    favicon and the 'currently speaking' frame. Brass rings for structure,
-    purple cross for the live element.
+    A missing decoration must not be the reason the status screen fails to
+    draw, because the status screen is what you look at WHEN things are
+    failing.
     """
-    accent = PURPLE if active else BONE_DIM
-    w = max(2, r // 13)
+    from PIL import Image
+    path = os.path.abspath(os.path.join(BRANDING_DIR, name))
+    if not os.path.exists(path):
+        return None
+    try:
+        return Image.open(path)
+    except Exception:      # noqa: BLE001
+        return None
 
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=BRASS, width=w)
-    r2 = int(r * 0.76)
-    draw.ellipse([cx - r2, cy - r2, cx + r2, cy + r2], outline=BRASS, width=w)
 
-    arm = int(r * 0.76)
-    draw.line([cx, cy - arm, cx, cy + arm], fill=accent, width=w)
-    draw.line([cx - arm, cy, cx + arm, cy], fill=accent, width=w)
-    d = int(arm * 0.7)
-    draw.line([cx - d, cy - d, cx + d, cy + d], fill=accent, width=w)
-    draw.line([cx + d, cy - d, cx - d, cy + d], fill=accent, width=w)
+def _ink(name, size, colour, opacity=1.0):
+    """Load a black-line sigil and re-draw it in `colour` at `size`.
 
-    r3 = int(r * 0.37)
-    draw.ellipse([cx - r3, cy - r3, cx + r3, cy + r3], outline=BRASS, width=w)
+    THE SIGILS ARE BLACK INK AND THIS SCREEN IS A BLACK FIELD, so they are
+    invisible pasted as-is. What matters is the SHAPE, which has to be
+    recovered as a mask and repainted.
 
-    dot = max(3, r // 20)
-    for (px, py) in ((cx, cy - r), (cx, cy + r), (cx - r, cy), (cx + r, cy)):
-        draw.ellipse([px - dot, py - dot, px + dot, py + dot], fill=BRASS)
+    The two files disagree about how they store that shape, and one formula
+    covers both:
 
-    core = max(4, int(r * 0.12))
-    draw.ellipse([cx - core, cy - core, cx + core, cy + core], fill=accent)
+      Astaroth  black ink, transparent ground -> alpha alone is the shape
+      Solomon   black ink, OPAQUE WHITE ground -> alpha says "all of it"
+
+    So the mask is alpha AND darkness: opaque-and-dark is ink, opaque-and-
+    pale is the white disc that should not be there, transparent is
+    nothing. Multiplying the two handles either file without special-casing
+    which is which -- and keeps working if one is later re-exported the
+    other way round.
+    """
+    from PIL import Image, ImageChops
+    src = _asset(name)
+    if src is None:
+        return None
+    try:
+        src = src.convert("RGBA").resize((size, size), Image.LANCZOS)
+        alpha = src.getchannel("A")
+        # 255 where the pixel is dark, 0 where it is pale.
+        darkness = ImageChops.invert(src.convert("L"))
+        mask = ImageChops.multiply(alpha, darkness)
+        if opacity < 1.0:
+            mask = mask.point(lambda v: int(v * opacity))
+        layer = Image.new("RGBA", (size, size), colour + (0,))
+        layer.putalpha(mask)
+        return layer
+    except Exception:      # noqa: BLE001
+        return None
 
 
 def _mark(draw, cx, cy, r, state):
@@ -214,7 +247,21 @@ def _draw_qr(draw, data: str, x: int, y: int, side: int) -> bool:
 
 def render(path: str, report: Dict[str, Any], width: int = 3840,
            height: int = 2160, branding: Optional[str] = None) -> str:
-    """Render the status screen to `path`. Returns the path."""
+    """Render the status screen to `path`. Returns the path.
+
+    LAID OUT FOR A TABLE, NOT A MONITOR. People sit around all four sides
+    of this screen, so the join code is drawn FOUR TIMES, once in each
+    corner, and everyone has one within reach instead of the far side of
+    the table leaning over a single large one. Four small codes beat one
+    big one for the same reason four door handles beat one wide door.
+
+    The centre is the hero wordmark, the verdict, and a single compact row
+    of subsystem marks. The row used to be six stacked lines with a detail
+    column each, which was most of the screen spent telling a healthy table
+    it was healthy. Anything actually WRONG still gets a full line of its
+    own, below -- so the screen is quiet when there is nothing to say and
+    specific when there is.
+    """
     from PIL import Image, ImageDraw
 
     img = Image.new("RGB", (width, height), BLACK)
@@ -227,8 +274,8 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
 
     # Faint radial warmth, echoing the guide's .bg-field. Kept very low:
     # this screen faces upward in a dim room for hours.
-    for i in range(28):
-        t = i / 28.0
+    for i in range(20):
+        t = i / 20.0
         rad = int(px(1500) * (1 - t) + px(300))
         alpha = int(9 * (1 - t))
         if alpha <= 0:
@@ -239,152 +286,192 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
                     width // 2 + rad, -px(400) + rad],
                    fill=(BRASS[0] // 9, BRASS[1] // 9, BRASS[2] // 11))
         img = Image.blend(img, overlay, alpha / 255.0 * 2.2)
-        draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(img)
 
-    f_eyebrow = _font(MONO_FONT, px(30))
-    f_title   = _font(DISPLAY_FONT, px(104), "ExtraBold")
-    f_sub     = _font(BODY_FONT, px(36))
-    f_row     = _font(DISPLAY_FONT, px(46), "Bold")
-    f_detail  = _font(BODY_FONT, px(30))
-    f_mono    = _font(MONO_FONT, px(28))
+    f_eyebrow = _font(MONO_FONT, px(28))
+    f_title   = _font(DISPLAY_FONT, px(96), "ExtraBold")
+    f_chip    = _font(BODY_FONT, px(30))
+    f_problem = _font(BODY_FONT, px(32))
+    f_problem_name = _font(DISPLAY_FONT, px(34), "Bold")
+    f_qr      = _font(MONO_FONT, px(24))
+    f_mono    = _font(MONO_FONT, px(26))
 
-    # ---- measure first, then centre the whole block ----------------------
-    # Top-anchoring left a third of the screen empty, which reads as
-    # unfinished rather than spacious.
-    logo_img = None
+    overall = report.get("overall", "warn")
+
+    # ---- the join code, in all four corners -------------------------------
+    # The one thing on this screen everybody needs and nobody should have to
+    # walk around the table for.
+    join_url = report.get("join_url") or report.get("panel_url") or ""
+    qr_side = px(300)
+    qr_pad = px(96)
+    corners = [
+        (qr_pad, qr_pad),
+        (width - qr_pad - qr_side, qr_pad),
+        (qr_pad, height - qr_pad - qr_side),
+        (width - qr_pad - qr_side, height - qr_pad - qr_side),
+    ]
+    if join_url:
+        cap = "SCAN TO JOIN"
+        cw = draw.textlength(cap, font=f_qr)
+        for (qx, qy) in corners:
+            if not _draw_qr(draw, join_url, qx, qy, qr_side):
+                break
+            # Caption outside the code, away from the nearest screen edge,
+            # so it never crowds the quiet zone the scanner needs.
+            top_half = qy < height // 2
+            cy = (qy + qr_side + px(30)) if top_half else (qy - px(52))
+            draw.text((qx + (qr_side - cw) / 2, cy), cap, font=f_qr, fill=BRASS)
+
+    # The centre column has to clear the corner codes.
+    inner_l = qr_pad + qr_side + px(90)
+    inner_r = width - inner_l
+
+    # ---- hero wordmark ----------------------------------------------------
+    hero = None
     if branding and os.path.exists(branding):
+        from PIL import Image as _I
         try:
-            logo_img = Image.open(branding).convert("RGB")
-            target_w = px(1000)
-            ratio = target_w / logo_img.width
-            logo_img = logo_img.resize((target_w, int(logo_img.height * ratio)),
-                                       Image.LANCZOS)
-            # Crush near-black to true black. The source is a JPEG, so its
-            # "black" background carries compression noise a shade lighter
-            # than the field - and ImageChops.lighter faithfully keeps every
-            # one of those pixels, drawing a faint rectangle around the logo.
-            logo_img = logo_img.point(lambda v: 0 if v < 26 else v)
-        except Exception:
-            logo_img = None
+            hero = _I.open(branding).convert("RGB")
+        except Exception:      # noqa: BLE001
+            hero = None
+    if hero is None:
+        hero_src = _asset(HERO)
+        hero = hero_src.convert("RGB") if hero_src is not None else None
 
-    row_h = px(108)
-    block_h = ((logo_img.height + px(70)) if logo_img else px(360))         + px(56) + px(150) + px(80) + row_h * len(report.get("rows", []))
-    top = max(px(90), (height - px(240) - block_h) // 2)
-
-    # ---- branding / sigil -------------------------------------------------
-    if logo_img is not None:
+    if hero is not None:
         from PIL import ImageChops
-        x0 = (width - logo_img.width) // 2
-        box = (x0, top, x0 + logo_img.width, top + logo_img.height)
-        # ImageChops.lighter keeps whichever pixel is brighter. The logo's
-        # own black background is darker than nothing, so it vanishes into
-        # the field and the artwork floats free of its rectangle.
-        img.paste(ImageChops.lighter(img.crop(box), logo_img), box)
-        top += logo_img.height + px(70)
+        target_w = px(1180)
+        ratio = target_w / hero.width
+        hero = hero.resize((target_w, int(hero.height * ratio)), Image.LANCZOS)
+
+    # MEASURE, THEN CENTRE. Anchoring to a fixed top left the bottom third
+    # of the screen empty, which reads as unfinished rather than spacious --
+    # and the amount of space involved changes with whether anything is
+    # wrong, because problem rows only exist when there are problems.
+    rows_pre: List[Dict[str, Any]] = report.get("rows", [])
+    n_problems = min(PROBLEM_ROWS,
+                     len([r for r in rows_pre
+                          if r.get("name") not in COMPACT_ROWS
+                          or r.get("state") != "ok"]))
+    block_h = ((hero.height + px(60)) if hero is not None else px(340))
+    block_h += px(52) + px(150) + px(70) + px(96)
+    if n_problems:
+        block_h += px(20) + px(64) * n_problems
+    top = max(px(210), (height - block_h) // 2)
+
+    if hero is not None:
+        # Crush near-black to true black: the source carries compression
+        # noise a shade lighter than the field, and ImageChops.lighter
+        # faithfully keeps every one of those pixels, drawing a faint
+        # rectangle around the artwork.
+        hero = hero.point(lambda v: 0 if v < 26 else v)
+        x0 = (width - hero.width) // 2
+        box = (x0, top, x0 + hero.width, top + hero.height)
+        img.paste(ImageChops.lighter(img.crop(box), hero), box)
+        hero_mid = top + hero.height // 2
+        top += hero.height + px(60)
     else:
-        _sigil(draw, width // 2, top + px(140), px(140))
-        top += px(360)
+        hero_mid = top + px(200)
+        top += px(340)
+
+    # ---- the table's two sigils, flanking the wordmark --------------------
+    # The real tabletop has these two inlaid in it. They are watermarks
+    # here, not furniture: dim brass, well outside the wordmark, and never
+    # over anything that has to be read.
+    sig_size = px(360)
+    for name, sx in ((SIGIL_L, inner_l + px(40)),
+                     (SIGIL_R, inner_r - px(40) - sig_size)):
+        layer = _ink(name, sig_size, BRASS_DIM, opacity=0.55)
+        if layer is not None:
+            img.paste(layer, (int(sx), int(hero_mid - sig_size // 2)), layer)
 
     draw = ImageDraw.Draw(img)
 
-    # ---- headline ---------------------------------------------------------
-    overall = report.get("overall", "warn")
-    # "The Circle Holds" said nothing a working table did not already show
-    # by being lit. WARN and FAIL keep their own words because those DO say
-    # something specific -- pass gets the plain name instead of a phrase.
-    headline = {"pass": "WARLOCK TABLE",
-                "warn": "Attend",
-                "fail": "The Circle Is Broken"}.get(overall, "Status")
+    # ---- verdict ----------------------------------------------------------
+    # Plain words about the table's readiness. The old headline announced
+    # that "The Circle Holds", which is a mood rather than a status: it
+    # told a GM glancing over nothing they could act on.
+    headline = {"pass": "Prepared",
+                "warn": "Assistance Needed",
+                "fail": "Assistance Needed"}.get(overall, "Assistance Needed")
     accent = {"pass": PURPLE, "warn": BRASS_BRIGHT, "fail": BAD}[overall]
 
     eyebrow = "WARLOCK TABLE · SYSTEM STATUS"
     ew = draw.textlength(eyebrow, font=f_eyebrow)
     draw.text(((width - ew) / 2, top), eyebrow, font=f_eyebrow, fill=BRASS)
-    top += px(56)
+    top += px(52)
 
     tw = draw.textlength(headline, font=f_title)
     draw.text(((width - tw) / 2, top), headline, font=f_title, fill=accent)
     top += px(150)
 
-    # brass rule — structure
-    draw.line([px(560), top, width - px(560), top], fill=LINE, width=max(1, px(3)))
-    top += px(80)
+    draw.line([inner_l, top, inner_r, top], fill=LINE, width=max(1, px(3)))
+    top += px(70)
 
-    # ---- subsystem rows ---------------------------------------------------
+    # ---- subsystems, one compact row --------------------------------------
     rows: List[Dict[str, Any]] = report.get("rows", [])
-    left = px(700)
-    mark_x = left + px(40)
-    label_x = left + px(140)
-    detail_x = left + px(760)
+    chips = [r for r in rows if r.get("name") in COMPACT_ROWS]
+    problems = [r for r in rows
+                if r.get("name") not in COMPACT_ROWS or r.get("state") != "ok"]
 
-    # Reserved so a long detail string can never run under the QR, which
-    # sits at a fixed width - px(1280) regardless of whether this table has
-    # a join_url to draw one for. A merged-in integrity check can produce a
-    # full sentence ("3 of 5 referenced patterns are NOT on the Pixelblaze:
-    # ...") where the old rows were always a hand-written phrase like
-    # "38 tracks" -- short by convention, not by anything enforced.
-    detail_max_w = width - px(1280) - detail_x - px(40)
+    if chips:
+        mark_r = px(20)
+        gap = px(34)
+        widths = [mark_r * 2 + gap + draw.textlength(c.get("name", ""), font=f_chip)
+                  for c in chips]
+        spacing = px(70)
+        total_w = sum(widths) + spacing * (len(chips) - 1)
+        x = (width - total_w) / 2
+        for c, w in zip(chips, widths):
+            state = c.get("state", "warn")
+            _mark(draw, int(x + mark_r), int(top + px(18)), mark_r, state)
+            draw.text((x + mark_r * 2 + gap, top),
+                      c.get("name", ""), font=f_chip,
+                      fill=BONE if state == "ok" else
+                           (BAD if state == "fail" else BRASS_BRIGHT))
+            x += w + spacing
+        top += px(96)
 
-    for row in rows:
-        state = row.get("state", "warn")
-        _mark(draw, mark_x, top + px(26), px(34), state)
-        draw.text((label_x, top), row.get("name", ""), font=f_row,
-                  fill=BONE if state != "fail" else BAD)
-        detail = _fit_text(draw, row.get("detail", ""), f_detail, detail_max_w)
-        draw.text((detail_x, top + px(10)), detail, font=f_detail, fill=BONE_MID)
-        top += px(108)
-
-    # ---- join code --------------------------------------------------------
-    # The status screen is the one thing on the table that is readable from
-    # every seat, so it is where the join code belongs: people arrive, the
-    # screen is already up, they scan it. Printing the URL alone means
-    # somebody types an address into a phone in a dim room.
-    #
-    # Drawn from segno's raw matrix rather than a PNG round-trip, so the
-    # modules land on exact pixel boundaries. A QR resampled by a fraction
-    # of a module is what makes a code that "sometimes scans".
-    # THE QR IS THE MOST USEFUL THING ON THIS SCREEN AT THE START OF A
-    # SESSION -- everyone arriving needs it, nobody needs the subsystem rows
-    # yet. It was sized like a footnote (430px on a 3840px canvas, about a
-    # ninth of the width) and sat where a decoration goes. Half again as
-    # large, and captioned in the same weight as the headline rather than
-    # the mono footer type, so it reads as a second thing to look at rather
-    # than a QR code somebody remembered to include.
-    join_url = report.get("join_url") or report.get("panel_url") or ""
-    if join_url:
-        qr_side = px(640)
-        qr_x = width - px(640) - qr_side
-        qr_y = height - px(300) - qr_side
-        drawn = _draw_qr(draw, join_url, qr_x, qr_y, qr_side)
-        if drawn:
-            cap = "SCAN TO JOIN"
-            f_cap = _font(DISPLAY_FONT, px(38), "Bold")
-            cw = draw.textlength(cap, font=f_cap)
-            draw.text((qr_x + (qr_side - cw) / 2, qr_y - px(66)),
-                      cap, font=f_cap, fill=BRASS_BRIGHT)
+    # ---- and anything actually wrong, in full -----------------------------
+    if problems:
+        top += px(20)
+        detail_x = inner_l + px(420)
+        detail_max_w = inner_r - detail_x
+        for r in problems[:PROBLEM_ROWS]:
+            state = r.get("state", "warn")
+            draw.text((inner_l, top), r.get("name", ""), font=f_problem_name,
+                      fill=BAD if state == "fail" else BRASS_BRIGHT)
+            detail = _fit_text(draw, r.get("detail", ""), f_problem, detail_max_w)
+            draw.text((detail_x, top + px(6)), detail, font=f_problem,
+                      fill=BONE_MID)
+            top += px(64)
+        extra = len(problems) - PROBLEM_ROWS
+        if extra > 0:
+            draw.text((inner_l, top), "+ %d more · see Settings → Table Check"
+                      % extra, font=f_problem, fill=BONE_DIM)
 
     # ---- footer -----------------------------------------------------------
-    foot_y = height - px(190)
-    draw.line([px(560), foot_y - px(50), width - px(560), foot_y - px(50)],
-              fill=LINE, width=max(1, px(3)))
-
-    # The same address the QR encodes, not the .local name. This line is the
-    # fallback for someone whose camera will not scan -- handing them an
-    # mDNS name their phone cannot resolve makes the fallback useless in
-    # exactly the case it exists for.
+    # Between the bottom pair of codes, and small: useful to quote when
+    # something is wrong, and of no interest at all the rest of the time.
+    foot_y = height - px(150)
     left_text = report.get("join_url") or report.get("panel_url", "")
     right_text = "%s · %s" % (report.get("version", "?"),
-                                   time.strftime("%H:%M"))
-    draw.text((px(700), foot_y), left_text, font=f_mono, fill=BRASS)
+                                    time.strftime("%H:%M"))
+    draw.text((inner_l, foot_y), left_text, font=f_mono, fill=BRASS)
     rw = draw.textlength(right_text, font=f_mono)
-    draw.text((width - px(700) - rw, foot_y), right_text, font=f_mono,
-              fill=BONE_DIM)
+    draw.text((inner_r - rw, foot_y), right_text, font=f_mono, fill=BONE_DIM)
 
     tmp = path + ".tmp"
     img.save(tmp, "PNG", optimize=False)
     os.replace(tmp, path)
     return path
 
+
+# The six that get a compact chip in the centre row. Everything else on
+# the report is, by definition, something that went wrong, and gets a full
+# line to say what.
+COMPACT_ROWS = ("Lights", "Audio", "Cards", "Screen", "Room", "Scene")
+PROBLEM_ROWS = 5
 
 # The categories tablecheck catches that no device probe below can:
 # missing assets a scene REFERENCES rather than a device being unreachable.

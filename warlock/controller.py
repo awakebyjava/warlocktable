@@ -260,6 +260,7 @@ class Controller:
     GM_KEY = "gm"
     MAX_DICE = 100             # see roll(); a rail, not a rule
     ROLL_HISTORY = 500         # per player
+    ROLL_SHOW_DICE = 12        # individual dice printed in a roll label
 
     def roll(self, colour: str, count: int, sides: int, name: str = "") -> dict:
         """Roll `count` dice of `sides`, record it, return the whole roll.
@@ -287,11 +288,32 @@ class Controller:
             raise ValueError("roll between 1 and %d dice" % self.MAX_DICE)
 
         dice = [random.randint(1, sides) for _ in range(count)]
+        total = sum(dice)
+
+        # The individual dice, in parentheses after the total. They were
+        # always recorded and never shown, which made a pool roll
+        # unauditable at exactly the table where somebody wants to see the
+        # two sixes -- "4d6=14" is a number to take on trust, and
+        # "4d6=14 (6, 6, 1, 1)" is a roll you watched.
+        #
+        # Not shown for a single die, where the parenthetical would only
+        # repeat the total. Truncated past a dozen, because the label lands
+        # in a narrow log column and nobody reads the 40th d6 individually
+        # -- the full list stays in `dice` for anything that wants it.
+        shown = ""
+        if count > 1:
+            if count <= self.ROLL_SHOW_DICE:
+                shown = " (%s)" % ", ".join(str(d) for d in dice)
+            else:
+                shown = " (%s, +%d more)" % (
+                    ", ".join(str(d) for d in dice[:self.ROLL_SHOW_DICE]),
+                    count - self.ROLL_SHOW_DICE)
+
         entry = {"n": count, "sides": sides, "dice": dice,
-                 "total": sum(dice), "at": time.time(),
+                 "total": total, "at": time.time(),
                  # The spec's format, built once here rather than in each
                  # of the three places that display it.
-                 "label": "%dd%d=%d" % (count, sides, sum(dice))}
+                 "label": "%dd%d=%d%s" % (count, sides, total, shown)}
         with self._rolls_lock:
             log = self._rolls.setdefault(colour, [])
             log.append(entry)
@@ -1138,4 +1160,79 @@ class Controller:
         self.config.players = [p for p in self.config.players if p.name != player_name]
         self.config.players.append(Player(name=player_name, zone_id=zone.id))
         self.log.record("seat.claimed", player=player_name, colour=colour, zone_id=zone.id)
+        return True
+
+    def release_seat(self, colour: str = "", player_name: str = "") -> bool:
+        """Empty a seat. Addressed by colour (the GM removing whoever is
+        there) or by name (a player standing up).
+
+        BOTH DOORS ARE NEEDED and they are not the same door. A player
+        leaving knows their own name and not necessarily which colour they
+        ended up with; a GM fixing someone who sat in the wrong place is
+        looking at a seat, and may not know or care what the occupant
+        called themselves. Taking either identifier means neither side has
+        to look the other up first.
+
+        Returns False when the seat was already empty, so a caller can tell
+        "there was nobody there" from "somebody left" -- the panel needs
+        that to avoid reporting a removal that did not happen.
+        """
+        before = len(self.config.players)
+        if colour:
+            zone = next((z for z in self.config.zones if z.colour == colour), None)
+            if zone is None:
+                self.log.record("seat.release_failed", colour=colour,
+                                 reason="no such seat")
+                return False
+            sitting = [p for p in self.config.players if p.zone_id == zone.id]
+
+            # BOTH IDENTIFIERS MEANS "MUST MATCH", not "colour wins". The
+            # player app sends its own name AND colour, and a phone that
+            # has been closed in a pocket may be describing a seat somebody
+            # else has since taken -- releasing on colour alone would let a
+            # stale device evict whoever is sitting there now. The GM's
+            # remove button sends colour only and is unaffected: they are
+            # looking at the chair, and removing whoever is in it is
+            # exactly what they asked for.
+            if player_name and sitting and sitting[0].name != player_name:
+                self.log.record("seat.release_refused", colour=colour,
+                                 asked_by=player_name,
+                                 actually=sitting[0].name)
+                return False
+
+            leaving = sitting
+            self.config.players = [p for p in self.config.players
+                                   if p.zone_id != zone.id]
+        elif player_name:
+            leaving = [p for p in self.config.players if p.name == player_name]
+            self.config.players = [p for p in self.config.players
+                                   if p.name != player_name]
+        else:
+            return False
+
+        if len(self.config.players) == before:
+            return False
+
+        for p in leaving:
+            self.log.record("seat.released", player=p.name, zone_id=p.zone_id)
+
+        # An empty seat must not keep a turn in the running order, or
+        # initiative advances to a chair nobody is sitting in and the table
+        # waits on a player who left.
+        for p in leaving:
+            if p.zone_id is not None:
+                try:
+                    self.initiative.remove(p.zone_id)
+                except (AttributeError, ValueError, KeyError):
+                    pass
+
+        # A signal from someone who is no longer at the table would sit in
+        # the GM's bar with nobody to answer it.
+        for p in leaving:
+            zone = next((z for z in self.config.zones if z.id == p.zone_id), None)
+            if zone is not None:
+                try:
+                    self.clear_signal(zone.colour)
+                except Exception:      # noqa: BLE001 -- never block a release
+                    pass
         return True

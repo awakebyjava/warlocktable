@@ -47,6 +47,11 @@ class Initiative:
         self._order: List[int] = []
         self._index = 0
         self._running = False
+        # Rounds are counted, turns are derived. A "turn" is just the
+        # cursor's position in the order, so storing it separately would be
+        # two facts that can disagree; the round is the only thing the
+        # order itself does not already say.
+        self._round = 0
 
     # ---------------------------------------------------------- the order
 
@@ -66,6 +71,7 @@ class Initiative:
             self._order = seen
             self._index = 0
             self._running = False
+            self._round = 0
             return list(self._order)
 
     def clear(self) -> None:
@@ -73,6 +79,34 @@ class Initiative:
             self._order = []
             self._index = 0
             self._running = False
+            self._round = 0
+
+    def remove(self, zone: int) -> bool:
+        """Take one seat out of the order. Returns True if it was there.
+
+        Called when somebody leaves or is removed from a seat. Without it
+        the order keeps a turn for an empty chair, and the table waits on a
+        player who has gone -- which looks like the initiative system being
+        stuck rather than a seat being vacated.
+
+        The cursor is kept pointing at the SAME PLAYER wherever possible,
+        rather than at the same index: removing somebody earlier in the
+        order would otherwise skip whoever is currently up.
+        """
+        with self._lock:
+            zone = int(zone)
+            if zone not in self._order:
+                return False
+            at = self._order.index(zone)
+            self._order.remove(zone)
+            if not self._order:
+                self._index = 0
+                self._running = False
+                return True
+            if at < self._index:
+                self._index -= 1
+            self._index = min(self._index, len(self._order) - 1)
+            return True
 
     def drop_missing(self, player_count: int) -> None:
         """Forget seats that no longer exist.
@@ -97,6 +131,7 @@ class Initiative:
                 return None
             self._index = 0
             self._running = True
+            self._round = 1
             return self._order[0]
 
     def stop(self) -> None:
@@ -114,7 +149,15 @@ class Initiative:
         with self._lock:
             if not self._order or not self._running:
                 return None
-            self._index = (self._index + int(step)) % len(self._order)
+            step = int(step)
+            moved = self._index + step
+            # Going round again IS the new round -- see the docstring. The
+            # same arithmetic run backwards takes the count down, so
+            # stepping back past the top of the order returns to the
+            # previous round rather than stranding the count one high.
+            n = len(self._order)
+            self._round = max(1, self._round + (moved // n if n else 0))
+            self._index = moved % n
             return self._order[self._index]
 
     # ------------------------------------------------------------ reading
@@ -132,4 +175,9 @@ class Initiative:
                 "index": self._index if self._order else None,
                 "running": self._running,
                 "active_zone": self.active_zone(),
+                # Both are 1-based for display: a GM says "round one, first
+                # turn", never "round zero".
+                "round": self._round if self._running else 0,
+                "turn": (self._index + 1) if (self._running and self._order) else 0,
+                "of": len(self._order),
             }

@@ -6,6 +6,7 @@
 <title>Your Seat</title>
 <meta name="theme-color" content="#0b0a08">
 <link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon-64.png" sizes="64x64" type="image/png">
 </head>
 <body>
 
@@ -94,7 +95,7 @@
       <div id="claimed-swatch" class="claimed-swatch"></div>
       <h2 id="claimed-name">&nbsp;</h2>
       <p class="muted" id="claimed-seat">&nbsp;</p>
-      <button id="claim-again" class="ghost">That is not my seat</button>
+      <button id="claim-again" class="ghost">Leave this seat</button>
     </div>
 
     <!-- ---- table ----
@@ -217,7 +218,26 @@ function showApp() {
   padClear();
 }
 
-$("#claim-again").addEventListener("click", () => {
+// LEAVING A SEAT HAS TO REACH THE TABLE. This used to clear localStorage
+// and nothing else, so the phone forgot the seat while the table went on
+// believing it was occupied: the colour stayed unavailable to everyone
+// else, the seat kept its turn in initiative, and the only way out was the
+// GM editing config. The player is released server-side first, and the
+// local state is cleared regardless of whether that call lands -- someone
+// who has walked away should not be trapped in the app by a failed
+// request, and the GM can always remove the seat from their side.
+$("#claim-again").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  if (mine) {
+    try {
+      await fetch("/api/seats/release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ colour: mine.colour, name: mine.name })
+      });
+    } catch (e) { /* leaving locally still has to work */ }
+  }
   localStorage.removeItem("warlock-seat");
   mine = null; chosen = null; raised = null;
   document.querySelectorAll(".sig").forEach(b => b.classList.remove("on"));
@@ -225,6 +245,7 @@ $("#claim-again").addEventListener("click", () => {
   $("#app").hidden = true;
   $("#join").hidden = false;
   $("#claim-msg").textContent = " ";
+  btn.disabled = false;
   refresh();
 });
 

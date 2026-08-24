@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Warlock Table">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/favicon-64.png" sizes="64x64" type="image/png">
 <meta name="theme-color" content="#0b0a08">
 
 <link rel="stylesheet" href="/style.css">
@@ -251,6 +252,16 @@
            is why it is deliberately not one of the tabs.</p>
         <button id="open-cards" class="wide">Card Management</button>
       </section>
+
+      <!-- What is actually running. Here rather than on every panel: it is
+           the first thing worth quoting when something is wrong, and of no
+           use at all the rest of the time. -->
+      <section>
+        <h2>Build</h2>
+        <div class="build-box">
+          <span id="version" class="muted">&mdash;</span>
+        </div>
+      </section>
     </div>
   </section>
 
@@ -298,8 +309,11 @@
      three would be a room with no door. -->
 <button id="wide-close" class="wide-close">Close</button>
 
-<footer>
-  <span id="version" class="muted"></span>
+<!-- Errors only. The build string used to sit here on every panel, all
+     evening, telling a GM mid-session something they can do nothing with --
+     it lives in Settings now, next to the check that reports it. This bar
+     stays out of the way entirely until something has gone wrong. -->
+<footer id="footer" hidden>
   <span id="err" class="err"></span>
 </footer>
 

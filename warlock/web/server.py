@@ -448,6 +448,31 @@ class _Handler(BaseHTTPRequestHandler):
                               "zones": self.controller.zone_report()})
             return
 
+        if path == "/api/seats/release":
+            # One endpoint, two callers. The GM sends a colour ("whoever is
+            # in that chair, out"); a player sends their own name ("I am
+            # leaving"). Neither has to look up what the other knows -- see
+            # controller.release_seat.
+            body = self._read_json()
+            colour = str(body.get("colour", "")).strip()
+            name = str(body.get("name", "")).strip()
+            if not colour and not name:
+                self._send_json({"error": "a seat colour or a name is needed"}, 400)
+                return
+            try:
+                freed = self.controller.release_seat(colour=colour, player_name=name)
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            if freed:
+                self._persist_players()
+            # Not an error when the seat was already empty: two GMs tapping
+            # the same "remove" is a race, not a fault, and the second one
+            # should see the seat empty rather than a red line.
+            self._send_json({"ok": True, "freed": freed,
+                              "zones": self.controller.zone_report()})
+            return
+
         # --- Initiative (plan doc 3.9): GM only. Player turns, in the order
         # the GM tapped them. Nothing is parsed or sorted here.
         if path == "/api/initiative/order":

@@ -531,13 +531,19 @@ button.wide { width: 100%; }
 
 /* The per-seat attention button. Small and unobtrusive: it is used a few
    times a session, unlike everything else in this list. */
-.seat-flash {
+.seat-acts { display: flex; gap: 6px; justify-content: flex-end; }
+.seat-flash, .seat-kick {
   padding: .3rem .55rem;
   font-size: .75rem;
+  margin-top: 0;
   background: none;
   border: 1px solid var(--line);
   color: var(--bone-mid);
 }
+/* Removing somebody is not the same weight of action as flashing their
+   seat, and it should not look like it is. Rust rather than bone, and it
+   only ever appears on a seat that is actually occupied. */
+.seat-kick { border-color: rgba(140,47,42,.5); color: var(--rust-bright); }
 
 .seat { grid-template-columns: 1.1rem 1fr auto auto; }
 
@@ -1044,6 +1050,14 @@ body.locked { overflow: hidden; }
   /* Inside a column that already scrolls itself, a second cap just makes
      the log shorter than the space it has. */
   #rolls-log { max-height: none; }
+}
+
+.build-box {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px; color: var(--bone-dim);
+  background: var(--black-2); border: 1px solid var(--line);
+  border-radius: 2px; padding: 10px 12px;
+  word-break: break-all;
 }
 
 .wide-nav { display: none; gap: 8px; margin-left: auto; }

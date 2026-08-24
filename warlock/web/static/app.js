@@ -29,8 +29,17 @@ async function api(path, opts) {
 }
 
 function showError(msg) {
+  const bar = $("#footer");
   $("#err").textContent = msg || "";
-  if (msg) setTimeout(() => { if ($("#err").textContent === msg) $("#err").textContent = ""; }, 6000);
+  // The bar is hidden when there is nothing to say, so an empty strip does
+  // not sit under every panel claiming space it is not using.
+  bar.hidden = !msg;
+  if (msg) setTimeout(() => {
+    if ($("#err").textContent === msg) {
+      $("#err").textContent = "";
+      bar.hidden = true;
+    }
+  }, 6000);
 }
 
 /* ---------- firing actions ---------- */
@@ -687,7 +696,10 @@ function renderOverlayButtons(dd) {
 let seatsByZone = {};      // zone id -> seat row, filled by renderSeats
 let ordering = false;      // building the order by tapping seats
 let draft = [];            // seats tapped so far, in order
-let initState = { order: [], index: null, running: false };
+// Defaults matter: the round/turn readout reads these before the first
+// poll lands, and "round undefined" is worse than no readout at all.
+let initState = { order: [], index: null, running: false,
+                  round: 0, turn: 0, of: 0 };
 
 async function postJSON(path, body) {
   return api(path, {
@@ -703,9 +715,14 @@ function renderInitiative() {
 
   $("#init-set").textContent = ordering ? "Done" : "Set Initiative Order";
   $("#init-help").hidden = !ordering;
+  // Round and turn, beside "running" -- the one number a GM is otherwise
+  // tracking on paper while the table tracks everything else for them.
   $("#init-state").textContent = ordering
     ? (draft.length + " tapped")
-    : (initState.running ? "running" : "");
+    : (initState.running
+        ? ("running · round " + initState.round +
+           " · turn " + initState.turn + "/" + initState.of)
+        : "");
 
   list.innerHTML = "";
   if (!rows.length) {
@@ -871,16 +888,44 @@ function renderSeats(z) {
     } else {
       const size = el("div", "size");
       size.append(document.createTextNode(seat.inches + " in"));
-      let flash = el("span");
+      const acts = el("span", "seat-acts");
       if (isPlayer) {
-        flash = el("button", "seat-flash");
+        const flash = el("button", "seat-flash");
         flash.append(document.createTextNode("Flash"));
         flash.addEventListener("click", (ev) => {
           ev.stopPropagation();
           fire("flash_player", { zone: seat.zone }, flash);
         });
+        acts.append(flash);
+
+        // Only offered for a seat somebody is actually in: a "Remove" on an
+        // empty chair is a button that cannot do anything.
+        if (seat.player) {
+          const kick = el("button", "seat-kick");
+          kick.append(document.createTextNode("Remove"));
+          kick.title = "Empty this seat";
+          kick.addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            // Confirmed because it is somebody else's session state, and a
+            // mis-tap in a dim room silently drops a player out of the
+            // initiative order as well as their seat.
+            if (!confirm("Remove " + seat.player + " from the "
+                         + seat.colour + " seat?")) return;
+            kick.classList.add("busy");
+            try {
+              await postJSON("/api/seats/release", { colour: seat.colour });
+              await refreshSeats();
+              await refreshInitiative();
+            } catch (e) {
+              showError(e.message);
+            } finally {
+              kick.classList.remove("busy");
+            }
+          });
+          acts.append(kick);
+        }
       }
-      line.append(sw, name, size, flash);
+      line.append(sw, name, size, acts);
     }
     list.append(line);
   });
