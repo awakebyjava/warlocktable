@@ -67,12 +67,11 @@ const DICE_PRESETS = [
     name: "BRP",
     note: "Call of Cthulhu, RuneQuest",
     rolls: [
-      // NO PERCENTILE HERE, AND THAT IS A GAP RATHER THAN A CHOICE.
-      // BRP's whole resolution mechanic is roll-under on 1d100, and this
-      // table's dice set deliberately stops at d20 -- the d100 and the
-      // percentile pair were left out on purpose when the roller was
-      // built. Everything below is a real BRP roll; the one everybody
-      // makes most is missing until d100 is allowed.
+      // FIRST, because it is the roll BRP is made of: everything resolves
+      // by rolling under a skill on 1d100. It is deliberately NOT on the
+      // six-shape pad -- that pad stays system-agnostic, and this panel is
+      // the system-specific surface. See controller.DICE for the split.
+      { n: 1,  d: 100 },
       { n: 3,  d: 6  },   // characteristics
       { n: 2,  d: 6  },
       { n: 1,  d: 4  },

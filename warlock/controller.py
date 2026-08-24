@@ -252,7 +252,27 @@ class Controller:
 
     # ---- dice (plan doc 3.7) ---------------------------------------------
 
-    DICE = (4, 6, 8, 10, 12, 20)
+    # WHAT MAY BE ROLLED, which is NOT the same list as what the interface
+    # SHOWS. That distinction is new as of 2026-08-24 and is the thing to
+    # understand before adding another die.
+    #
+    # The six shapes on the pad are a system-agnostic default: a number and
+    # a die, no modifiers, nothing that assumes a ruleset. d100 is not on
+    # that pad and should not be. But BRP -- Call of Cthulhu, RuneQuest --
+    # resolves everything by rolling under a skill on 1d100, so its preset
+    # panel was shipping without the roll its players make most.
+    #
+    # A d100 is one die reporting one number in 1..100. It is not the
+    # percentile PAIR (two d10s read as tens and units), which was rejected
+    # along with modifiers and stays rejected: a pair with a reading
+    # convention is where encoding somebody's rules starts.
+    #
+    # So: allowed here, absent from the pad, present in the BRP preset
+    # panel. To add another die, put it in this tuple and then decide
+    # separately whether it earns a place on the pad -- the frontends keep
+    # their own lists (`GM_DICE` in app.js, `DICE` in player.html) and do
+    # not read this one, precisely so the two can differ.
+    DICE = (4, 6, 8, 10, 12, 20, 100)
     # The GM rolls too, and has no seat. Their rolls land in the GM's own
     # log and nowhere else -- players read only their own thread of rolls,
     # so this is behind the screen by construction rather than by a rule

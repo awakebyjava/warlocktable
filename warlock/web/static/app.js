@@ -473,6 +473,10 @@ function renderPlayerBar(signals) {
 // Same behaviour as the phone's pad: the result stays up until a digit is
 // pressed. Duplicated rather than shared because the two live in different
 // documents; if a third ever appears, that is the moment to extract it.
+// The shapes on the pad. Deliberately NOT controller.DICE, which also
+// permits d100 for the BRP preset panel -- the pad stays the
+// system-agnostic six. Adding a die here is a separate decision from
+// allowing it to be rolled.
 const GM_DICE = [4, 6, 8, 10, 12, 20];
 let gmEntry = "";
 let gmHolding = false;

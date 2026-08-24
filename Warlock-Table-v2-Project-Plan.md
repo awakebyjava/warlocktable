@@ -688,11 +688,26 @@ where it would only repeat the total, and truncated past twelve, where
 nobody reads the fortieth d6 individually — the full list is still in the
 record.
 
-**The dice are d4, d6, d8, d10, d12, d20.** No d100 and no percentile
-pair. **No modifiers** — a number and a die, nothing else. The point is to
-stay **system-agnostic**: the moment there are modifiers and a d100 it
-starts encoding somebody's rules, and this table does not know what game
-you are playing.
+**The pad shows d4, d6, d8, d10, d12, d20.** No percentile pair. **No
+modifiers** — a number and a die, nothing else. The point is to stay
+**system-agnostic**: the moment there are modifiers it starts encoding
+somebody's rules, and this table does not know what game you are playing.
+
+**d100 was allowed 2026-08-24, and WHAT MAY BE ROLLED IS NOW A DIFFERENT
+LIST FROM WHAT THE PAD SHOWS.** That split is the part to understand
+before adding another die.
+
+A d100 is one die reporting one number in 1..100 — mechanically a d20 with
+a longer range. It is **not** the percentile *pair* (two d10s read as tens
+and units), which was rejected along with modifiers and stays rejected: a
+pair with a reading convention is where encoding somebody's rules starts.
+
+So `controller.DICE` permits it, the six-shape pad does not show it, and
+the BRP preset panel leads with it. To add another die: put it in `DICE`,
+then decide *separately* whether it earns a place on the pad. The
+frontends keep their own lists (`GM_DICE` in `app.js`, `DICE` in
+`player.html`) and deliberately do not read the controller's, precisely so
+the two can differ.
 
 **Preset bars, added 2026-08-24.** A strip of common rolls above the
 keypad on both surfaces, paged between three systems by arrows at each
@@ -712,12 +727,11 @@ fixed furniture; these lists are the part somebody will want to edit, and
 two copies that drift is how a player ends up with a preset the GM does
 not have.
 
-**BRP SHIPS WITHOUT ITS CORE ROLL.** Its entire resolution mechanic is
-roll-under on 1d100, and the dice set stops at d20 by the decision three
-paragraphs above. Every entry in the BRP panel is a real BRP roll; the one
-everybody makes most is absent. **Open question: allow d100?** It is a
-one-line change to `DICE` plus a button, and it trades the
-system-agnostic rule for the system most obviously excluded by it.
+**BRP shipped without its core roll for a day, and now has it.** Its
+entire resolution mechanic is roll-under on 1d100; the panel now leads
+with it. See the d100 note above for why that does not breach the
+system-agnostic rule, and for the allowed-versus-shown split it
+introduced.
 
 - **No indicator on the television.** Considered and dropped. That was the
   single largest piece of work in all three tools, and it bought the least.

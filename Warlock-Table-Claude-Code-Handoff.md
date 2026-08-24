@@ -94,7 +94,6 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 
 **Not built yet:**
 - **Audio for the 26 tarot cards.** The cards fire silently; `Interruption.audio` is optional so they work before the clips exist. `tools/audio_worksheet.py` lists what is missing.
-- **d100.** BRP's preset panel ships without its core roll because the dice set stops at d20, by an explicit decision to stay system-agnostic. Open question, recorded in §3.11.
 - Audio upload and scene authoring in the panel (§4.5 steps 3–4)
 - **Display redesign** (§3.6) — real grid/hex overlays and battle maps.
 - Voice/personality, session recap — Phase 3+. Overseer is explicitly **not planned**.
