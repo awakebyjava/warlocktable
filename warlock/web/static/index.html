@@ -31,6 +31,14 @@
     <button id="whisper-open" class="whisper-open" hidden>
       Whispers <span id="whisper-count" class="muted"></span>
     </button>
+    <!-- ONLY VISIBLE AT >=1200px, where the tab bar is gone entirely
+         because Players and Run sit side by side. Without this, Dice and
+         Settings have no way in at that width -- the bar that reaches them
+         everywhere else does not exist here. -->
+    <nav class="wide-nav">
+      <button class="wide-nav-btn" data-goto="dice">Dice</button>
+      <button class="wide-nav-btn" data-goto="settings">Settings</button>
+    </nav>
   </div>
   <!-- Tapping a player clears their signal. Hidden entirely when nobody is
        seated, and unpinnable from Settings -- but see app.js: unpinned means

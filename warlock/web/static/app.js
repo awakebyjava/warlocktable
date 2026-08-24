@@ -1051,14 +1051,17 @@ function goto(name) {
     const panel = document.getElementById("panel-" + n);
     if (panel) panel.hidden = n !== name;
   });
-  document.querySelectorAll(".tab").forEach(t =>
+  // Same active-state logic for the bottom tabs and the browser-width
+  // launcher: whichever one exists at the current width, both are kept in
+  // sync so neither goes stale under a resize.
+  document.querySelectorAll(".tab, .wide-nav-btn").forEach(t =>
     t.classList.toggle("active", t.dataset.goto === name));
-  // Cards is not a tab, so no tab lights up for it. Settings stays lit
-  // while you are inside it, because that is where you came from and
-  // where the back button returns you.
+  // Cards is not a destination of its own, so nothing lights up for it.
+  // Settings stays lit while you are inside it, because that is where you
+  // came from and where the back button returns you.
   if (name === "cards") {
-    const t = document.querySelector('.tab[data-goto="settings"]');
-    if (t) t.classList.add("active");
+    document.querySelectorAll('[data-goto="settings"]').forEach(t =>
+      t.classList.add("active"));
   }
   // At browser width these three are fixed overlays; the body class is
   // what reveals the close control the missing tab bar would have been.
@@ -1069,7 +1072,7 @@ function goto(name) {
   window.scrollTo(0, 0);
 }
 
-document.querySelectorAll(".tab").forEach(t =>
+document.querySelectorAll(".tab, .wide-nav-btn").forEach(t =>
   t.addEventListener("click", () => goto(t.dataset.goto)));
 
 $("#open-cards").addEventListener("click", () => goto("cards"));

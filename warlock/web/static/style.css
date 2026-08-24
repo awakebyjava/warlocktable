@@ -1046,6 +1046,8 @@ body.locked { overflow: hidden; }
   #rolls-log { max-height: none; }
 }
 
+.wide-nav { display: none; gap: 8px; margin-left: auto; }
+
 /* ==================== >= 1200px -- browser ========================== */
 /* Tabs exist to solve a space problem. On a 1400px browser there is no
    space problem, and a bar that hides most of the interface behind a tap
@@ -1096,9 +1098,31 @@ body.locked { overflow: hidden; }
     display: none;
   }
 
-  /* The way back out, since the tab bar is not there to provide one. */
+  /* The way IN, since the tab bar is not there to provide one either.
+     Dice and Settings have no other door at this width -- this was missed
+     when the breakpoint was built, and it shipped a browser view with
+     Players and Run visible and no way to reach the other two at all.
+
+     THE BASE RULE MUST COME FIRST IN THE FILE. Both this and the
+     always-hidden default below have equal specificity, so without a
+     media query to break the tie, source order decides -- and the default
+     was written after this override, so it always won. The nav stayed
+     display:none at 1440px even though every click handler on it fired
+     correctly, which is what makes this class of bug easy to miss: the
+     JS side tests all pass because .click() does not care whether the
+     element is visible. */
+  .wide-nav { display: flex; }
+
+  /* The way back out. */
   body.panel-over .wide-close { display: block; }
 }
+
+/* Hidden below 1200px: the tab bar already reaches Dice and Settings
+   there, and a second way to the same place is a second thing to keep in
+   sync. Must appear ABOVE the @media block above, not below it -- see the
+   comment there. */
+.wide-nav-btn { margin: 0; padding: 8px 16px; }
+.wide-nav-btn.active { border-color: var(--gold); color: var(--gold); }
 
 /* Hidden at every width except browser, and even there only while one of
    the three overlay panels is open -- see body.panel-over in app.js. */
