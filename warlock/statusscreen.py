@@ -145,6 +145,27 @@ def _mark(draw, cx, cy, r, state):
                      outline=BONE_DIM, width=max(2, w // 2))
 
 
+def _fit_text(draw, text: str, font, max_w: float) -> str:
+    """Clip `text` to `max_w`, with an ellipsis if anything was cut.
+
+    Subsystem detail strings used to be short by convention ("38 tracks").
+    Once the cross-device integrity check can contribute a row too, a
+    detail can legitimately be a sentence naming every missing asset -- and
+    the QR now sits close enough that an unclipped one would run under it.
+    """
+    if draw.textlength(text, font=font) <= max_w:
+        return text
+    ell = "…"
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if draw.textlength(text[:mid] + ell, font=font) <= max_w:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[:lo] + ell
+
+
 def _draw_qr(draw, data: str, x: int, y: int, side: int) -> bool:
     """Draw a QR for `data` as a `side`-wide square at (x, y).
 
@@ -268,7 +289,10 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
 
     # ---- headline ---------------------------------------------------------
     overall = report.get("overall", "warn")
-    headline = {"pass": "The Circle Holds",
+    # "The Circle Holds" said nothing a working table did not already show
+    # by being lit. WARN and FAIL keep their own words because those DO say
+    # something specific -- pass gets the plain name instead of a phrase.
+    headline = {"pass": "WARLOCK TABLE",
                 "warn": "Attend",
                 "fail": "The Circle Is Broken"}.get(overall, "Status")
     accent = {"pass": PURPLE, "warn": BRASS_BRIGHT, "fail": BAD}[overall]
@@ -293,13 +317,21 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
     label_x = left + px(140)
     detail_x = left + px(760)
 
+    # Reserved so a long detail string can never run under the QR, which
+    # sits at a fixed width - px(1280) regardless of whether this table has
+    # a join_url to draw one for. A merged-in integrity check can produce a
+    # full sentence ("3 of 5 referenced patterns are NOT on the Pixelblaze:
+    # ...") where the old rows were always a hand-written phrase like
+    # "38 tracks" -- short by convention, not by anything enforced.
+    detail_max_w = width - px(1280) - detail_x - px(40)
+
     for row in rows:
         state = row.get("state", "warn")
         _mark(draw, mark_x, top + px(26), px(34), state)
         draw.text((label_x, top), row.get("name", ""), font=f_row,
                   fill=BONE if state != "fail" else BAD)
-        draw.text((detail_x, top + px(10)), row.get("detail", ""),
-                  font=f_detail, fill=BONE_MID)
+        detail = _fit_text(draw, row.get("detail", ""), f_detail, detail_max_w)
+        draw.text((detail_x, top + px(10)), detail, font=f_detail, fill=BONE_MID)
         top += px(108)
 
     # ---- join code --------------------------------------------------------
@@ -311,17 +343,25 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
     # Drawn from segno's raw matrix rather than a PNG round-trip, so the
     # modules land on exact pixel boundaries. A QR resampled by a fraction
     # of a module is what makes a code that "sometimes scans".
+    # THE QR IS THE MOST USEFUL THING ON THIS SCREEN AT THE START OF A
+    # SESSION -- everyone arriving needs it, nobody needs the subsystem rows
+    # yet. It was sized like a footnote (430px on a 3840px canvas, about a
+    # ninth of the width) and sat where a decoration goes. Half again as
+    # large, and captioned in the same weight as the headline rather than
+    # the mono footer type, so it reads as a second thing to look at rather
+    # than a QR code somebody remembered to include.
     join_url = report.get("join_url") or report.get("panel_url") or ""
     if join_url:
-        qr_side = px(430)
-        qr_x = width - px(700) - qr_side
+        qr_side = px(640)
+        qr_x = width - px(640) - qr_side
         qr_y = height - px(300) - qr_side
         drawn = _draw_qr(draw, join_url, qr_x, qr_y, qr_side)
         if drawn:
             cap = "SCAN TO JOIN"
-            cw = draw.textlength(cap, font=f_mono)
-            draw.text((qr_x + (qr_side - cw) / 2, qr_y - px(52)),
-                      cap, font=f_mono, fill=BRASS)
+            f_cap = _font(DISPLAY_FONT, px(38), "Bold")
+            cw = draw.textlength(cap, font=f_cap)
+            draw.text((qr_x + (qr_side - cw) / 2, qr_y - px(66)),
+                      cap, font=f_cap, fill=BRASS_BRIGHT)
 
     # ---- footer -----------------------------------------------------------
     foot_y = height - px(190)
@@ -346,8 +386,30 @@ def render(path: str, report: Dict[str, Any], width: int = 3840,
     return path
 
 
-def build_report(rt) -> Dict[str, Any]:
-    """Turn live device status into the rows the screen draws."""
+# The categories tablecheck catches that no device probe below can:
+# missing assets a scene REFERENCES rather than a device being unreachable.
+# Config renaming a pattern and every device staying green is the exact
+# failure this module's own docstring exists to prevent (see the top of
+# tablecheck.py) -- so when one of these is not clean, the status screen
+# needs to say so, not just report every device present and healthy.
+_INTEGRITY_ROWS = {
+    "Config", "Light patterns", "Audio tracks", "Backgrounds",
+    "Zone model", "Seats", "Zone lighting", "Video output", "Disk space",
+}
+_INTEGRITY_ROW_CAP = 4
+
+
+def build_report(rt, check: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Turn live device status into the rows the screen draws.
+
+    `check` is a tablecheck.run_check() result, run separately because it
+    is slower and does things (asset cross-referencing) a boot-time device
+    probe does not. When supplied, its overall verdict is folded in and
+    its non-passing integrity rows are appended -- capped, because a badly
+    broken table could otherwise produce more rows than the screen has
+    room for, and past a handful the fix is "open Settings", not "read a
+    longer screen".
+    """
     rows = []
     worst = "pass"
 
@@ -404,9 +466,51 @@ def build_report(rt) -> Dict[str, Any]:
     else:
         add("Screen", False, "simulated", absent=True)
 
+    # Govee accent lighting (plan doc 3.13). Added 2026-08-24 -- the table
+    # had been running this subsystem for a while before the status screen
+    # said anything about it at all.
+    probe = getattr(getattr(rt.controller, "govee", None), "status", None)
+    if callable(probe):
+        i = probe()
+        if not i.get("configured"):
+            add("Room", False, "no accent strips configured", absent=True)
+        elif i.get("healthy"):
+            detail = "%d strip%s" % (i.get("devices", 0),
+                                     "" if i.get("devices") == 1 else "s")
+            missing = i.get("missing") or []
+            if missing:
+                detail += " · %d configured but not found" % len(missing)
+            add("Room", True, detail)
+        else:
+            add("Room", False, i.get("error") or "not connected")
+    else:
+        add("Room", False, "simulated", absent=True)
+
     scene = rt.controller.current_scene
     rows.append({"name": "Scene", "state": "ok" if scene else "warn",
                  "detail": scene.name if scene else "idle"})
+
+    # Fold in whatever tablecheck found that a device probe structurally
+    # cannot: every device above can be perfectly healthy while a scene
+    # still points at a pattern, track or background that does not exist
+    # (this module's own reason for being -- see its docstring). `check`
+    # is None on any render that ran before the first startup check
+    # finished, or if the check itself failed to run; the screen still
+    # renders in that case, just without this extra information.
+    if check:
+        rank = {"pass": 0, "warn": 1, "fail": 2}
+        if rank.get(check.get("overall", "pass"), 0) > rank.get(worst, 0):
+            worst = check["overall"]
+
+        integrity = [r for r in check.get("results", [])
+                     if r["name"] in _INTEGRITY_ROWS and r["status"] != "pass"]
+        for r in integrity[:_INTEGRITY_ROW_CAP]:
+            rows.append({"name": r["name"], "state": r["status"],
+                         "detail": r.get("detail", "")})
+        extra = len(integrity) - _INTEGRITY_ROW_CAP
+        if extra > 0:
+            rows.append({"name": "+ %d more" % extra, "state": "warn",
+                         "detail": "see Settings → Table Check"})
 
     version = "unknown"
     try:

@@ -750,7 +750,25 @@ class Controller:
         if rt is None:
             self.log.record("display.status_unsupported", reason="no runtime")
             return
-        self._try("display", shower, build_report(rt),
+
+        # Table Check (plan doc 5.4) is sub-second without --physical, so
+        # there is no reason the boot screen should settle for a plain
+        # device-alive rollup when the real thing is this cheap to run.
+        # Device probes alone stay green while a scene points at a pattern
+        # that no longer exists on the Pixelblaze -- exactly the failure
+        # tablecheck exists to catch -- so a table in that state used to
+        # look perfectly healthy on its own screen.
+        #
+        # Best-effort: a check that errors or hangs must not be the reason
+        # the status screen fails to show at all.
+        check = None
+        try:
+            from .tablecheck import run_check
+            check = run_check(rt, physical=False)
+        except Exception as exc:   # noqa: BLE001
+            self.log.record("display.status_check_failed", error=str(exc))
+
+        self._try("display", shower, build_report(rt, check),
                    getattr(self, "_branding_path", None))
 
     @action(ParamSpec("mode", "str",
