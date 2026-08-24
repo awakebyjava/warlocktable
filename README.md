@@ -129,7 +129,11 @@ bar, three breakpoints, a whisper overlay, and card management as its own
 page. **The status screen rebuilt** on the brand — wordmark, the table's
 two sigils, four corner QR codes, and `tablecheck` folded in at startup.
 Seats can now be vacated from either side, initiative counts rounds and
-turns, and rolls show the individual dice.
+turns, and rolls show the individual dice in parentheses. **Preset roll
+bars** page between d20, World of Darkness and BRP, and **d100** is
+allowed — which introduced a split worth knowing about: `controller.DICE`
+is what may be *rolled*, while the six shapes on the pad are what is
+*shown*, and they are deliberately different lists.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.

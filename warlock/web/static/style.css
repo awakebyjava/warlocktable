@@ -1149,6 +1149,24 @@ body.locked { overflow: hidden; }
     display: none;
   }
 
+  /* THE COLUMN CAP DOES NOT APPLY INSIDE A FIXED OVERLAY, and leaving it
+     on clipped content. --chrome is the header, tab bar and footer, which
+     is the right thing to subtract for the IN-FLOW tablet layout -- but
+     these three panels are `position: fixed; inset: 0`, so they cover all
+     three outright and the space is not spoken for.
+
+     It only became visible once seats were claimed: the player bar makes
+     the header taller, --chrome grows, the cap shrinks, and the dice pad
+     started being cut off mid-keypad with the overlay itself still having
+     hundreds of pixels spare. The overlay scrolls; the columns inside it
+     should simply be as tall as they need to be. */
+  #panel-dice .panel-col,
+  #panel-settings .panel-col,
+  #panel-cards .panel-col {
+    max-height: none;
+    overflow: visible;
+  }
+
   /* The way IN, since the tab bar is not there to provide one either.
      Dice and Settings have no other door at this width -- this was missed
      when the breakpoint was built, and it shipped a browser view with

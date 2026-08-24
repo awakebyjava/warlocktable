@@ -598,6 +598,19 @@ what "varied by device" should mean: the navigation model changes when the
 constraint that justified it goes away, not that the same screen wears
 three skins.
 
+**A trap in this, found 2026-08-24.** Each panel column caps its height
+against the header, tab bar and footer, so the panel never scrolls the
+page. That is right for the in-flow tablet layout and **wrong inside the
+≥1200px overlay panels**, which are `position: fixed; inset: 0` and cover
+all three outright — the space is not spoken for, so subtracting it just
+clips content while the overlay itself sits half empty.
+
+It stayed invisible until seats were claimed: the player bar makes the
+header taller, the cap shrinks by the same amount, and the dice pad
+started being cut off mid-keypad. Worth remembering as a shape of bug —
+**a measurement that is correct in one layout and meaningless in
+another**, where the symptom only appears once some unrelated thing grows.
+
 **What to promote at ≥1200px, decided rather than "show everything":**
 **Players and Run side by side.** Those are the two used *during* a
 session — watching the table fill and firing scenes and cards — and having
