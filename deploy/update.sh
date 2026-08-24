@@ -6,6 +6,13 @@
 #   ./deploy/update.sh --yes      # skip the confirmation
 #   ./deploy/update.sh --check    # show what is pending and stop
 #
+# RUN THIS AS THE USER WHO OWNS THE REPO, NOT WITH SUDO. It elevates
+# itself for the install step. Running the whole thing as root makes git
+# compare the repo's owner against SUDO_UID=0, which no longer matches,
+# so it refuses the checkout as dubious ownership -- and the deploy then
+# stamps VERSION as "not-a-git-checkout" and the table can no longer say
+# which build it is running.
+#
 # This exists because "git pull && sudo ./deploy/install.sh" is two commands
 # and easy to half-do. It keeps the review step that install.sh deliberately
 # does not have: you see the incoming commits before anything is deployed.
@@ -27,6 +34,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$REPO"
+
+# Fail fast rather than deploying something that cannot identify itself.
+if [[ "${SUDO_UID:-}" == "0" || ( -z "${SUDO_USER:-}" && "$(id -u)" -eq 0 ) ]]; then
+    echo "Run this WITHOUT sudo - it elevates itself for the install step." >&2
+    echo "As root, git refuses the repo as dubious ownership and the" >&2
+    echo "deployed VERSION becomes useless. See the header of this file." >&2
+    exit 2
+fi
 
 # --- what is pending? -------------------------------------------------
 

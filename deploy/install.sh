@@ -102,7 +102,30 @@ if git -C "$SRC" rev-parse --git-dir >/dev/null 2>&1; then
     } > "$CODE_DIR/VERSION"
     echo "  VERSION: $(head -1 "$CODE_DIR/VERSION")"
 else
+    # SAY WHY. This branch used to fail silently, and the table spent a
+    # day reporting "not-a-git-checkout" while $SRC was, in fact, a
+    # perfectly good checkout.
+    #
+    # The cause was invoking `sudo ./deploy/update.sh` rather than
+    # `./deploy/update.sh` -- update.sh calls sudo itself. Git compares a
+    # repository's owner against SUDO_UID rather than against root, so the
+    # nested sudo made SUDO_UID=0, which no longer matched the pi-owned
+    # repo, and git refused it as dubious ownership. Running the whole
+    # thing as root is what breaks it; running it as the owning user does
+    # not.
+    #
+    # A version string exists to answer "what is on the table?". Losing it
+    # to something this recoverable, without a word, is worse than the
+    # missing string itself.
     echo "not-a-git-checkout $(date -Is)" > "$CODE_DIR/VERSION"
+    echo "  WARNING: could not read git metadata from $SRC"
+    echo "           git says: $(git -C "$SRC" rev-parse --git-dir 2>&1 | head -1)"
+    echo "           VERSION is a timestamp only, so the table cannot report"
+    echo "           which build it is running."
+    if [[ -n "${SUDO_USER:-}" && "${SUDO_UID:-}" == "0" ]]; then
+        echo "           LIKELY CAUSE: this was run with sudo. Use"
+        echo "           ./deploy/update.sh (no sudo) -- it elevates itself."
+    fi
 fi
 
 # --- python environment ----------------------------------------------
