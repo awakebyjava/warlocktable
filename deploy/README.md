@@ -96,6 +96,21 @@ installs and restarts. `--check` shows what is pending without deploying;
 The review step is deliberate: `install.sh` never pulls on its own (plan doc
 5.5), so nothing reaches the table that you have not seen.
 
+**Run it WITHOUT `sudo`.** It elevates itself for the install step, and as
+of 2026-08-24 it refuses to start as root rather than letting this happen
+quietly:
+
+> Git compares a repository's owner against `SUDO_UID`, not against root.
+> Running the whole script under sudo means the nested `sudo install.sh`
+> sees `SUDO_UID=0`, which no longer matches the pi-owned repo, so git
+> rejects it as *dubious ownership*. install.sh's "is this a checkout?"
+> test then fails and it stamps `VERSION` as `not-a-git-checkout` — and
+> the table can no longer say which build it is running.
+
+This cost a day of the table reporting a useless version string, and it
+survived that long because the failure printed nothing at all. Both
+scripts are louder about it now.
+
 ### To develop and test without touching the service
 
 The repo still runs directly — this is the fast loop, no install needed:

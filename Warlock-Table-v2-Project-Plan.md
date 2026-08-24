@@ -85,7 +85,9 @@ now draws a random Aura and fires that card's effect. That retired the three
 - **The tarot set has its own design doc:**
   [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md)
   — the full taxonomy for all 26 cards (Boon / Person / Aura / Random
-  Table), what each should do, and the data shape. **Specified, not built.**
+  Table), what each should do, and the data shape. **Built 2026-08-22**
+  and firing on tap; all 32 physical tags enrolled. Audio is the one part
+  still outstanding — the cards run silently until the clips exist.
   It is the source of truth for *intent*; the companion
   `warlock-table-interruption-cards.json` carries the same 26 cards as
   structured data — a starting-point draft for implementation, not a config
@@ -294,7 +296,7 @@ The table is controlled through two deliberately separate surfaces:
 - **v1 scope decision (revised):** buttons/shortcuts that *fire actions*, **plus a subsystem status strip** — Lights / Sound / NFC / Network, green-or-red. Status readback was originally deferred to "later," but it's what turns *"it's broken and I don't know why"* into *"oh, the Pixelblaze lost power."* Cheap to build, and it's the difference between trusting the table and not. Full live state readback (current pattern, current track, volume levels) is still a later enhancement — this is just health, not detail. See §5.
 - **To expand:** exact button list, layout, whether any controls need live state later.
 
-**Player phones *(seat claiming built 2026-08-21; the rest still to come)*.**
+**Player phones *(seat claiming built 2026-08-21; signals, dice and whispers 2026-08-23; seat release and preset rolls 2026-08-24)*.**
 
 Three front doors, all on the same server:
 
@@ -407,14 +409,27 @@ must survive being interrupted by a card tap.
 - The header is the only thing that survives a panel switch, so signals
   stay reachable from anywhere. That is already true and must remain so.
 
-##### Status screen changes
+##### Status screen changes *(BUILT 2026-08-24)*
 
-- **Drop "The Circle Holds".** It says nothing. `WARLOCK TABLE` alone.
-- **Make the QR bigger.** It is the most useful thing on the screen at the
-  start of a session and currently it is a footnote.
-- **Run the check at startup and show the result.** `tablecheck` is
-  sub-second and already exists; the screen currently reports fewer
-  subsystems than the table actually has — Govee is not on it at all.
+- **Drop "The Circle Holds".** It says nothing. ~~`WARLOCK TABLE` alone.~~
+  Settled on **`Prepared`** / **`Assistance Needed`** — plain words about
+  readiness, which is what somebody glancing over actually wants to know.
+- ~~**Make the QR bigger.**~~ **Four QR codes, one per corner.** Enlarging
+  the single code was the wrong fix: people sit on all four sides of this
+  screen, so one large code still means three sides lean across the table.
+  Four small ones everybody can reach beat one big one nobody can.
+- **Run the check at startup and show the result.** Done — `show_status_screen()`
+  runs `tablecheck` (sub-second without `--physical`) and folds the verdict
+  in, so the screen reports cross-device integrity failures a per-device
+  probe cannot see. Govee is on it now as **Room**.
+- **The six subsystems collapsed to one compact row.** Six stacked rows with
+  a detail column each was most of the screen spent telling a healthy table
+  it was healthy. Anything actually wrong still gets a full line saying
+  what; the screen is quiet when there is nothing to say.
+- **The hero is the wordmark, and the two sigils inlaid in the real
+  tabletop flank it.** The procedural "wheel" is gone — it was a
+  placeholder from before there was artwork and never existed on the
+  physical table.
 - Footer, version and clock stay. The idle pattern stays.
 
 ##### Technical notes *(analysis, not spec)*
@@ -664,11 +679,45 @@ pressed under a table without looking.
 **The log reads `(dice)d(sides)=(result)`** — `3d6=12`. That format is the
 spec, not a suggestion.
 
+**Extended 2026-08-24: the individual dice follow, in parentheses** —
+`4d6=14 (6, 6, 1, 1)`. They were always recorded and never displayed,
+which made a pool roll unauditable at exactly the table where somebody
+wants to see the two sixes. `4d6=14` is a number to take on trust; the
+parenthesised form is a roll you watched. Suppressed for a single die,
+where it would only repeat the total, and truncated past twelve, where
+nobody reads the fortieth d6 individually — the full list is still in the
+record.
+
 **The dice are d4, d6, d8, d10, d12, d20.** No d100 and no percentile
 pair. **No modifiers** — a number and a die, nothing else. The point is to
 stay **system-agnostic**: the moment there are modifiers and a d100 it
 starts encoding somebody's rules, and this table does not know what game
 you are playing.
+
+**Preset bars, added 2026-08-24.** A strip of common rolls above the
+keypad on both surfaces, paged between three systems by arrows at each
+end: **d20**, **World of Darkness**, and **BRP**. Only rolls common enough
+that punching the combination in is busywork — a bar listing every legal
+roll is a keypad with extra steps, and the keypad is right there.
+
+This does not breach system-agnosticism, and the line is worth stating:
+there are no modifiers and no arithmetic, and every entry is a count and a
+die, exactly what `roll()` already accepts. A preset named "Fireball"
+would be the table taking a position on what game you are playing; `8d6`
+is a roll that happens to come up a lot.
+
+One shared file, `dice-presets.js`, loaded by both documents. The keypad
+is already duplicated between them and that is tolerable because it is
+fixed furniture; these lists are the part somebody will want to edit, and
+two copies that drift is how a player ends up with a preset the GM does
+not have.
+
+**BRP SHIPS WITHOUT ITS CORE ROLL.** Its entire resolution mechanic is
+roll-under on 1d100, and the dice set stops at d20 by the decision three
+paragraphs above. Every entry in the BRP panel is a real BRP roll; the one
+everybody makes most is absent. **Open question: allow d100?** It is a
+one-line change to `DICE` plus a button, and it trades the
+system-agnostic rule for the system most obviously excluded by it.
 
 - **No indicator on the television.** Considered and dropped. That was the
   single largest piece of work in all three tools, and it bought the least.
@@ -874,6 +923,17 @@ GM's own sheet.
 **The only notification is the table.** No phone alerts, no banners, no
 sounds. A seat flashing is the entire signal.
 
+**Round and turn are counted and shown, added 2026-08-24** — beside
+"running", as `running · round 2 · turn 3/5`. It was the one number a GM
+was still tracking on paper while the table tracked everything else for
+them.
+
+Rounds are counted and turns are DERIVED: the cursor already knows the
+turn, and storing it separately would be two facts that can disagree.
+Stepping backwards past the top of the order returns to the previous round
+rather than stranding the count one high — the same wrap arithmetic, run
+in reverse.
+
 There is also a **Flash** button per seat, separate from initiative: it
 flashes one player's lights three times and then puts the scene back. The
 "oi, you" button, for getting someone's attention without starting combat.
@@ -881,6 +941,13 @@ flashes one player's lights three times and then puts the scene back. The
 An order entry is just a seat number. The player's name is looked up from
 their seat claim when something needs displaying, so re-claiming under a
 different name leaves no stale entry behind.
+
+**Leaving a seat removes that seat from the order** (2026-08-24).
+Otherwise the table advances to a chair nobody is sitting in and waits on
+a player who has gone, which reads as initiative being stuck rather than
+as a seat being vacated. The cursor is kept on the same PLAYER rather than
+the same index — removing somebody earlier in the order would otherwise
+skip whoever is currently up.
 
 Not persisted, deliberately — see the note at the top of
 `warlock/initiative.py`. It changes every turn, the SD card is the one
@@ -941,7 +1008,7 @@ Two complementary options; not mutually exclusive.
 - **dddice (software 3D dice).** Same creator as Overseer Studio; full API/SDK, renders 3D dice, syncs rolls, keeps a roll log, can display rolls on screen. Natural fit for **player phones as second screens** (roll from your phone, see it on the table's TV) and for remote players. The controller can react to roll results (nat 20 → gold + cheer, nat 1 → red).
 - **To expand:** which comes first (dddice is the lighter/cheaper start; Pixels is the "wow"), how rolls map to effects.
 
-### 3.13 Govee Room & Accent Lighting *(specced 2026-08-23, not built)*
+### 3.13 Govee Room & Accent Lighting *(specced 2026-08-23, BUILT 2026-08-23)*
 
 The table lights the table. Govee lights the room it sits in — wall and
 accent strips, and strips under the table itself — so a scene reaches past
@@ -997,6 +1064,18 @@ happening in the room, with the table entirely unaffected.**
 
 Devices are addressed in **named groups** rather than individually — a
 scene wants to say "room" and "under-table", not recite MAC addresses.
+
+**As built, that last part was dropped.** There is one group: every
+configured device gets the scene colour. `govee_devices` is a flat list of
+device ids, with `govee_brightness` and `govee_static_ips` beside it.
+Named groups are the right design for under-table strips lit differently
+from wall strips, and there is exactly one strip at the moment — the
+grouping would have been a config schema serving a hypothetical.
+Revisit it when a second group actually exists.
+
+**Devices are addressed by DEVICE ID, never by IP.** Consumer DHCP moves
+them; the id does not. `govee_static_ips` is a fallback for the case in
+constraint 3 above, where multicast discovery does not survive the router.
 
 #### Scope, settled 2026-08-23
 
@@ -1276,7 +1355,7 @@ Required capabilities:
 - **Upload audio** through the panel and use it immediately in scenes and interruptions
 - **Create and edit** scenes, interruptions, and random tables
 - **Tune** transition and ducking durations
-- **Fix seat claims** — reassign a player who picked the wrong colour, or resolve two people claiming the same one
+- [x] **Fix seat claims** — *built 2026-08-24.* Every occupied seat has a **Remove** on the GM panel, and a player can **Leave this seat** from their own phone. See §4.7.
 - **Export / back up** the whole configuration
 
 **Referential integrity: block with a list.** Deleting a sound that three cards use is refused, naming those three. The failure this exists to prevent is discovering a broken reference mid-session.
@@ -1390,6 +1469,30 @@ python run_table.py --real-lights --nfc      + real card taps (Pi only)
 ---
 
 ### 4.7 Zones and per-zone lighting *(built 2026-08-21)*
+
+**Seats can be vacated, added 2026-08-24.** They could be entered and never
+left: the player page's "That is not my seat" cleared `localStorage` and
+told the table nothing, so the phone forgot the seat while the table went
+on believing it occupied — the colour stayed unavailable to everybody
+else, the seat kept its turn in initiative, and the only way out was
+editing config by hand.
+
+There are now two doors into one release, because the two callers know
+different things. A **player** knows their own name and not necessarily
+which colour they ended up with; a **GM** fixing somebody who sat in the
+wrong chair is looking at a seat, and may not know or care what its
+occupant called themselves. So `release_seat()` takes either.
+
+**Supplying both means "must match", not "colour wins".** The player app
+sends its own name *and* colour, and a phone closed in a pocket may be
+describing a seat somebody else has since taken; releasing on colour alone
+would let a stale device evict whoever is sitting there now. The GM's
+button sends colour only and is deliberately unaffected — removing
+whoever is in the chair is exactly what they asked for.
+
+Releasing also drops the seat from the initiative order (§3.9) and clears
+any signal that seat had raised, since a `?` from somebody who has left
+would sit in the GM's bar with nobody to answer it.
 
 **This was the prerequisite for player phones.** Seat claiming (§4.5) asks a
 player to "pick the colour of the lights you are sitting at", which the table
@@ -2158,6 +2261,11 @@ Stand up the core software on the Pi once hardware is trusted.
   scrolling became none on the device it is built for. *Done 2026-08-24.*
   Still open: the drawn symbols, which the tab bar carries in words until
   they arrive.
+- [x] **Status screen rebuild** (§3.6) — *done 2026-08-24.* Hero wordmark,
+  the table's two real sigils, four corner QR codes, the six subsystems
+  collapsed into one compact row, `Prepared` / `Assistance Needed`, and
+  `tablecheck` folded in at startup so cross-device integrity failures
+  reach the screen a per-device probe cannot see.
 - [ ] **Display redesign** (§3.6) — real grid/hex overlays, battle maps
   with fit/crop rules, a turn indicator and an effects overlay. Measured:
   write JPEG rather than PNG or a redraw costs 2-12 seconds.
@@ -2165,12 +2273,13 @@ Stand up the core software on the Pi once hardware is trusted.
   undecided; likely suit and rank combining, with four suit patterns and
   rank as a parameter rather than 52 patterns. NOT the tarot suits.
 - [ ] Phone-tag NFC support
-- [ ] Govee room/accent lighting via API, synced into scenes (+ under-table strips)
+- [x] **Govee room/accent lighting** — built 2026-08-23 (§3.13). LAN API, no cloud. Colour derived from the scene's own palette rather than configured, so the room cannot drift out of step with the table. One H208 strip in service; under-table strips and named groups remain open.
 - [x] **Zone map + per-zone lighting** — built 2026-08-21 (§4.7). The perimeter divides between the GM and 1–7 players, each seat lit its own colour; `patterns/zones.js` is on the device and confirmed working. **Unblocks player phones.**
-- [~] Player phones — join QR and seat claiming built 2026-08-21. The
-  phone page does exactly one thing: choose a seat. Dice, break requests
-  and private whispers are still to come, and are separate decisions
-  rather than one lump.
+- [x] **Player phones** — join QR and seat claiming built 2026-08-21;
+  signals (`?` / `!`), dice and private whispers built 2026-08-23 (§3.7);
+  seat release and preset roll bars 2026-08-24. Four bottom tabs — Dice,
+  Messages, Seat, and a deliberately empty **Table** placeholder for
+  table interaction, which is wanted and not yet designed.
 - [ ] Soundscape library + light-scene coordination
 - [x] **Session recording** — built 2026-08-21 (§3.10). One button on the
   panel; the room mic to a WAV in `/var/lib/warlocktable/recordings/`.

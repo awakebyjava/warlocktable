@@ -24,7 +24,7 @@ driven from an iPad web panel or from the cards themselves.
 | **Pick up where the project left off** | [`Warlock-Table-Claude-Code-Handoff.md`](Warlock-Table-Claude-Code-Handoff.md) |
 | Understand *why* it is built this way | [`Warlock-Table-v2-Project-Plan.md`](Warlock-Table-v2-Project-Plan.md) — the source of truth |
 | Write a Pixelblaze pattern | [`warlock-table-led-reference.md`](warlock-table-led-reference.md) — **read the power budget first** |
-| Design the tarot card behaviours | [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md) — specified, not built |
+| Design the tarot card behaviours | [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md) — all 26 built and enrolled |
 | Generate artwork for the TV | [`display-image-specifications.md`](display-image-specifications.md) |
 | Deploy to, or debug, the Pi | [`deploy/README.md`](deploy/README.md) |
 | Build any UI | [`warlock-table-style-guide.html`](warlock-table-style-guide.html) |
@@ -59,6 +59,7 @@ warlock/
   tablecheck.py    the pre-session self-test
   statusscreen.py  renders the TV status screen
   zones.py         divides the table perimeter into GM + N player seats
+  initiative.py    whose turn it is, and which round
   devices/         things the controller CALLS (real + fake, same interface)
   inputs/          things that CALL the controller (the NFC reader)
   web/             the operator panel, served from the controller process
@@ -69,12 +70,17 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                      upload_watched.py   upload one at a time, verifying each
                      upload_pattern.py   upload a single named pattern
                      archive_patterns.py copy sources off before deleting
-                     prune_patterns.py   delete stock patterns, one at a time
                      migrate_tarot.py    build card entries from the spec
                      enrol_cards.py      tap physical cards to register them
+                     tag_probe.py        identify an unknown tag and its chip
                      sync_seat_colours.py realign a live config's palette
+                     icon_manifest.py    the icon set the interface needs
+                     audio_worksheet.py  what still needs recording
+branding/          the wordmark, app icons, and the table's two sigils
 patterns/          Pixelblaze patterns, kept in git so the device is not the
-                   only copy
+                   only copy. `generated/` is patterngen.py's output (30);
+                   idle, zones and breathing are hand-written; `legacy/`
+                   holds the originals the generated scenes replaced.
 ```
 
 **Media is deliberately not in git.** Audio and finished 4K artwork live
@@ -114,6 +120,16 @@ plus audio-output switching.
 layering abandoned in favour of shorter stings; a hand-written idle
 pattern; the status screen selectable and carrying the join QR; the TV
 viewer recovering on its own; session recording.
+
+Since, also unreleased — **player phone tools**: signals (`?` / `!`),
+dice with a shared roll log, and private whispers. **Govee accent
+lighting** over the LAN API, its colour derived from each scene's own
+palette. **The interface redesign**: four GM panels behind a bottom tab
+bar, three breakpoints, a whisper overlay, and card management as its own
+page. **The status screen rebuilt** on the brand — wordmark, the table's
+two sigils, four corner QR codes, and `tablecheck` folded in at startup.
+Seats can now be vacated from either side, initiative counts rounds and
+turns, and rolls show the individual dice.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.

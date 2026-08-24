@@ -47,9 +47,9 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 
 ## Where we are right now
 
-*(Updated 2026-08-21. `Warlock-Table-v2-Project-Plan.md` is the detailed source of truth — this is the summary. If they disagree, the plan doc wins.)*
+*(Updated 2026-08-24. `Warlock-Table-v2-Project-Plan.md` is the detailed source of truth — this is the summary. If they disagree, the plan doc wins.)*
 
-**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.3.1**.
+**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.3.1-83-gcaadada** (v0.4.0 is unreleased — see the README's Versions section for what has landed since the tag).
 
 **All four subsystems are real** — nothing is a fake any more:
 
@@ -79,17 +79,26 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 **Built 2026-08-22 (earlier):**
 - **All patterns generated** from `tools/patterngen.py` — 30 of them, on the device. The five terrain scenes were compared against the hand-written originals on the table before replacing them; originals kept in `patterns/legacy/`.
 - **The tarot system** — 26 cards with config entries pointing at their own patterns, and all 32 physical cards enrolled. Wheel of Fortune draws a random Aura. Silent for now: `Interruption.audio` is optional so the cards work before the clips exist.
-- **Stock patterns pruned** — 39 removed after archiving, then the 40 aura×scene combos on top: 42 patterns on the device, 730KB free.
+- **Stock patterns pruned** — 39 removed after archiving, then the 40 aura×scene combos on top. *(Superseded: abandoning aura layering took the device from ~70 patterns to 30, and free flash from 529KB to 830KB.)*
 - **Aura-over-scene layering was ABANDONED**, not deferred. The combos existed but nothing ever selected one, and finishing the feature meant 72 patterns on flash that had already been filled once. An Aura now replaces the scene and reverts. Do not rebuild the combos without reading plan doc §3.2 first — the reasons are recorded there and the memory is better spent elsewhere.
 - **`idle` is hand-written**, `patterns/idle.js` — not from the generator. It is the state the table sits in longest and it was running a stock pattern called `breathing`. Deep unlit-warlock-eye violet, eyes opening into neon, a surge every ~20s.
 
+**Built 2026-08-23/24 (this run):**
+- **Player phone tools** — signals (`?` / `!` with a 60s expiry), dice with a shared roll log, and private whispers. No public channel, by design. §3.7.
+- **Govee accent lighting** over the **LAN** API, never the cloud. The colour is derived from each scene's own palette, so the room cannot drift out of step with the table. §3.13.
+- **The interface redesign** — four GM panels behind a bottom tab bar, three breakpoints, a whisper overlay, card management as its own page. 7.4 screens of scrolling became none on the target iPad. §3.7.
+- **The status screen rebuilt on brand** — wordmark hero, the table's two real sigils, **four corner QR codes** (people sit on all four sides), one compact subsystem row, `Prepared` / `Assistance Needed`, and `tablecheck` folded in at startup. §3.6.
+- **Seats can be vacated** from either side, **initiative counts rounds and turns**, **rolls show the individual dice**, and there are **preset roll bars** for d20 / WoD / BRP.
+- **Latency** measured and cut from ~2s to under 600ms. §5.7.
+- **All 32 physical cards enrolled.**
+
 **Not built yet:**
-- **Audio for the 26 tarot cards**, and **enrolling the remaining 22 physical cards** (`tools/enrol_cards.py`, with the table running).
-- **NPC binding editor** for the 9 Person cards.
-- **Everything on the player phone beyond claiming a seat** — dice, break requests, whispers. **How far the phone should go is deliberately unsettled: ask, do not assume.**
-- **Input-to-effect latency** (§5.7) — the NFC read is the biggest single delay and sits upstream of everything. **Measure before changing anything.**
+- **Audio for the 26 tarot cards.** The cards fire silently; `Interruption.audio` is optional so they work before the clips exist. `tools/audio_worksheet.py` lists what is missing.
+- **d100.** BRP's preset panel ships without its core roll because the dice set stops at d20, by an explicit decision to stay system-agnostic. Open question, recorded in §3.11.
 - Audio upload and scene authoring in the panel (§4.5 steps 3–4)
-- Govee, voice/personality, dice, session recap — Phase 3+. Overseer is explicitly **not planned**.
+- **Display redesign** (§3.6) — real grid/hex overlays and battle maps.
+- Voice/personality, session recap — Phase 3+. Overseer is explicitly **not planned**.
+- **NPC binding editor** — *dropped.* The user's call: "NPC binding isn't going to happen." Do not resurrect it.
 
 **Before measuring frame rate, read §5.3.** `getStatistics()` turns on
 preview streaming and its fps figure lags a pattern switch by seconds. Read
@@ -105,6 +114,23 @@ The short version: stop the controller first, never run device work
 unattended, pass an empty preview image, and expect a transient failure
 every 5–15 operations that is safe to retry.
 
+**Two traps found on 2026-08-24, both of which wasted a deploy cycle:**
+
+- **Run `./deploy/update.sh` WITHOUT sudo.** It elevates itself. Git
+  compares a repo's owner against `SUDO_UID`, so running the whole script
+  as root makes the nested `sudo install.sh` see `SUDO_UID=0`, which no
+  longer matches the pi-owned repo; git rejects it as dubious ownership
+  and the deploy stamps `VERSION` as `not-a-git-checkout`. The table then
+  cannot say which build it is running. It now refuses to start as root.
+- **A deploy landing is not the same as a browser seeing it.** The server
+  sent no cache headers at all for HTML/CSS/JS, which does not mean "do
+  not cache" — with no directive and no validator a browser may reuse a
+  response indefinitely, and it did. A redesigned panel rendered with the
+  previous stylesheet, and the files on the Pi were demonstrably correct
+  the whole time. Fixed with `no-cache` plus an ETag. **If the table looks
+  wrong after a deploy, check what the browser is actually holding before
+  debugging the code.**
+
 **Read these before touching the matching area:**
 - `warlock-table-led-reference.md` — **before any Pixelblaze pattern.** Layout, the verified `segStart` ordering (do not "tidy" it), and the **power budget: the brightness limit is a 40 A supply constraint, not a preference.**
 - `display-image-specifications.md` — before generating artwork. Grid pitch is **107.85 px**, not what the panel dimensions imply.
@@ -114,11 +140,11 @@ every 5–15 operations that is safe to retry.
 **Environment notes that save time:**
 - Laptop has Python 3.12. Windows' Store alias shadows it in an already-open terminal — open a fresh one.
 - The Pi needs a special `pixelblaze-client` install (`mini-racer` has no ARM wheel) plus a stub. `deploy/README.md`.
-- Pixelblaze at 10.10.0.171, Pi at 10.10.0.24. **Prefer discovery over hardcoding** — the Pixelblaze IP has already drifted once.
+- **Addresses drift and DHCP reservations are still not done.** As of 2026-08-24 the Pi is at **10.10.0.23** and the Pixelblaze at **10.10.0.169**; both have moved twice. **Prefer discovery over hardcoding**, and reach the Pi as `raspberrypi.local` rather than by address.
 - **Config is Pi-owned.** `/var/lib/warlocktable/config.json` does not come from git; editing `data/config.example.json` will not reach the table.
 - The panel and the interactive CLI **cannot both own the NFC reader**. Stop the service first.
 
-**SD card image:** `~/Documents/warlocktable-backups/` on the laptop, verified. See its README. **It is stale as of 2026-08-21** — since it was taken, `/boot/cmdline.txt` gained the forced-HDMI `e`, `segno` was installed into the venv, and the live config grew new keys. None of that comes from git, which is exactly what the image is for. Take a fresh one.
+**SD card image:** `~/Documents/warlocktable-backups/` on the laptop, verified. See its README. **It is stale as of 2026-08-21, and more so now** — since it was taken, `/boot/cmdline.txt` gained the forced-HDMI `e`, `segno` was installed into the venv, and the live config grew new keys. None of that comes from git, which is exactly what the image is for. Take a fresh one.
 
 ## Zones and seats (added 2026-08-21)
 
