@@ -469,6 +469,68 @@ must survive being interrupted by a card tap.
 - **This is downstream of the branding work**, which is in progress. The
   structure above can be settled now; type, colour and texture cannot.
 
+#### The brand kit, and what it costs *(received 2026-08-24)*
+
+`warlock-brand-kit.html`. Six tones, three faces, and a sigil system with a
+rule worth repeating: **ringed seal = a system you watch; bare glyph = a
+thing you press.** That single distinction settles most icon questions
+before they are asked.
+
+##### Token migration
+
+| Now | Brand | Note |
+|---|---|---|
+| `--black` `#0b0a08` | `#0B0A08` | unchanged |
+| `--bone` `#eae4d6` | `#EAE4D6` | unchanged |
+| `--brass` `#c9a15a` | **`--gold` `#C9982E`** | renamed and deeper |
+| `--brass-dim` `#6e5a35` | **`--gold-dim` `#6E5424`** | disabled / idle |
+| `--purple` `#8a5cc9` | `#5A2BA0` | **much deeper** — active / selected |
+| `--purple-deep` `#3c2a5c` | `#1E0F3A` | |
+| `--line` `#3a3327` | `#332C20` | |
+| — | **`--violet` `#B14BFF`** | NEW. Rare: the eyes, a live pulse, speaking |
+| `--bone-mid` (14 uses) | — | no equivalent; fold into `--bone-dim` |
+| `--brass-bright` (4 uses) | — | no equivalent; gold is flat, so it cannot exist |
+| **`--bad` `#c95a5a` (10 uses)** | — | **GAP — see below** |
+
+**The palette has no error colour.** `--bad` carries ten uses today: failed
+checks, unhealthy subsystems, the fail summary. The kit's six tones are
+black, gold, purple, violet, bone and gold-dim — nothing says "this is
+broken". Either a seventh tone is added, or failure is carried by **shape
+and motion** instead, which the kit already leans toward.
+
+##### Two conflicts with what was just built
+
+**1. The dome lamps are off-brand as drawn.** The kit is explicit: *"Gold is
+flat matte colour — like ink or paint, never metallic, no shine, no
+gradient, no bevel."* The lamps are polished gold with a conic metal
+gradient, a bevelled bezel and a specular highlight — the exact opposite,
+deliberately, because that is what was asked for. Three ways out:
+
+  - keep them as a **deliberate skeuomorphic exception**, arguing the flat
+    rule governs chrome and sigils rather than a depicted physical object;
+  - **flatten them** — matte facets, no bevel, no shine, keeping the ribs;
+  - **drop them** for the kit's own status marks.
+
+**2. The kit already specifies status marks, and they are not lamps.**
+*"OK / Warn / Fail differ by shape, not colour — check / triangle / × — so
+they survive on the TV status screen if colour is lost."* That is the same
+accessibility reasoning that put a blink on the failing lamp, reached
+independently and answered differently.
+
+Not a decision to make in code. Recorded so it is made on purpose.
+
+##### Practical
+
+- **Playfair Display 800 must be bundled**, replacing Syne. It is OFL, so
+  self-hosting is permitted — but the file has to ship, since the table has
+  no internet. It sets headings, titles **and button labels**, which
+  includes the tab words.
+- **IBM Plex Sans stays body-only; IBM Plex Mono stays status and utility
+  only.** Both are already bundled.
+- **State is colour, never a redraw**: gold available, purple active,
+  violet live, gold-dim disabled. One glyph, recoloured — which means
+  components need a state attribute rather than swapped assets.
+
 #### One design, three widths *(specced 2026-08-23)*
 
 A full complement of layouts: GM and player, on phone, tablet and browser.
