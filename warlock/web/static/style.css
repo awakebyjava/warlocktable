@@ -2,11 +2,16 @@
  *
  * Follows warlock-table-style-guide.html. The rules that drive everything:
  *
- *   BRASS  = structural. Borders, frames, things that are simply there.
- *   PURPLE = alive. Only what is happening right now — the active scene, a
- *            healthy subsystem, a tag waiting to be registered.
+ *   GOLD   = structural. Borders, frames, things that are simply there.
+ *            FLAT MATTE, like ink -- never metallic, no gradient, no bevel.
+ *   PURPLE = active. What is selected or currently happening.
+ *   VIOLET = live. RARE by design -- the eyes, a pulse, the speaking state.
+ *            If it is everywhere it stops meaning anything.
  *   BONE   = text, kept sparse. Never a large field, or it fights the
  *            "black table" feeling.
+ *   RUST   = broken. Not in the six-tone kit, but a failure has to read as
+ *            one; a desaturated dark red sits inside the palette without
+ *            shouting.
  *
  * Sharp 2px corners, not the rounded ones an app would default to: this
  * should read as an instrument, not a phone app.
@@ -19,9 +24,9 @@
  */
 
 @font-face {
-  font-family: 'Syne';
-  src: url('/fonts/Syne.ttf') format('truetype-variations');
-  font-weight: 400 800; font-display: swap;
+  font-family: 'Playfair Display';
+  src: url('/fonts/PlayfairDisplay-ExtraBold.ttf') format('truetype');
+  font-weight: 800; font-display: swap;
 }
 @font-face {
   font-family: 'IBM Plex Sans';
@@ -40,21 +45,34 @@
 }
 
 :root {
-  /* Style guide I — Materials. Five tones, all sourced from the table. */
-  --black:        #0b0a08;
+  /* warlock-brand-kit.html, 2026-08-24. Six tones, all from the table. */
+  --black:        #0B0A08;   /* base field -- the table's finish          */
   --black-2:      #151310;
   --black-3:      #1d1a15;
-  --brass:        #c9a15a;
-  --brass-bright: #e0be80;
-  --brass-dim:    #6e5a35;
-  --purple:       #8a5cc9;
-  --purple-deep:  #3c2a5c;
-  --bone:         #eae4d6;
-  --bone-mid:     #a89f8c;
-  --bone-dim:     #9c9587;
-  --line:         #3a3327;
-  /* Not in the guide — a failure has to read as a failure. */
-  --bad:          #c95a5a;
+  --gold:         #C9982E;   /* structure: frames, borders, stable UI      */
+  --gold-dim:     #6E5424;   /* disabled / idle                            */
+  --purple:       #5A2BA0;   /* active / selected                          */
+  --purple-deep:  #1E0F3A;
+  --violet:       #B14BFF;   /* RARE: eyes, live pulse, speaking           */
+  --bone:         #EAE4D6;   /* text -- precise, never a large field       */
+  --bone-dim:     #9C9587;
+  --line:         #332C20;
+
+  /* The kit has six tones and none of them says "broken". Failure needs a
+     colour: this is a dark, desaturated red that sits beside gold without
+     turning the panel into a warning label. Shape and motion still carry
+     the signal -- see the status marks -- this only reinforces it. */
+  --rust:         #8C2F2A;
+  --rust-bright:  #C0524A;
+
+  /* Retired with the rebrand, aliased so nothing breaks mid-redesign:
+     gold is FLAT, so a "bright" gold cannot exist, and bone-mid had no
+     equivalent. Both fold into their nearest surviving neighbour. */
+  --brass:        var(--gold);
+  --brass-bright: var(--gold);
+  --brass-dim:    var(--gold-dim);
+  --bone-mid:     var(--bone-dim);
+  --bad:          var(--rust-bright);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -86,7 +104,7 @@ header {
 }
 
 h1 {
-  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 800;
   margin: 0 0 10px; font-size: 20px;
   letter-spacing: 0.03em; text-transform: uppercase; color: var(--bone);
 }
@@ -198,7 +216,7 @@ input[type=range] { flex: 1; height: 40px; accent-color: var(--purple); backgrou
   background: var(--black-2); border: 1px solid var(--line);
   border-left-width: 3px; border-radius: 2px; padding: 9px 14px; font-size: 13px;
 }
-.check-line .who { font-family: 'Syne', sans-serif; font-weight: 600; min-width: 140px; letter-spacing: 0.02em; }
+.check-line .who { font-family: 'Playfair Display', Georgia, serif; font-weight: 600; min-width: 140px; letter-spacing: 0.02em; }
 .check-line .what { color: var(--bone-mid); font-size: 12px; }
 .check-line.pass { border-left-color: var(--purple); }
 .check-line.warn { border-left-color: var(--brass); }
@@ -207,7 +225,7 @@ input[type=range] { flex: 1; height: 40px; accent-color: var(--purple); backgrou
 .check-line.warn .who { color: var(--brass-bright); }
 
 .check-summary {
-  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 700;
   padding: 12px 14px; border-radius: 2px; margin-bottom: 4px;
   font-size: 14px; letter-spacing: 0.04em; border: 1px solid var(--line);
 }
@@ -230,7 +248,7 @@ input[type=range] { flex: 1; height: 40px; accent-color: var(--purple); backgrou
   max-height: 90vh; overflow-y: auto;
 }
 .modal-box h3 {
-  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 700;
   margin: 0 0 20px; font-size: 18px; color: var(--bone); letter-spacing: 0.03em;
 }
 .modal-box label {
@@ -557,7 +575,7 @@ button.wide { width: 100%; }
    distinguish it, and a table is not the place to find that out. */
 .player-pill.signalling { color: var(--bone); border-color: var(--purple-deep); cursor: pointer; }
 .player-mark {
-  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 800; font-size: 13px;
   line-height: 1; color: var(--purple);
   animation: signal-blink 1s steps(1, end) infinite;
 }
@@ -634,7 +652,7 @@ button.small { padding: 4px 10px; font-size: 10px; }
 .wide-key { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-dim); }
 
 .die {
-  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 800; font-size: 18px;
   min-height: 52px; padding: 0;
   background: var(--panel, #17141c); color: var(--bone);
   border: 1px solid var(--purple-deep); border-radius: 3px;
@@ -674,7 +692,7 @@ button.small { padding: 4px 10px; font-size: 10px; }
      plain height and left these 44 wide by 64 tall. */
   width: 44px; height: 44px; min-height: 44px;
   border-radius: 50%; flex: none; padding: 0;
-  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 800; font-size: 20px;
   display: flex; align-items: center; justify-content: center;
   background: var(--panel, #17141c); color: var(--bone-dim);
   border: 1px solid var(--line);
