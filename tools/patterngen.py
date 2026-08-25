@@ -1079,6 +1079,89 @@ for _name, _a in AURAS.items():
 # spend on patterns people actually see.
 
 
+# ---- Playing cards: a 54-card deck as table triggers --------------------
+#
+# SEVEN PATTERNS FOR FIFTY-FOUR CARDS. The deck is not fifty-four effects;
+# it is two motifs with a couple of parameters. Which suit you tapped is
+# carried by the ANNOUNCER ("spades"), so the lights are free to carry the
+# only other thing worth knowing -- whether it was a number, an ace or a
+# face. Generating one pattern per card would put 54 uploads through a
+# device whose flash has already been filled once (see the removed
+# composite block above), to say nothing the audio does not already say.
+#
+# Deliberately faster than the tarot cards. A Boon is a dramatic beat and
+# holds four seconds; these are triggers in a game and get tapped far more
+# often, so the lap is 2.5s inside a 3.0s interruption.
+PLAY_LAP     = 2.5      # one comet lap
+PLAY_TOTAL   = 2.9      # gate length, just inside the 3.0s revert
+PLAY_ATTACK  = 0.12     # arrives promptly -- it answers a tap
+PLAY_RELEASE = 0.45     # leaves gently, so it reads as deliberate
+
+PLAY_GOLD = 0.13        # the face-card and sparkle hue
+
+# Red for hearts and diamonds, white for spades and clubs. Saturation 0 is
+# what makes white -- the hue is simply unused there, not a colour choice.
+PLAY_COLOURS = {"Red": (0.0, 0.95), "White": (0.0, 0.0)}
+
+for _cname, (_ch, _cs) in PLAY_COLOURS.items():
+    # Numbers 2-10: one comet lap and nothing else. The plainest thing in
+    # the deck, because it is nine cards in every suit and wants to be
+    # unremarkable when it fires for the ninth time in an evening.
+    CARDS["Card-Comet-" + _cname] = Pattern(
+        "Card-Comet-" + _cname,
+        "One %s comet lap. Number cards, %s suits." % (
+            _cname.lower(), "red" if _cname == "Red" else "black"),
+        field=Comet(width=26, laps=1.0, period=PLAY_LAP, count=1, tail=6.0),
+        palette=solid(_ch, _cs, lo=0.0, hi=0.85),
+        window=(PLAY_ATTACK, PLAY_RELEASE, PLAY_TOTAL))
+
+    # Aces: the same lap, with gold catching in the tail. Same motif on
+    # purpose -- an ace should read as "that suit, but more", not as a
+    # different card altogether. `tint` blooms sit on top of the palette so
+    # the sparks can be gold over a red comet; `decay` makes each one
+    # strike and fade rather than swell, which is what a spark does.
+    CARDS["Card-Comet-" + _cname + "-Ace"] = Pattern(
+        "Card-Comet-" + _cname + "-Ace",
+        "%s comet lap with gold sparks in the tail. The four Aces." % _cname,
+        field=Comet(width=26, laps=1.0, period=PLAY_LAP, count=1, tail=6.0),
+        palette=solid(_ch, _cs, lo=0.0, hi=0.85),
+        blooms=Blooms(6, 3, 0.80, (0.15, 0.35), mode="tint", env="decay",
+                      rest=0.45, hue_pull=PLAY_GOLD),
+        window=(PLAY_ATTACK, PLAY_RELEASE, PLAY_TOTAL))
+
+    # Jack, Queen and King: the suit's colour again, but here the SPARKS
+    # are the event and the comet is only what carries them. That is the
+    # whole difference from an Ace, which is the reverse -- a bright body
+    # that happens to throw a few. Same two ingredients, opposite balance,
+    # so the pair stay tellable apart without the court cards having to
+    # give up their suit colour to do it.
+    CARDS["Card-Sparks-" + _cname] = Pattern(
+        "Card-Sparks-" + _cname,
+        "%s trail thick with gold sparks. Jack, Queen and King." % _cname,
+        field=Comet(width=20, laps=1.0, period=PLAY_LAP, count=1, tail=7.0),
+        palette=solid(_ch, _cs, lo=0.0, hi=0.45),
+        blooms=Blooms(14, 3, 0.95, (0.12, 0.30), mode="tint", env="decay",
+                      rest=0.15, hue_pull=PLAY_GOLD),
+        window=(PLAY_ATTACK, PLAY_RELEASE, PLAY_TOTAL))
+
+# The jokers: motley. hue_cycle turns the whole spectrum through the cue,
+# so the comet is never one colour -- the card that belongs to no suit gets
+# all of them. Big and Small are the same motif at two intensities, which
+# is how the deck itself treats them: the same joke, one louder.
+for _jname, _jlaps, _jcount, _jcycle, _jsparks in (
+        ("Big",   2.0, 2, 1.45, 14),
+        ("Small", 1.0, 1, 2.90,  7)):
+    CARDS["Card-Joker-" + _jname] = Pattern(
+        "Card-Joker-" + _jname,
+        "Motley comet, spectrum turning. The %s Joker." % _jname,
+        field=Comet(width=18, laps=_jlaps, period=PLAY_LAP, count=_jcount,
+                    tail=5.0),
+        palette=solid(0.0, 0.90, lo=0.0, hi=0.85),
+        blooms=Blooms(_jsparks, 3, 0.90, (0.12, 0.30), mode="tint",
+                      env="decay", rest=0.20, hue_pull=PLAY_GOLD),
+        hue_cycle=_jcycle,
+        window=(PLAY_ATTACK, PLAY_RELEASE, PLAY_TOTAL))
+
 # idle is hand-written rather than generated, so its palette cannot be read
 # off a Pattern. These are the H_DEEP/H_NEON and S_DEEP/S_NEON constants
 # from patterns/idle.js -- if that file's palette changes, change these.
