@@ -106,14 +106,29 @@ def main() -> int:
     print()
 
     done = 0
+    # Tags registered during THIS run. Registering forgets the tag
+    # server-side, but a card lifted and put straight back down
+    # fires again -- and without this that second fire would be
+    # accepted for the NEXT target, silently tagging two cards to
+    # one piece of plastic.
+    enrolled = set()
     try:
         for kind, name in todo:
             label = name.replace("_", " ").title()
             print("  TAP the card for:  %s  (%s)" % (label, kind), flush=True)
             asked = time.time()
             uid = None
+            ticks = 0
             while uid is None:
                 time.sleep(POLL_S)
+                # Say something while waiting. Without this the terminal is
+                # silent from the prompt until the tag lands, which is
+                # indistinguishable from the tool being hung or the reader
+                # being dead -- and that is exactly how it was read.
+                ticks += 1
+                if ticks % 4 == 0:
+                    sys.stdout.write(".")
+                    sys.stdout.flush()
                 got = api(args.base, "/api/config/unassigned")
                 if "error" in got:
                     print("     lost the table: %s" % got["error"])
@@ -134,6 +149,8 @@ def main() -> int:
                     # here, and this runs from anywhere on the network, so
                     # absolute timestamps would need both machines to agree
                     # about the time. They do not.
+                    if row["uid"] in enrolled:
+                        continue
                     if row.get("seconds_ago", 1e9) < waited:
                         uid = row["uid"]
                         break
@@ -143,8 +160,16 @@ def main() -> int:
             # the object happens to be the card of that name. The idle
             # trigger is a postcard; "Idle" would be a lie about the thing
             # sitting on the table. Enter accepts the default.
+            # Confirm the tag the moment it is seen. This used to fall
+            # straight through to input(), and input()'s prompt is NOT
+            # flushed when stdout is a pipe rather than a terminal -- so
+            # over SSH the tap produced no output whatsoever.
+            print("")
+            print("     got tag %s" % uid, flush=True)
+            sys.stdout.write("     label [%s]: " % label)
+            sys.stdout.flush()
             try:
-                typed = input("     label [%s]: " % label).strip()
+                typed = input().strip()
             except EOFError:
                 typed = ""
             if typed:
@@ -159,6 +184,7 @@ def main() -> int:
             # Registering clears it from the unassigned buffer server-side
             # (server.py calls unassigned.forget), so there is nothing to
             # remember locally.
+            enrolled.add(uid)
             done += 1
             print("     registered %s" % uid, flush=True)
             print(flush=True)
