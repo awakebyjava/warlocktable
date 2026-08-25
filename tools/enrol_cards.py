@@ -105,12 +105,15 @@ def main() -> int:
     print("enrolled up to that point is already saved.")
     print()
 
+    # Ignore anything already sitting in the buffer from before we started.
+    seen_before = {u["uid"] for u in
+                   api(args.base, "/api/config/unassigned").get("unassigned", [])}
+
     done = 0
     try:
         for kind, name in todo:
             label = name.replace("_", " ").title()
             print("  TAP the card for:  %s  (%s)" % (label, kind), flush=True)
-            asked = time.time()
             uid = None
             while uid is None:
                 time.sleep(POLL_S)
@@ -118,23 +121,8 @@ def main() -> int:
                 if "error" in got:
                     print("     lost the table: %s" % got["error"])
                     return 1
-                waited = time.time() - asked
                 for row in got.get("unassigned", []):
-                    # Accept a tap that happened AFTER we asked for it.
-                    #
-                    # This used to snapshot the buffer's UIDs at startup
-                    # and ignore all of them for the whole run. Tap a card
-                    # once before starting -- to check the reader works,
-                    # which is the obvious thing to do -- and that card was
-                    # then invisible FOREVER: the prompt sat there while
-                    # the table logged every tap as card.unregistered.
-                    #
-                    # Comparing two ELAPSED times rather than two clocks:
-                    # seconds_ago is measured on the table and `waited`
-                    # here, and this runs from anywhere on the network, so
-                    # absolute timestamps would need both machines to agree
-                    # about the time. They do not.
-                    if row.get("seconds_ago", 1e9) < waited:
+                    if row["uid"] not in seen_before:
                         uid = row["uid"]
                         break
 
@@ -156,9 +144,7 @@ def main() -> int:
             if "error" in res:
                 print("     FAILED: %s" % res["error"])
                 return 1
-            # Registering clears it from the unassigned buffer server-side
-            # (server.py calls unassigned.forget), so there is nothing to
-            # remember locally.
+            seen_before.add(uid)
             done += 1
             print("     registered %s" % uid, flush=True)
             print(flush=True)
