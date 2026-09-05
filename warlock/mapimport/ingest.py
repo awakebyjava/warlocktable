@@ -130,14 +130,60 @@ def _convert_heif(path: str, workdir: str) -> str:
     if not os.path.exists(out):
         produced = sorted(f for f in os.listdir(workdir)
                           if f.startswith("heif-decoded"))
-        if not produced:
-            detail = (proc.stderr or b"").decode("utf-8", "replace").strip()
-            raise UnsupportedImageError(
-                "Could not read this HEIC image.%s"
-                % (" " + detail if detail else ""))
-        out = os.path.join(workdir, produced[0])
+        if produced:
+            out = os.path.join(workdir, produced[0])
+        else:
+            raise UnsupportedImageError(_heif_failure(proc))
 
     return out
+
+
+def _heif_failure(proc) -> str:
+    """Why heif-convert refused, said usefully.
+
+    The distinction that matters: the converter being ABSENT and the
+    converter being TOO OLD are completely different problems with completely
+    different fixes, and an earlier version of this reported the second as the
+    first -- telling someone to install a package they had already installed.
+
+    MEASURED ON THE TABLE, 2026-09-05. Bullseye ships libheif 1.11.0 (2020).
+    A photo from a current iPhone is a HEIC containing:
+
+        tmap  an ISO 21496-1 HDR gain map   (iOS 18 HDR photos)
+        grid  the picture as HEVC tiles assembled into a grid
+        grpl  entity grouping tying the HDR pair together
+
+    plus the brands MiHB / MiHE / MiPr. libheif only learned `tmap` in 1.18,
+    so 1.11 parses the container, meets metadata it has no model for, and
+    fails with "Metadata not correctly assigned to image".
+
+    There is no code fix for this. Older HEICs still decode fine on 1.11, so
+    this is not "HEIC is unsupported" -- it is this file being newer than the
+    decoder. The routes out are all on the phone or the OS, so the message
+    names them.
+    """
+    detail = (proc.stderr or b"").decode("utf-8", "replace").strip()
+    if not detail:
+        detail = (proc.stdout or b"").decode("utf-8", "replace").strip()
+
+    too_new = ("Metadata not correctly assigned" in detail
+               or "Unsupported feature" in detail
+               or "No 'ftyp' box" in detail
+               or "Unspecified" in detail)
+
+    if too_new:
+        return ("This photo is in a newer HEIC format than the table can "
+                "read (its decoder is libheif 1.11, from 2020; iPhone HDR "
+                "photos need 1.18 or later). Easiest fixes, in order: "
+                "upload it from an iPhone or iPad through this page, which "
+                "usually converts to JPEG on the way; or take a screenshot "
+                "of the photo and upload that; or set "
+                "Settings > Camera > Formats > Most Compatible on the phone "
+                "so new photos are JPEG. "
+                "Ordinary JPEG and PNG maps are unaffected.")
+
+    return ("Could not read this HEIC image.%s"
+            % (" " + detail if detail else ""))
 
 
 # --- the main path ---------------------------------------------------------

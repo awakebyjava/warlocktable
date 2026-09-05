@@ -51,6 +51,16 @@ binary is working. Confirmed installed on the table 2026-09-05.
 Neither is required for the table to run. Without them the panel loads
 normally and the Maps section says what to install.
 
+**Bullseye's libheif is 1.11.0 and cannot read a current iPhone photo.**
+Tested 2026-09-05: iOS 18 HDR photos carry a `tmap` gain map and a tiled
+`grid` item, and libheif only learned `tmap` in 1.18. It fails with
+"Metadata not correctly assigned to image".
+
+Do not try to fix this with pip — `pillow-heif` has no armv7l wheel and this
+Pi is **armhf**, so it would build libheif from source: the mini-racer trap
+again. Upload JPEG or PNG instead; uploading from an iPad through the panel
+generally converts to JPEG on the way. Older HEICs still decode fine.
+
 **Write map import code against Pillow 8.1 / Python 3.9**, which is what
 Bullseye ships — a laptop has Pillow 12 and will silently accept things the Pi
 rejects. See `map-import-specification.md` §5.

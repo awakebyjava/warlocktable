@@ -142,9 +142,8 @@ binary is in fact fine. Its usage is
 `heif-convert` present. The 8.1 floor this package was written against is
 confirmed as the real one, not a guess.
 
-Still unverified: whether this libheif build decodes a *current* iPhone HEIC.
-1.11.0 is from 2020 and needs an HEVC decoder behind it. That needs a real
-photo off a real phone -- see §16, phase 1.
+**Tested with a real photo, and it does not** -- see §6. The binary works;
+the file is simply newer than the library. Not a blocker for JPEG or PNG.
 
 ### Write for the old Pillow, not the new one
 
@@ -173,7 +172,53 @@ clear message otherwise — not silently.
 ### HEIC handling
 
 iPhone uploads go through `heif-convert` to a temporary PNG, then join the
-normal path. Two traps, both must be handled:
+normal path.
+
+### The limit found on the actual table, 2026-09-05
+
+**Bullseye's libheif is 1.11.0 (2020), and it cannot read a current iPhone
+photo.** Tested with a real file; it fails with:
+
+```
+Could not read HEIF/AVIF file: Invalid input: Unspecified:
+Metadata not correctly assigned to image
+```
+
+Parsing that file's container shows why — it carries:
+
+| Box / item | What it is |
+|---|---|
+| `tmap` | ISO 21496-1 HDR gain map (iOS 18 HDR photos) |
+| `grid` | the picture stored as HEVC tiles assembled into a grid |
+| `grpl` | entity grouping tying the HDR pair together |
+| brands | `mif1 MiHB MiHE MiPr miaf heic` |
+
+libheif only learned `tmap` in **1.18** (2024). 1.11 parses the container,
+meets metadata it has no model for, and stops.
+
+**There is no code fix, and we are not chasing one.** Upgrading means
+building libheif from source on 32-bit ARM — which is the mini-racer pattern
+this project exists to avoid — and `pillow-heif` is worse: it publishes no
+armv7l wheels, so pip would build the same library from source. **This Pi is
+armhf**, confirmed from apt output.
+
+What this is *not*: "HEIC is unsupported". Older HEICs decode on 1.11 fine.
+This file is newer than the decoder.
+
+The practical routes out, all off the Pi:
+
+1. **Upload through the panel from an iPhone or iPad.** iOS's file picker
+   generally transcodes HEIC to JPEG on the way into a web form, so the
+   table may never see a HEIC at all. *This is the path that matters and it
+   is the one to test.*
+2. Screenshot the photo and upload that.
+3. `Settings → Camera → Formats → Most Compatible` for JPEG capture.
+
+`ingest.py` detects this specific failure and says all of the above. It is
+kept distinct from "the converter is not installed", because telling someone
+to install a package they already have is the worst possible answer.
+
+### Two traps that remain, whatever the decoder
 
 1. **EXIF orientation.** iPhone photos are frequently stored rotated with an
    orientation tag. Ignore it and maps arrive sideways. Apply
@@ -634,7 +679,7 @@ assumption.
 | # | Phase | Done when |
 |---|---|---|
 | 0 | **Verify dependencies on the real Pi** (§5) | **OUTSTANDING** — `python3-pil` and `heif-convert` confirmed working on the Pi itself |
-| 1 | Ingest + normalise, CLI only | A HEIC from your phone becomes a correct RGB PNG, right way up |
+| 1 | Ingest + normalise, CLI only | **PARTLY BLOCKED** — JPEG/PNG/WebP verified. Current-iPhone HEIC cannot decode on this OS (§6); the remaining test is whether uploading from an iPad through the panel converts to JPEG on the way |
 | 2 | Transform + grid + render, CLI only | A known map renders to spec, and a mini sits correctly on the real table |
 | 3 | Vignette and tone | Fit and brightness match the existing five |
 | 4 | Detection | Pre-fills correctly on a gridded map; fails quietly on a photo |
