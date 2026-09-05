@@ -204,6 +204,17 @@ class Config:
     # live outside the repo and arrive by rsync, not git.
     background_paths: List[str] = field(default_factory=list)
 
+    # Where map import writes its finished renders. MUST ALSO APPEAR IN
+    # background_paths -- the display's scanner does not recurse, so a
+    # subdirectory of a scanned path is not itself scanned. Listing it in both
+    # places is what makes an uploaded map show up in the picker.
+    custom_background_path: Optional[str] = None
+
+    # Parent for map import's non-render state: originals/, recipes/, work/.
+    # Deliberately outside the backgrounds directory so the display's scanner
+    # never sees a source image or a half-finished upload.
+    map_data_path: Optional[str] = None
+
     # ALSA device for audio output, e.g. "hw:0,0" for the 3.5mm jack.
     # Pinned explicitly rather than trusting the default: plan doc 5.3 —
     # if the TV is off at boot, HDMI may not enumerate and the default
@@ -342,6 +353,8 @@ def load_config(path: str) -> Config:
         govee_static_ips=list(raw.get("settings", {}).get("govee_static_ips", [])),
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
         background_paths=list(raw.get("settings", {}).get("background_paths", [])),
+        custom_background_path=raw.get("settings", {}).get("custom_background_path"),
+        map_data_path=raw.get("settings", {}).get("map_data_path"),
         audio_device=raw.get("settings", {}).get("audio_device"),
         duck_level=float(raw.get("settings", {}).get("duck_level", 0.3)),
         duck_ramp_s=float(raw.get("settings", {}).get("duck_ramp_s", 0.25)),
@@ -378,6 +391,8 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "govee_static_ips": list(config.govee_static_ips),
         "audio_paths": list(config.audio_paths),
         "background_paths": list(config.background_paths),
+        "custom_background_path": config.custom_background_path,
+        "map_data_path": config.map_data_path,
         "audio_device": config.audio_device,
         "duck_level": config.duck_level,
         "duck_ramp_s": config.duck_ramp_s,

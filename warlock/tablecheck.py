@@ -254,12 +254,55 @@ def _check_backgrounds(rt, config) -> List[Dict[str, Any]]:
         return splitter(stem)[0] if callable(splitter) else stem.lower()
 
     missing = sorted(w for w in wanted if base(w) not in have)
-    if missing:
-        return [_r("Backgrounds", FAIL,
-                   "%d of %d referenced backgrounds are MISSING: %s"
-                   % (len(missing), len(wanted), ", ".join(missing)))]
-    return [_r("Backgrounds", PASS,
-               "all %d referenced backgrounds found" % len(wanted))]
+    if not missing:
+        return [_r("Backgrounds", PASS,
+                   "all %d referenced backgrounds found" % len(wanted))]
+
+    # A missing CUSTOM map is a warning, not a failure. Custom maps are
+    # uploaded by whoever is running the table and are meant to be deletable;
+    # a scene still pointing at one that has been removed is worth being told
+    # about, but it is not a reason to red-flag the table before a session.
+    #
+    # A missing BUILT-IN background stays a failure -- that is a shipped asset,
+    # and one going absent means something is actually broken.
+    custom = set(_custom_slugs(config))
+    gone_custom = sorted(m for m in missing if base(m) in custom)
+    gone_builtin = sorted(m for m in missing if base(m) not in custom)
+
+    results = []
+    if gone_builtin:
+        results.append(_r("Backgrounds", FAIL,
+                          "%d of %d referenced backgrounds are MISSING: %s"
+                          % (len(gone_builtin), len(wanted),
+                             ", ".join(gone_builtin))))
+    if gone_custom:
+        results.append(_r("Backgrounds", WARN,
+                          "%d uploaded map%s referenced by a scene %s been "
+                          "deleted: %s"
+                          % (len(gone_custom), "" if len(gone_custom) == 1 else "s",
+                             "has" if len(gone_custom) == 1 else "have",
+                             ", ".join(gone_custom))))
+    if not gone_builtin:
+        results.append(_r("Backgrounds", PASS,
+                          "%d of %d referenced backgrounds found"
+                          % (len(wanted) - len(missing), len(wanted))))
+    return results
+
+
+def _custom_slugs(config) -> List[str]:
+    """Which backgrounds came from map import, per its stored recipes.
+
+    Import is local and guarded: this check must keep working on a machine
+    where map import was never set up, or where Pillow is not installed.
+    """
+    data_path = getattr(config, "map_data_path", None)
+    if not data_path:
+        return []
+    try:
+        from .mapimport import recipes
+        return recipes.known_slugs(os.path.join(data_path, "recipes"))
+    except Exception:              # noqa: BLE001
+        return []
 
 
 # ----------------------------------------------------------- device checks

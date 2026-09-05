@@ -187,3 +187,13 @@ class DisplayDevice(ABC):
         every implementation carry a stub.
         """
         return None
+
+    def rescan(self) -> None:
+        """Re-read the artwork library from disk.
+
+        For when something OUTSIDE this process has added or removed a
+        background -- map import publishing one, or an rsync of new artwork.
+        Not abstract for the same reason as set_overlay: a display that holds
+        no library has nothing to rescan, and doing nothing is correct for it.
+        """
+        return None

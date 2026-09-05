@@ -413,6 +413,23 @@ class FehDisplay(DisplayDevice):
                 variants.setdefault(ov, fallback)
         self._library = found
 
+    def rescan(self) -> int:
+        """Re-read the library after something changed it from outside.
+
+        Map import calls this after publishing, so a new map appears in the
+        picker without restarting the service. Under the lock, because _scan
+        replaces _library wholesale and set_background reads it.
+
+        Deliberately does NOT touch what is currently on screen: a rescan is
+        a library operation, and changing the picture out from under a session
+        because a file appeared would be its own kind of bug.
+        """
+        with self._lock:
+            self._scan()
+            count = len(self._library)
+        self.log.record("display.rescan", images=count)
+        return count
+
     def available_backgrounds(self) -> List[str]:
         # Status screen first: it is the one entry that is not artwork, and
         # burying it alphabetically among the scenes hides the thing you

@@ -1202,3 +1202,80 @@ body.locked { overflow: hidden; }
   padding: 9px 18px;
   border-color: var(--gold-dim); color: var(--gold);
 }
+
+/* ======================================================== MAP IMPORT
+   map-import-specification.md. Dark for the same reason everything else
+   here is: this page is used at the table, in the same dim room, and the
+   preview it shows is being judged for brightness. A bright chrome around
+   a dark preview would make every map look darker than it is. */
+
+.map-stage {
+  position: relative;
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  background: #000;                 /* not --black: the preview is judged
+                                       against true black, as on the TV */
+  aspect-ratio: 16 / 9;             /* the table's shape, so what you see
+                                       is the shape you get */
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.map-stage img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.map-busy {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(11,10,8,0.55);
+  color: var(--bone-dim);
+  font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  pointer-events: none;             /* never block a slider under it */
+}
+
+/* Rust, because a brightness warning is the one thing on this page that
+   must not be scrolled past. It is a warning, never a block -- the GM
+   decides, and there is no control here that refuses. */
+.map-warn {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--rust);
+  background: rgba(140,47,42,0.12);
+  color: var(--rust-bright);
+  font-size: 12px; line-height: 1.6;
+}
+
+.map-fit {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--gold-dim);
+  background: var(--black-2);
+  font-size: 12px; line-height: 1.7;
+}
+.map-fit button { margin: 8px 8px 0 0; }
+
+.map-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+
+/* Label, track, readout. The readout is monospaced and fixed-width so the
+   numbers do not jitter the layout while a slider is being dragged. */
+.slider-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.slider-row label { flex: 0 0 92px; font-size: 12px; color: var(--bone-mid); }
+.slider-row output {
+  flex: 0 0 74px; text-align: right;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--gold);
+}
+
+/* One whole square, and one pixel. Both are needed: the square step is for
+   grid PHASE, which a slider cannot be dragged to accurately on a tablet,
+   and half a square out puts every miniature in the wrong place. */
+.nudge-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 6px; margin: -4px 0 12px 104px;
+}
+.nudge-row button { margin: 0; }
+
+.warn-text { color: var(--rust-bright); }
+
+@media (max-width: 600px) {
+  .slider-row { flex-wrap: wrap; }
+  .slider-row label { flex: 0 0 100%; }
+  .nudge-row { margin-left: 0; grid-template-columns: repeat(2, 1fr); }
+}

@@ -144,3 +144,6 @@ class FakeDisplayDevice(DisplayDevice):
 
     def set_overlay(self, mode: str) -> None:
         self.log.record("display.overlay", mode=mode or "none")
+
+    def rescan(self) -> None:
+        self.log.record("display.rescan")

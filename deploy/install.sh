@@ -60,6 +60,17 @@ install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/backups"
 # Session recordings (plan doc 3.10). Owned by the service user like the
 # rest of $DATA_DIR, and never touched again by install.
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/recordings"
+# Map import (map-import-specification.md). backgrounds/custom holds the
+# finished renders and MUST be listed in config background_paths -- the
+# display's scanner does not recurse, so being a subdirectory is not enough.
+# maps/ holds the sources and recipes, deliberately outside backgrounds so
+# the scanner never sees a source image or a half-finished upload.
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/backgrounds"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/backgrounds/custom"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps/originals"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps/recipes"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps/work"
 
 if [[ -f "$DATA_DIR/config.json" ]]; then
     echo "  config.json exists - LEFT ALONE (this is your live data)"

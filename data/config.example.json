@@ -13,8 +13,11 @@
       "Television": "hdmi:CARD=vc4hdmi0,DEV=0"
     },
     "background_paths": [
-      "/var/lib/warlocktable/backgrounds"
+      "/var/lib/warlocktable/backgrounds",
+      "/var/lib/warlocktable/backgrounds/custom"
     ],
+    "custom_background_path": "/var/lib/warlocktable/backgrounds/custom",
+    "map_data_path": "/var/lib/warlocktable/maps",
     "duck_level": 0.3,
     "duck_ramp_s": 0.25,
     "idle_scene": "idle",

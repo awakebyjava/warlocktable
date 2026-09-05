@@ -44,6 +44,7 @@ class _Handler(BaseHTTPRequestHandler):
     # Injected by make_server()
     controller = None
     runtime = None
+    maps = None                 # web.maps.MapsPanel, or None if not wired
     server_version = "WarlockTable"
     sys_version = ""
 
@@ -135,8 +136,31 @@ class _Handler(BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------------ GET
 
+    # ---- map import ------------------------------------------------------
+
+    def _maps(self, method: str, path: str) -> bool:
+        """Hand /api/maps/* to the map import panel. Returns True if handled.
+
+        All the logic lives in web/maps.py; this is pure delegation, and the
+        guard means a build without map import wired still answers the rest of
+        the panel normally.
+        """
+        if self.maps is None or not path.startswith("/api/maps"):
+            return False
+        return self.maps.route(self, method, path)
+
+    def do_PUT(self):
+        # PUT exists solely for map upload: the body IS the file, which avoids
+        # multipart parsing in a stdlib server. See web/maps.py.
+        path = self.path.split("?", 1)[0]
+        if self._maps("PUT", path):
+            return
+        self._send_json({"error": "unknown endpoint"}, 404)
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if self._maps("GET", path):
+            return
 
         # Three front doors. The QR code on the table points at "/", which
         # asks who you are; the GM's iPad goes straight to "/gm" (the PWA's
@@ -202,6 +226,8 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         path = self.path.split("?", 1)[0]
+        if self._maps("DELETE", path):
+            return
         if path.startswith("/api/config/cards/"):
             uid = _unquote(path[len("/api/config/cards/"):])
             from ..config import ConfigError
@@ -282,6 +308,8 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if self._maps("POST", path):
+            return
 
         # --- Management surface: changes what things DO (plan doc 4.5) ---
         if path == "/api/config/cards":
@@ -631,9 +659,14 @@ class WebPanel:
     def start(self) -> bool:
         """Serve on a background thread. Never raises (plan doc 5.2) — the
         panel failing must not stop the table responding to cards."""
+        # One MapsPanel shared by every request thread: it holds the editing
+        # sessions, so a slider move and the publish that follows have to
+        # reach the same object.
+        from .maps import MapsPanel
         handler = type("_BoundHandler", (_Handler,), {
             "controller": self.controller,
             "runtime": self.runtime,
+            "maps": MapsPanel(self.runtime, self.controller, self.log),
         })
         try:
             self._server = ThreadingHTTPServer((self.host, self.port), handler)

@@ -257,6 +257,14 @@
         <button id="open-cards" class="wide">Card Management</button>
       </section>
 
+      <section>
+        <h2>Maps</h2>
+        <p class="note">Upload a battle map and scale it to the table's grid.
+           Prep work, like the cards &mdash; not something to reach for
+           mid&#8209;fight.</p>
+        <button id="open-maps" class="wide">Add Custom Image</button>
+      </section>
+
       <!-- What is actually running. Here rather than on every panel: it is
            the first thing worth quoting when something is wrong, and of no
            use at all the rest of the time. -->
@@ -291,6 +299,155 @@
         <h2>Cards <span class="muted" id="card-count"></span></h2>
         <div id="cards" class="cards"></div>
       </section>
+    </div>
+  </section>
+
+  <!-- =============================================================== MAPS
+       A page rather than a panel, for the same reason as Cards: this is
+       prep work. Uploading and scaling a map is not something anyone does
+       between initiative counts, and putting it in the tab bar would invite
+       exactly that.
+
+       Two views inside one page -- the library, and the editor. The editor
+       is where all the actual work happens; see map-import-specification.md
+       section 7, and in particular section 2 on why every control here is
+       always live rather than being gated behind whether auto-detection
+       thought it succeeded. -->
+  <section class="panel page" id="panel-maps" data-panel="maps" hidden>
+    <div class="panel-col wide-col">
+
+      <!-- ---------------------------------------------------- library --->
+      <div id="maps-library">
+        <div class="page-head">
+          <button id="maps-back" class="ghost">&#9664; Settings</button>
+          <h2>Maps</h2>
+        </div>
+
+        <section>
+          <p class="note">Images become backgrounds like any other, so a map
+             can be attached to a scene &mdash; and through a scene, to a
+             card. Everything uploaded is available to everyone running the
+             table.</p>
+          <button id="map-upload-btn" class="wide primary">Upload an Image</button>
+          <!-- accept is a hint, not a gate: phones and messaging apps rename
+               files freely, so the server sniffs the actual container. -->
+          <input type="file" id="map-file" hidden
+                 accept="image/*,.heic,.heif,.hif">
+          <p class="note" id="map-usage"></p>
+        </section>
+
+        <section>
+          <h2>Your Maps <span class="muted" id="map-count"></span></h2>
+          <div id="map-list" class="cards"></div>
+        </section>
+      </div>
+
+      <!-- ----------------------------------------------------- editor --->
+      <div id="maps-editor" hidden>
+        <div class="page-head">
+          <button id="map-cancel" class="ghost">&#9664; Maps</button>
+          <h2>Adjust</h2>
+        </div>
+
+        <div id="map-detect" class="note"></div>
+        <div id="map-warn" class="map-warn" hidden></div>
+        <div id="map-fit" class="map-fit" hidden></div>
+
+        <!-- The red outline is the overscan safe box (3456x1944). Map
+             content should stay inside it; the bleed may run to the edge. -->
+        <div class="map-stage">
+          <img id="map-preview" alt="Map preview">
+          <div id="map-busy" class="map-busy" hidden>rendering&hellip;</div>
+        </div>
+
+        <div class="map-actions">
+          <button id="map-to-table">Show on Table</button>
+          <button id="map-restore" hidden>Stop Preview</button>
+          <button id="map-recentre" class="small">Recentre</button>
+          <button id="map-realign" class="small">Snap Grid to Map</button>
+        </div>
+
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="map-title" maxlength="60">
+        </label>
+
+        <section>
+          <h2>Scale <span class="muted">size on the table</span></h2>
+          <label class="field">
+            <span>Width in squares &mdash; exact, if you know it</span>
+            <input type="number" id="map-squares" min="1" max="200" step="0.5">
+          </label>
+          <div class="slider-row">
+            <label>Scale</label>
+            <input type="range" id="s-scale" min="-2.5" max="2.5" step="0.001">
+            <output id="o-scale"></output>
+          </div>
+        </section>
+
+        <section>
+          <h2>Position <span class="muted">&plusmn; one square at a time</span></h2>
+          <div class="slider-row">
+            <label>Left / Right</label>
+            <input type="range" id="s-panx" min="-3840" max="3840" step="1">
+            <output id="o-panx"></output>
+          </div>
+          <div class="nudge-row">
+            <button data-nudge="pan_x" data-by="-107.85" class="small">&#9664; 1 sq</button>
+            <button data-nudge="pan_x" data-by="-1" class="small">&#9664; 1 px</button>
+            <button data-nudge="pan_x" data-by="1" class="small">1 px &#9654;</button>
+            <button data-nudge="pan_x" data-by="107.85" class="small">1 sq &#9654;</button>
+          </div>
+          <div class="slider-row">
+            <label>Up / Down</label>
+            <input type="range" id="s-pany" min="-2160" max="2160" step="1">
+            <output id="o-pany"></output>
+          </div>
+          <div class="nudge-row">
+            <button data-nudge="pan_y" data-by="-107.85" class="small">&#9650; 1 sq</button>
+            <button data-nudge="pan_y" data-by="-1" class="small">&#9650; 1 px</button>
+            <button data-nudge="pan_y" data-by="1" class="small">1 px &#9660;</button>
+            <button data-nudge="pan_y" data-by="107.85" class="small">1 sq &#9660;</button>
+          </div>
+          <div class="slider-row">
+            <label>Rotation</label>
+            <input type="range" id="s-rot" min="-180" max="180" step="0.1">
+            <output id="o-rot"></output>
+          </div>
+          <div class="nudge-row">
+            <button data-set="rotation" data-by="-90" class="small">&minus;90&deg;</button>
+            <button data-set="rotation" data-by="0" class="small">0&deg;</button>
+            <button data-set="rotation" data-by="90" class="small">+90&deg;</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Light <span class="muted">how bright in the room</span></h2>
+          <div class="slider-row">
+            <label>Brightness</label>
+            <input type="range" id="s-bright" min="0.15" max="1.5" step="0.01">
+            <output id="o-bright"></output>
+          </div>
+          <div class="slider-row">
+            <label>Contrast</label>
+            <input type="range" id="s-contrast" min="0.5" max="1.5" step="0.01">
+            <output id="o-contrast"></output>
+          </div>
+        </section>
+
+        <section>
+          <h2>Grid</h2>
+          <div class="check-row">
+            <label><input type="checkbox" id="map-drawgrid" checked> Draw the table's grid</label>
+          </div>
+          <div class="check-row">
+            <label><input type="checkbox" id="map-black"> Plain black edges instead of a dark bleed</label>
+          </div>
+        </section>
+
+        <button id="map-publish" class="wide primary">Save to the Table</button>
+      </div>
+
     </div>
   </section>
 
@@ -377,5 +534,6 @@
 
 <script src="/dice-presets.js"></script>
 <script src="/app.js"></script>
+<script src="/maps.js"></script>
 </body>
 </html>

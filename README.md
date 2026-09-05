@@ -26,6 +26,7 @@ driven from an iPad web panel or from the cards themselves.
 | Write a Pixelblaze pattern | [`warlock-table-led-reference.md`](warlock-table-led-reference.md) — **read the power budget first** |
 | Design the tarot card behaviours | [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md) — all 26 built and enrolled |
 | Generate artwork for the TV | [`display-image-specifications.md`](display-image-specifications.md) |
+| Upload and scale a battle map | [`map-import-specification.md`](map-import-specification.md) |
 | Deploy to, or debug, the Pi | [`deploy/README.md`](deploy/README.md) |
 | Build any UI | [`warlock-table-style-guide.html`](warlock-table-style-guide.html) |
 
@@ -53,6 +54,9 @@ Panel: `http://raspberrypi.local:8080`
 ```
 warlock/
   controller.py    every action; precedence; per-subsystem fault isolation
+  mapimport/       uploaded images -> table-correct backgrounds. Knows
+                   nothing about the controller; writes files and asks the
+                   display to rescan, which is the whole integration.
   config.py        the data model, plus atomic validated saves
   configstore.py   mutation under a lock — what the panel edits through
   registry.py      the self-describing action registry

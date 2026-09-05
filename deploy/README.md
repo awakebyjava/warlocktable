@@ -24,7 +24,38 @@ python3 -m pip install --upgrade \
 python3 -m pip install --upgrade --no-deps pixelblaze-client
 ```
 
-### 2. The mini-racer stub
+### 2. Image support, for map import
+
+Map import needs Pillow and a HEIC decoder. **Both come from apt, not pip** —
+`install.sh` builds the venv with `--system-site-packages` precisely so that
+packages which are slow or painful to build on ARM can come from the system.
+Pillow is one of those; adding it to `requirements.txt` would risk a repeat of
+the mini-racer episode below.
+
+```bash
+sudo apt install -y python3-pil libheif-examples
+```
+
+`python3-pil` is Pillow; `libheif-examples` provides the `heif-convert` binary
+that iPhone HEIC uploads are piped through. Verify:
+
+```bash
+python3 -c "from PIL import Image; print(Image.__version__)"    # 8.1.2
+command -v heif-convert
+```
+
+Do **not** check with `heif-convert --help`: Debian's libheif 1.11 has no such
+option and replies `invalid option`, which looks like a failure when the
+binary is working. Confirmed installed on the table 2026-09-05.
+
+Neither is required for the table to run. Without them the panel loads
+normally and the Maps section says what to install.
+
+**Write map import code against Pillow 8.1 / Python 3.9**, which is what
+Bullseye ships — a laptop has Pillow 12 and will silently accept things the Pi
+rejects. See `map-import-specification.md` §5.
+
+### 3. The mini-racer stub
 
 `pixelblaze-client` imports `MiniRacer` at module scope, so the import fails
 without *something* named `py_mini_racer` on the path — even though it is only
@@ -38,7 +69,7 @@ Read the docstring in that file for the full reasoning, including why pinning
 the older `pixelblaze-client` 0.9.6 is *not* an acceptable alternative (it
 lacks `setActivePatternByName` and `EnumerateAddresses`).
 
-### 3. Verify
+### 4. Verify
 
 ```bash
 python3 -c "import pixelblaze; print(hasattr(pixelblaze.Pixelblaze, 'setActivePatternByName'))"
