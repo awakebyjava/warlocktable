@@ -289,6 +289,15 @@ class MapLibrary(object):
                 scale=tf_mod.scale_for_squares(spec.source_width,
                                                float(controls["squares_across"])))
 
+        # The same thing from the other side. Which one is known depends on
+        # the map: a wide battle map is usually described by its width, but a
+        # tall one, or a map cropped from something larger, is often easier to
+        # count down the short edge.
+        if controls.get("squares_down"):
+            spec.transform = spec.transform.replace(
+                scale=tf_mod.scale_for_squares(spec.source_height,
+                                               float(controls["squares_down"])))
+
         if controls.get("fit") == "scale_down":
             report = self.fit_report(spec)
             factor = report.get("scale_down_factor", 1.0)

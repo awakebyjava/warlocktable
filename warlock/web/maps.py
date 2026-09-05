@@ -152,6 +152,14 @@ class MapsPanel(object):
             handler._send_json(lib.delete(ident))
             return
 
+        if method == "GET" and ident and action == "source.png":
+            # The normalised proxy, untransformed. The browser composes its
+            # own instant preview from this while a slider is moving; the
+            # authoritative server render follows a moment later. Cheap to
+            # serve -- it is a ~960px PNG already sitting on disk.
+            self._send_png(handler, lib.session(ident).proxy())
+            return
+
         if method == "GET" and ident and action in ("", "preview.png"):
             if action == "preview.png":
                 width = int((query.get("width") or ["960"])[0])

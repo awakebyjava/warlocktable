@@ -1209,8 +1209,16 @@ body.locked { overflow: hidden; }
    preview it shows is being judged for brightness. A bright chrome around
    a dark preview would make every map look darker than it is. */
 
+/* STICKY, and this is the most important rule on the page. The controls run
+   well past a screen, and the job is "move a control, look at the map". If
+   the map scrolls out of view, every single adjustment becomes
+   scroll-change-scroll-wait -- which is exactly what this tool exists to
+   avoid. It stays put while the controls move under it. */
 .map-stage {
-  position: relative;
+  position: sticky;
+  top: 4px;
+  z-index: 6;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.75);   /* lifts it off what passes beneath */
   margin: 14px 0;
   border: 1px solid var(--line);
   background: #000;                 /* not --black: the preview is judged
@@ -1220,10 +1228,36 @@ body.locked { overflow: hidden; }
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
 }
-.map-stage img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* The two layers are stacked, not swapped: the canvas sits over the img and
+   the img fades in underneath it once the real render lands, so there is no
+   blank frame in between. */
+.map-stage img,
+.map-stage canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain; display: block;
+}
+.map-stage canvas { z-index: 2; }
+.map-stage img { z-index: 1; transition: opacity .12s linear; }
+
+/* Says which of the two you are looking at. Small and unobtrusive -- it
+   matters only when judging brightness, where the approximation should not
+   be trusted. */
+.map-live {
+  position: absolute; z-index: 3;
+  right: 8px; bottom: 8px;
+  padding: 2px 7px;
+  border: 1px solid var(--gold-dim);
+  background: rgba(11,10,8,0.8);
+  color: var(--gold-dim);
+  font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+  pointer-events: none;
+}
+
+.square-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .map-busy {
-  position: absolute; inset: 0;
+  position: absolute; inset: 0; z-index: 4;
   display: flex; align-items: center; justify-content: center;
   background: rgba(11,10,8,0.55);
   color: var(--bone-dim);

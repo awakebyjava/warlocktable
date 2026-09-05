@@ -24,6 +24,8 @@
   var $ = function (sel) { return document.querySelector(sel); };
 
   var session = null;      // the open editing session, or null
+  var sourceImg = null;    // the untransformed proxy, for the local preview
+  var PITCH = 107.85;      // overwritten from the server on first listing
   var state = null;        // last payload from the server
   var previewing = false;  // is the table currently showing our render
   var pending = false;     // a preview render is in flight
@@ -89,6 +91,8 @@
         list.appendChild(row);
       });
 
+      if (data.pitch) PITCH = data.pitch;
+
       var usage = $("#map-usage");
       usage.textContent = "Using " + bytes(data.usage.total_bytes) +
         " on the table" + (data.usage.over_warn ? " — getting full." : ".");
@@ -140,6 +144,11 @@
   function openEditor(info) {
     session = info.id;
     previewing = false;
+    // Pull the untransformed proxy once. Everything the canvas draws while a
+    // slider is moving comes from this, so there is no request per frame.
+    sourceImg = new Image();
+    sourceImg.onload = function () { drawLocal(); };
+    sourceImg.src = "/api/maps/" + info.id + "/source.png";
     $("#map-restore").hidden = true;
     $("#maps-library").hidden = true;
     $("#maps-editor").hidden = false;
@@ -150,6 +159,7 @@
 
   function closeEditor() {
     if (previewing) stopPreview();
+    sourceImg = null;
     session = null;
     state = null;
     $("#maps-editor").hidden = true;
@@ -181,6 +191,10 @@
     if (document.activeElement !== squares) {
       squares.value = info.fit.squares_wide;
     }
+    var squaresH = $("#map-squares-h");
+    if (document.activeElement !== squaresH) {
+      squaresH.value = info.fit.squares_high;
+    }
 
     $("#map-detect").textContent = info.detection.message || "";
 
@@ -211,7 +225,8 @@
       fit.appendChild(keep);
     }
 
-    refreshPreview();
+    drawLocal();          // instant, from the new state
+    refreshPreview();     // authoritative, a moment later
   }
 
   function setSlider(slider, output, value, label) {
@@ -220,6 +235,138 @@
     // now, the server's echo of its own value must not yank it.
     if (document.activeElement !== el) el.value = value;
     $(output).textContent = label;
+  }
+
+  // ----------------------------------------------------- the local preview
+  /*
+   * A browser-side copy of what render.py composes, drawn from the proxy at
+   * whatever the sliders currently say. It exists for ONE reason: adjusting a
+   * map is "move a control, look at the map", and a server round trip per
+   * frame turns that into a wait. This draws in a millisecond.
+   *
+   * IT IS AN APPROXIMATION AND MUST NOT BE MISTAKEN FOR THE OUTPUT. The edge
+   * feather is skipped, and canvas brightness/contrast filters are not
+   * bit-identical to Pillow's. That is fine, because the authoritative render
+   * arrives a moment after you stop moving and replaces it. Fast for aiming,
+   * true for judging. Anything that must be *judged* -- brightness above all
+   * -- should be judged on the server render or, better, on the table.
+   */
+  var FRAME_W = 3840, FRAME_H = 2160;
+
+  /* Canvas 2D filters are Safari 17+ / iOS 17+. An older iPad would silently
+     drop the blur and the brightness, which would make the local preview a
+     lie about the one thing that matters most here. So it is detected once,
+     and where it is missing the brightness is approximated with an overlay
+     and the bleed is drawn flat instead of blurred. Geometry -- which is what
+     the sliders are actually for -- is unaffected either way. */
+  var canFilter = (function () {
+    try {
+      var g = document.createElement("canvas").getContext("2d");
+      g.filter = "blur(1px)";
+      return g.filter !== "none" && g.filter !== "";
+    } catch (e) { return false; }
+  })();
+
+  function drawLocal() {
+    if (!state || !sourceImg || !sourceImg.complete || !sourceImg.naturalWidth) return;
+
+    var canvas = $("#map-canvas");
+    var W = 960, H = Math.round(W * FRAME_H / FRAME_W);
+    if (canvas.width !== W) { canvas.width = W; canvas.height = H; }
+    var g = canvas.getContext("2d");
+    var k = W / FRAME_W;                       // frame px -> canvas px
+
+    var t = state.transform;
+    // The proxy is already reduced from the source the transform was measured
+    // against, so undo that before applying the frame scale.
+    var srcScale = sourceImg.naturalWidth / (state.source.width || 1);
+    var scale = t.scale * k / srcScale;
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = "#000";
+    g.fillRect(0, 0, W, H);
+
+    // The bleed: a heavily blurred, darkened copy covering the frame.
+    if (!state.plain_black) {
+      g.save();
+      if (canFilter) {
+        g.filter = "blur(" + Math.round(W / 40) + "px) brightness(0.28)";
+      } else {
+        g.globalAlpha = 0.28;   // no blur available; the darkness still reads
+      }
+      var cover = Math.max(W / sourceImg.naturalWidth, H / sourceImg.naturalHeight);
+      var cw = sourceImg.naturalWidth * cover, chh = sourceImg.naturalHeight * cover;
+      g.drawImage(sourceImg, (W - cw) / 2, (H - chh) / 2, cw, chh);
+      g.restore();
+
+      var rg = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2,
+                                      Math.sqrt(W * W + H * H) / 2);
+      rg.addColorStop(0, "rgba(0,0,0,0)");
+      rg.addColorStop(1, "rgba(0,0,0,0.45)");
+      g.fillStyle = rg;
+      g.fillRect(0, 0, W, H);
+    }
+
+    // The map itself: one composed transform, same order as transform.py.
+    g.save();
+    if (canFilter) {
+      g.filter = "brightness(" + state.brightness + ") contrast(" + state.contrast + ")";
+    }
+    g.translate(W / 2 + t.pan_x * k, H / 2 + t.pan_y * k);
+    g.rotate(t.rotation * Math.PI / 180);
+    g.scale(scale, scale);
+    g.drawImage(sourceImg, -sourceImg.naturalWidth / 2, -sourceImg.naturalHeight / 2);
+    g.restore();
+
+    if (!canFilter && state.brightness < 1) {
+      // Darken to roughly the right level. Not the same curve as Pillow, but
+      // far closer than showing the map at full brightness would be.
+      g.save();
+      g.fillStyle = "rgba(0,0,0," + (1 - state.brightness).toFixed(3) + ")";
+      g.fillRect(0, 0, W, H);
+      g.restore();
+    }
+
+    // The table's grid, across the whole frame -- minis can stand on the bleed.
+    if (state.draw_grid) {
+      var pitch = PITCH * k;
+      var ox = (state.grid_offset ? state.grid_offset[0] : 0) * k;
+      var oy = (state.grid_offset ? state.grid_offset[1] : 0) * k;
+      g.strokeStyle = "rgba(255,255,255,0.25)";
+      g.lineWidth = Math.max(1, 2 * k);
+      g.beginPath();
+      for (var i = Math.floor(-ox / pitch); ox + i * pitch <= W; i++) {
+        var x = Math.round(ox + i * pitch);
+        if (x >= 0) { g.moveTo(x, 0); g.lineTo(x, H); }
+      }
+      for (var j = Math.floor(-oy / pitch); oy + j * pitch <= H; j++) {
+        var y = Math.round(oy + j * pitch);
+        if (y >= 0) { g.moveTo(0, y); g.lineTo(W, y); }
+      }
+      g.stroke();
+    }
+
+    // Overscan safe box, same 5% margin the server draws.
+    g.strokeStyle = "rgba(255,96,96,0.5)";
+    g.lineWidth = 2;
+    g.strokeRect(W * 0.05, H * 0.05, W * 0.9, H * 0.9);
+
+    showCanvas(true);
+  }
+
+  function showCanvas(on) {
+    $("#map-canvas").hidden = !on;
+    $("#map-preview").style.opacity = on ? "0" : "1";
+    var badge = $("#map-live");
+    badge.hidden = !on;
+    badge.textContent = canFilter ? "live" : "live · approx";
+    badge.title = canFilter
+      ? "Quick preview drawn here in the browser. The table's own render "
+        + "replaces it a moment after you stop."
+      : "Quick preview. This browser cannot apply canvas filters, so "
+        + "brightness and the edge bleed are only approximate here. Judge "
+        + "brightness on the settled render, or on the table.";
   }
 
   // ---------------------------------------------------------------- changes
@@ -243,12 +390,23 @@
     debounce = setTimeout(function () { adjust(changes); }, 120);
   }
 
+  /* Apply a change to the local model so the canvas can redraw immediately,
+     without waiting to hear back. The server is still the authority -- its
+     reply overwrites this -- but it is no longer in the way of the sliders. */
+  function setLocal(key, value) {
+    if (!state) return;
+    if (["pan_x","pan_y","scale","rotation"].indexOf(key) >= 0) state.transform[key] = value;
+    else state[key] = value;
+    drawLocal();
+  }
+
   function bindSlider(sel, key, transform, format) {
     $(sel).addEventListener("input", function () {
       var raw = parseFloat(this.value);
       var value = transform ? transform(raw) : raw;
       var out = $(sel.replace("#s-", "#o-"));
       if (out) out.textContent = format(value);
+      setLocal(key, value);
       var change = {};
       change[key] = value;
       live(change);
@@ -274,6 +432,7 @@
       var key = btn.dataset.nudge;
       var change = {};
       change[key] = state.transform[key] + parseFloat(btn.dataset.by);
+      setLocal(key, change[key]);
       adjust(change);
     });
   });
@@ -282,6 +441,7 @@
     btn.addEventListener("click", function () {
       var change = {};
       change[btn.dataset.set] = parseFloat(btn.dataset.by);
+      setLocal(btn.dataset.set, change[btn.dataset.set]);
       adjust(change);
     });
   });
@@ -289,6 +449,11 @@
   $("#map-squares").addEventListener("change", function () {
     var n = parseFloat(this.value);
     if (n > 0) adjust({ squares_across: n });
+  });
+
+  $("#map-squares-h").addEventListener("change", function () {
+    var n = parseFloat(this.value);
+    if (n > 0) adjust({ squares_down: n });
   });
 
   $("#map-recentre").addEventListener("click", function () {
@@ -300,10 +465,12 @@
   });
 
   $("#map-drawgrid").addEventListener("change", function () {
+    setLocal("draw_grid", this.checked);
     adjust({ draw_grid: this.checked });
   });
 
   $("#map-black").addEventListener("change", function () {
+    setLocal("plain_black", this.checked);
     adjust({ plain_black: this.checked });
   });
 
@@ -327,6 +494,10 @@
       pending = false;
       $("#map-busy").hidden = true;
       if (queued) { queued = false; refreshPreview(); }
+      // Hand back to the real render only once nothing else is waiting --
+      // otherwise the view would flick between approximate and true on every
+      // frame of a drag.
+      else showCanvas(false);
     };
     next.onerror = function () {
       pending = false;

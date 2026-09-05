@@ -250,7 +250,37 @@ should not carry the house's coordinates into a file that gets shared.
 
 The heart of the tool. Everything else exists to feed it.
 
-### 7.1 Proxy rendering
+### 7.1 Two previews, and why there are two
+
+**Found by using it on the real table.** The controls run well past a screen,
+so with the preview at the top of the page every adjustment became
+scroll → change → scroll back → wait for the render. The tool's whole purpose
+is "move a control, look at the map", and that loop defeated it.
+
+Two changes, together:
+
+1. **The preview is sticky.** It pins to the top and stays there while the
+   controls scroll under it.
+2. **The browser draws its own preview**, from the proxy, at whatever the
+   sliders currently say -- about 17 ms, so it tracks a thumb. The server's
+   render still follows a moment after you stop and replaces it.
+
+So the fast one is for aiming and the slow one is the truth. The canvas
+version skips the edge feather, and canvas filters are not bit-identical to
+Pillow's, so it is labelled `live` while it is showing.
+
+**Measured agreement** between the two, on the same frame: alignment offset
+**1 px** at 960 wide (about 4 px at 4K -- rounding), mean absolute difference
+**5.5/255**, mean luminance 49.0 against the server's 49.6.
+
+This is only possible because HEIC is out of scope (§6): the source is always
+something the browser can decode by itself.
+
+Canvas 2D filters need Safari 17+. Where they are missing the brightness is
+approximated with an overlay, the bleed is drawn flat, and the badge says
+`live · approx` -- geometry, which is what the sliders are for, is unaffected.
+
+### 7.1a Proxy rendering
 
 The live preview operates on a proxy no larger than **960 × 540**, generated
 once at ingest. Every slider movement re-renders the proxy, which is fast
@@ -269,6 +299,10 @@ All six are always live, on every map, always.
 | **Pan X** | ±1 full frame width | centred | 1 px fine / 1 square coarse |
 | **Pan Y** | ±1 full frame height | centred | 1 px fine / 1 square coarse |
 | **Scale** | 0.05× – 8× | detection's guess, else fit-to-frame | 0.1% fine |
+
+Plus two exact entries, **width in squares** and **height in squares**. Either
+sets the scale on its own; which one is known depends on the map, and both are
+exact arithmetic where everything else here is judged by eye.
 | **Rotation** | −180° to +180° | 0° | 0.1° fine / 90° snap |
 | **Brightness** | 0.15× – 1.5× | measured ceiling (§9) | 1% |
 | **Contrast** | 0.5× – 1.5× | 1.0 | 1% |

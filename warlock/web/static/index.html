@@ -355,9 +355,18 @@
 
         <!-- The red outline is the overscan safe box (3456x1944). Map
              content should stay inside it; the bleed may run to the edge. -->
+        <!-- STICKY. The controls are long and the whole job is "move a
+             slider, look at the map" -- if the map scrolls away, every
+             adjustment becomes scroll-change-scroll-wait. -->
         <div class="map-stage">
+          <!-- Two layers showing the same frame. The canvas is drawn in the
+               browser and updates with the slider, instantly; the img is the
+               table's own render and replaces it a moment after you stop.
+               So the fast one is for aiming and the slow one is the truth. -->
+          <canvas id="map-canvas" hidden></canvas>
           <img id="map-preview" alt="Map preview">
           <div id="map-busy" class="map-busy" hidden>rendering&hellip;</div>
+          <div id="map-live" class="map-live" hidden>live</div>
         </div>
 
         <div class="map-actions">
@@ -374,10 +383,19 @@
 
         <section>
           <h2>Scale <span class="muted">size on the table</span></h2>
-          <label class="field">
-            <span>Width in squares &mdash; exact, if you know it</span>
-            <input type="number" id="map-squares" min="1" max="200" step="0.5">
-          </label>
+          <p class="note">If you know the map&rsquo;s size, type it &mdash; that is
+             exact arithmetic, where everything else here is judged by eye.
+             Either box will do; each one sets the scale on its own.</p>
+          <div class="square-fields">
+            <label class="field">
+              <span>Width in squares</span>
+              <input type="number" id="map-squares" min="1" max="200" step="0.5">
+            </label>
+            <label class="field">
+              <span>Height in squares</span>
+              <input type="number" id="map-squares-h" min="1" max="200" step="0.5">
+            </label>
+          </div>
           <div class="slider-row">
             <label>Scale</label>
             <input type="range" id="s-scale" min="-2.5" max="2.5" step="0.001">
