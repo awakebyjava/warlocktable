@@ -305,6 +305,10 @@ All six are always live, on every map, always.
 | **Pan Y** | ±1 full frame height | centred | 1 px / 10 px / 1 square |
 | **Scale** | 0.05× – 8× | detection's guess, else fit-to-frame | 0.1% fine |
 
+Plus **grid style** (none / square / hex) and **line colour** (white / black),
+which is what makes a hand-drawn map usable -- it arrives with no grid at all,
+so the table's own has to be drawn over it.
+
 Plus two exact entries, **width in squares** and **height in squares**. Either
 sets the scale on its own; which one is known depends on the map, and both are
 exact arithmetic where everything else here is judged by eye.
@@ -388,6 +392,16 @@ real 107.85 px grid** — a 3× harmonic, at "high" confidence, which is exactly
 the failure §2 says must never happen. Summing a whole column at full
 resolution preserves a thin line exactly. Decimating the *1-D signal*
 afterwards is safe, because by then the lines are integrated into it.
+
+*Nothing at the edge of the search range, and nothing without prominence.* A
+smooth hand-drawn map -- no grid anywhere on it -- was reported as **"a 8 px
+grid", high confidence**. 8 px was the bottom of the search range, and would
+be 250 squares across a 2000 px map. On an image with no periodic structure
+the autocorrelation is flat, so the winning lag is just noise winning a coin
+toss. Three guards: the peak must stand 1.6x clear of the median, a lag on the
+boundary is discarded, and a pitch below 20 source px (or implying more than
+200 cells) is rejected as physically impossible. Found by testing a hand-drawn
+map, which is exactly the case the grid controls exist for.
 
 *Axis agreement is required, not merely rewarded.* Plain artwork with no grid
 was returning plausible pitches at "low" confidence, because texture always
@@ -520,10 +534,45 @@ map in grid mode* with no error anywhere. A quiet wrong-image failure is worse
 than a loud one, so the writer verifies both files exist before declaring
 success.
 
-**No `_hex` variant is written.** Hex pitch has never been measured against
-real minis on this table; generating one from an assumed number would be
-inventing a measurement. Hex mode on a custom map falls back to the plain
-artwork, which is quiet and correct. Revisit when hex is measured.
+**All three carry the map's chosen overlay, and the last two are identical.**
+The table's overlay switch is a global mode, but a custom map's grid was
+chosen by whoever imported it -- this map has hexes, or squares, and it is not
+going to have both. Writing the choice into both variants makes the switch
+read as "show this map's grid, or don't", rather than a map mysteriously
+losing its grid because the table was left in the other mode.
+
+*This replaces the original decision to write no `_hex` at all*, which was
+made when hex was unsupported. See §10a.
+
+### 10a. Hex, measured rather than invented
+
+Hex was deferred on the grounds that its pitch had never been checked against
+real miniatures. That turned out to be answerable without a miniature: the
+table already ships `*_hex.png` backgrounds, and they define the house
+convention. Measured off `forest_3840x2160_hex.png`:
+
+| | |
+|---|---|
+| Orientation | **flat-top**, in offset columns |
+| Flat-to-flat (vertical) | **107.85** -- the same as PITCH, so a hex is 5 ft just as a square is |
+| Circumradius R | 62.267 = PITCH / sqrt(3) |
+| Column spacing | 93.401 = 1.5R |
+| Odd columns offset down | 53.925 = PITCH / 2 |
+| Lines | 2 px, 0.25 alpha, white, origin (0,0) |
+
+Verified by rendering the derived geometry over `forest_3840x2160.png` and
+diffing against the shipped `_hex.png`: **mean difference 0.176/255 at offset
+(0,0)**. The horizontal period over two columns measures 187 px where 3R
+predicts 186.80.
+
+So hex needs no new measurement. It needed reading the artwork already there.
+
+### Line colour
+
+White or black, because white vanishes into a pale map and black vanishes into
+a dark one. Black is carried at **0.35 alpha against white's 0.25** -- the
+artwork here is dark by house rule, and darkening something already dark is
+much less visible than lightening it. A perceptual asymmetry, not a taste.
 
 ### Naming
 
@@ -747,7 +796,6 @@ substitutes for it.
 
 ## 17. Deferred, on purpose
 
-- **Hex support** — needs a pitch measured against real minis first (§10).
 - **Animated map backgrounds** — the display shows stills; video is a
   different subsystem.
 - **Map orientation default** — assumed GM's seat, per the open question in

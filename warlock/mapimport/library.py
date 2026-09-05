@@ -249,6 +249,8 @@ class MapLibrary(object):
             "brightness": spec.brightness,
             "contrast": spec.contrast,
             "draw_grid": spec.draw_grid,
+            "grid_style": spec.grid_style,
+            "grid_colour": spec.grid_colour,
             "plain_black": spec.plain_black,
             "grid_offset": [spec.grid_offset_x, spec.grid_offset_y],
             "fit": self.fit_report(spec),
@@ -274,9 +276,23 @@ class MapLibrary(object):
             if controls.get(name) is not None:
                 setattr(spec, name, float(controls[name]))
 
-        for name in ("draw_grid", "plain_black"):
-            if controls.get(name) is not None:
-                setattr(spec, name, bool(controls[name]))
+        if controls.get("plain_black") is not None:
+            spec.plain_black = bool(controls["plain_black"])
+
+        if controls.get("grid_style") is not None:
+            style = str(controls["grid_style"]).lower()
+            if style in grid.STYLES:
+                spec.grid_style = style
+
+        if controls.get("grid_colour") is not None:
+            colour = str(controls["grid_colour"]).lower()
+            if colour in (grid.WHITE, grid.BLACK):
+                spec.grid_colour = colour
+
+        # Kept so an older client still works: draw_grid False means no
+        # overlay, True means put the square grid back.
+        if controls.get("draw_grid") is not None:
+            spec.grid_style = grid.SQUARE if controls["draw_grid"] else grid.NONE
 
         if controls.get("title"):
             spec.title = str(controls["title"])[:120]
@@ -444,11 +460,10 @@ class MapLibrary(object):
     def listing(self) -> List[Dict]:
         out = []
         for spec in recipes.load_all(self.recipes_dir):
-            plain_name, grid_name = render.filenames(spec.slug)
-            plain_path = os.path.join(self.library_dir, plain_name)
-            grid_path = os.path.join(self.library_dir, grid_name)
+            variants = [os.path.join(self.library_dir, n)
+                        for n in render.filenames(spec.slug)]
             size = 0
-            for p in (plain_path, grid_path):
+            for p in variants:
                 if os.path.isfile(p):
                     size += os.path.getsize(p)
             out.append({
@@ -459,7 +474,8 @@ class MapLibrary(object):
                 "feet_per_square": spec.feet_per_square,
                 "fit_choice": spec.fit_choice,
                 "bytes": size,
-                "present": os.path.isfile(plain_path) and os.path.isfile(grid_path),
+                "present": all(os.path.isfile(p) for p in variants),
+                "grid_style": spec.grid_style,
                 "has_original": os.path.isfile(
                     os.path.join(self.originals_dir, spec.source_file or "")),
             })

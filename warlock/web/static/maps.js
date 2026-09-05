@@ -184,8 +184,15 @@
     setSlider("#s-contrast", "#o-contrast", info.contrast,
               Math.round(info.contrast * 100) + "%");
 
-    $("#map-drawgrid").checked = !!info.draw_grid;
     $("#map-black").checked = !!info.plain_black;
+
+    var style = info.grid_style || (info.draw_grid ? "square" : "none");
+    document.querySelectorAll("#grid-style-row button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.style === style);
+    });
+    document.querySelectorAll("#grid-colour-row button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.colour === (info.grid_colour || "white"));
+    });
 
     var squares = $("#map-squares");
     if (document.activeElement !== squares) {
@@ -345,21 +352,48 @@
       g.restore();
     }
 
-    // The table's grid, across the whole frame -- minis can stand on the bleed.
-    if (state.draw_grid) {
+    // The overlay, across the whole frame -- minis can stand on the bleed.
+    var style = state.grid_style || (state.draw_grid ? "square" : "none");
+    if (style !== "none") {
       var pitch = PITCH * k;
       var ox = (state.grid_offset ? state.grid_offset[0] : 0) * k;
       var oy = (state.grid_offset ? state.grid_offset[1] : 0) * k;
-      g.strokeStyle = "rgba(255,255,255,0.25)";
+      // Same two colours, and the same asymmetry, as grid.py: black needs
+      // more opacity than white to read against dark artwork.
+      var black = state.grid_colour === "black";
+      g.strokeStyle = black ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.25)";
       g.lineWidth = Math.max(1, 2 * k);
       g.beginPath();
-      for (var i = Math.floor(-ox / pitch); ox + i * pitch <= W; i++) {
-        var x = Math.round(ox + i * pitch);
-        if (x >= 0) { g.moveTo(x, 0); g.lineTo(x, H); }
-      }
-      for (var j = Math.floor(-oy / pitch); oy + j * pitch <= H; j++) {
-        var y = Math.round(oy + j * pitch);
-        if (y >= 0) { g.moveTo(0, y); g.lineTo(W, y); }
+
+      if (style === "hex") {
+        // Flat-top hexes in offset columns, flat-to-flat height = one pitch.
+        // Mirrors grid.py exactly -- see the measurements recorded there.
+        var R = pitch / Math.sqrt(3);
+        var colStep = 1.5 * R, rowStep = pitch;
+        for (var ci = Math.floor((-ox - R) / colStep) - 1;
+             ox + ci * colStep <= W + R; ci++) {
+          var cx = ox + ci * colStep;
+          var stagger = (Math.abs(ci) % 2) ? rowStep / 2 : 0;
+          for (var cj = Math.floor((-oy - stagger - R) / rowStep) - 1;
+               oy + stagger + cj * rowStep <= H + R; cj++) {
+            var cy = oy + stagger + cj * rowStep;
+            for (var v = 0; v < 6; v++) {
+              var a1 = v * Math.PI / 3;
+              var px = cx + Math.cos(a1) * R, py = cy + Math.sin(a1) * R;
+              if (v === 0) g.moveTo(px, py); else g.lineTo(px, py);
+            }
+            g.closePath();
+          }
+        }
+      } else {
+        for (var i = Math.floor(-ox / pitch); ox + i * pitch <= W; i++) {
+          var x = Math.round(ox + i * pitch);
+          if (x >= 0) { g.moveTo(x, 0); g.lineTo(x, H); }
+        }
+        for (var j = Math.floor(-oy / pitch); oy + j * pitch <= H; j++) {
+          var y = Math.round(oy + j * pitch);
+          if (y >= 0) { g.moveTo(0, y); g.lineTo(W, y); }
+        }
       }
       g.stroke();
     }
@@ -481,9 +515,18 @@
     adjust({ realign_grid: true });
   });
 
-  $("#map-drawgrid").addEventListener("change", function () {
-    setLocal("draw_grid", this.checked);
-    adjust({ draw_grid: this.checked });
+  document.querySelectorAll("#grid-style-row button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setLocal("grid_style", btn.dataset.style);
+      adjust({ grid_style: btn.dataset.style });
+    });
+  });
+
+  document.querySelectorAll("#grid-colour-row button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setLocal("grid_colour", btn.dataset.colour);
+      adjust({ grid_colour: btn.dataset.colour });
+    });
   });
 
   $("#map-black").addEventListener("change", function () {

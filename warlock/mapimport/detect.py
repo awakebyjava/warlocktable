@@ -47,6 +47,23 @@ TARGET_SAMPLES = 1600
 # A grid finer than this in working pixels cannot be told apart from texture.
 MIN_PITCH = 8
 
+# And a floor in SOURCE pixels, which is the one that means something
+# physical. Below about 20 px per cell there is no map anyone could put a
+# miniature on -- a 2000 px map at that pitch is 100 squares across. Without
+# this, a featureless image can be "matched" at the very bottom of the search
+# range: a smooth hand-drawn map was once reported as "a 8 px grid", high
+# confidence, which is 250 squares wide and exactly the confidently-wrong
+# answer section 2 forbids.
+MIN_SOURCE_PITCH = 20.0
+
+# How far above the typical correlation the winning peak has to stand.
+#
+# This is the guard that actually catches a featureless image. On something
+# with no periodic structure the autocorrelation is flat -- every lag scores
+# about the same, so the "best" one is just noise winning a coin toss, and its
+# prominence is ~1. A real grid stands well clear of its neighbours.
+MIN_PROMINENCE = 1.6
+
 # Confidence bands.
 HIGH = "high"
 LOW = "low"
@@ -209,6 +226,13 @@ def _best_pitch(signal: List[float], max_lag: int) -> Tuple[Optional[float], flo
     if best <= 0:
         return None, 0.0
 
+    # Does the winner actually stand out, or is the whole curve flat?
+    ordered = sorted(corr)
+    median = ordered[len(ordered) // 2]
+    typical = max(abs(median), 1e-6)
+    if best / typical < MIN_PROMINENCE:
+        return None, 0.0
+
     # Prefer the SMALLEST lag that is nearly as good as the best. A signal
     # with period p correlates just as well at 2p and 3p, and picking a
     # harmonic would scale the map to half or a third of its true size --
@@ -225,6 +249,12 @@ def _best_pitch(signal: List[float], max_lag: int) -> Tuple[Optional[float], flo
                 break
 
     lag = chosen + MIN_PITCH
+
+    # A result sitting on the edge of the search range is not a result. It
+    # means the true period is outside what was searched, or there is no
+    # period at all and the boundary simply scored highest.
+    if lag <= MIN_PITCH + 1 or lag >= max_lag - 1:
+        return None, 0.0
 
     # Parabolic interpolation against the two neighbours for sub-pixel pitch.
     # Worth doing: a half-pixel error at a 60 px pitch is nearly a whole
@@ -352,6 +382,15 @@ def _detect(image: Image.Image) -> Detection:
     pitch = (src_px + src_py) / 2.0
 
     if score < _PEAK_LOW or pitch < MIN_PITCH:
+        return Detection(confidence=FAILED, message=_FAIL_MSG)
+
+    # The physical sanity check, in source pixels rather than signal samples.
+    if pitch < MIN_SOURCE_PITCH:
+        return Detection(confidence=FAILED, message=_FAIL_MSG)
+
+    # And a grid nobody could play on is not a grid we found. Squares smaller
+    # than a fingertip on the real table mean we have locked onto texture.
+    if src_w / pitch > 200 or src_h / pitch > 200:
         return Detection(confidence=FAILED, message=_FAIL_MSG)
 
     confidence = HIGH if score >= _PEAK_HIGH else LOW

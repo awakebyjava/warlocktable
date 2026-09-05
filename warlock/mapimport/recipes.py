@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional
 from . import grid
 from .transform import Transform
 
-RECIPE_VERSION = 1
+RECIPE_VERSION = 2
 
 
 class MapSpec(object):
@@ -53,6 +53,8 @@ class MapSpec(object):
                  grid_offset_x: float = 0.0,
                  grid_offset_y: float = 0.0,
                  draw_grid: bool = True,
+                 grid_style: str = grid.SQUARE,
+                 grid_colour: str = grid.WHITE,
                  fit_choice: str = "manual",
                  feet_per_square: float = 5.0,
                  plain_black: bool = False,
@@ -73,7 +75,13 @@ class MapSpec(object):
         self.grid_pitch = float(grid_pitch)
         self.grid_offset_x = float(grid_offset_x)
         self.grid_offset_y = float(grid_offset_y)
-        self.draw_grid = bool(draw_grid)
+        # draw_grid predates grid_style and is kept only so a v1 recipe still
+        # loads. grid_style is what everything reads; draw_grid is derived
+        # from it on the way out so old and new stay consistent.
+        self.grid_style = (grid_style or grid.NONE).lower()
+        if not draw_grid:
+            self.grid_style = grid.NONE
+        self.grid_colour = (grid_colour or grid.WHITE).lower()
         # "true_scale" | "cropped" | "scaled_down" | "manual"
         self.fit_choice = fit_choice
         self.feet_per_square = float(feet_per_square)
@@ -81,6 +89,11 @@ class MapSpec(object):
         self.detected = detected or {}
         self.created = created or time.time()
         self.updated = updated or self.created
+
+    @property
+    def draw_grid(self) -> bool:
+        """True when there is any overlay at all. Derived, never stored."""
+        return self.grid_style != grid.NONE
 
     # --- serialisation ----------------------------------------------------
 
@@ -99,6 +112,8 @@ class MapSpec(object):
             "grid_offset_x": self.grid_offset_x,
             "grid_offset_y": self.grid_offset_y,
             "draw_grid": self.draw_grid,
+            "grid_style": self.grid_style,
+            "grid_colour": self.grid_colour,
             "fit_choice": self.fit_choice,
             "feet_per_square": self.feet_per_square,
             "plain_black": self.plain_black,
@@ -124,6 +139,10 @@ class MapSpec(object):
             grid_offset_x=raw.get("grid_offset_x", 0.0),
             grid_offset_y=raw.get("grid_offset_y", 0.0),
             draw_grid=raw.get("draw_grid", True),
+            # A v1 recipe has no grid_style; it was always a white square
+            # grid, so that is what it must keep meaning.
+            grid_style=raw.get("grid_style", grid.SQUARE),
+            grid_colour=raw.get("grid_colour", grid.WHITE),
             fit_choice=raw.get("fit_choice", "manual"),
             feet_per_square=raw.get("feet_per_square", 5.0),
             plain_black=raw.get("plain_black", False),

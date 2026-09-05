@@ -470,10 +470,24 @@
         </section>
 
         <section>
-          <h2>Grid</h2>
-          <div class="check-row">
-            <label><input type="checkbox" id="map-drawgrid" checked> Draw the table's grid</label>
+          <h2>Grid <span class="muted">for maps drawn without one</span></h2>
+          <p class="note">A hex is the same size as a square here &mdash; 5 ft
+             flat to flat &mdash; so miniatures work out the same either way.</p>
+          <div class="check-row three" id="grid-style-row">
+            <button data-style="none">None</button>
+            <button data-style="square">Square</button>
+            <button data-style="hex">Hex</button>
           </div>
+          <p class="note">White lines vanish into a pale map and black lines
+             vanish into a dark one. Pick whichever the map is not.</p>
+          <div class="check-row" id="grid-colour-row">
+            <button data-colour="white">White lines</button>
+            <button data-colour="black">Black lines</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Edges</h2>
           <div class="check-row">
             <label><input type="checkbox" id="map-black"> Plain black edges instead of a dark bleed</label>
           </div>

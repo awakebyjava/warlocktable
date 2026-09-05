@@ -265,10 +265,9 @@ class MapsPanel(object):
         if self._restore_to is None:
             self._restore_to = getattr(self.controller.display, "background", None)
 
-        plain_name, grid_name = render.filenames(PREVIEW_SLUG)
-        # Both variants get the same picture: whichever overlay mode the table
-        # happens to be in, the preview must show what was actually rendered.
-        for name in (plain_name, grid_name):
+        # Every variant gets the same picture: whichever overlay mode the
+        # table happens to be in, the preview must show what was rendered.
+        for name in render.filenames(PREVIEW_SLUG):
             render._save_atomic(image, os.path.join(lib.library_dir, name))
 
         self._rescan_display()

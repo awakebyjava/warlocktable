@@ -66,10 +66,12 @@ def compose(source: Image.Image,
         plain_black=spec.plain_black)
 
     if with_grid and spec.draw_grid:
-        out = grid.draw(out,
-                        pitch=spec.grid_pitch * frame_scale,
-                        offset_x=spec.grid_offset_x * frame_scale,
-                        offset_y=spec.grid_offset_y * frame_scale)
+        out = grid.draw_overlay(out,
+                                style=spec.grid_style,
+                                colour=spec.grid_colour,
+                                pitch=spec.grid_pitch * frame_scale,
+                                offset_x=spec.grid_offset_x * frame_scale,
+                                offset_y=spec.grid_offset_y * frame_scale)
 
     if with_safe_area:
         out = grid.draw_safe_area(out)
@@ -95,10 +97,15 @@ def render_full(source: Image.Image, spec: MapSpec) -> Tuple[Image.Image, Image.
     """The two published frames: plain artwork, and artwork with the grid."""
     try:
         plain = compose(source, spec, with_grid=False)
-        gridded = grid.draw(plain,
-                            pitch=spec.grid_pitch,
-                            offset_x=spec.grid_offset_x,
-                            offset_y=spec.grid_offset_y) if spec.draw_grid else plain.copy()
+        if spec.draw_grid:
+            gridded = grid.draw_overlay(plain,
+                                        style=spec.grid_style,
+                                        colour=spec.grid_colour,
+                                        pitch=spec.grid_pitch,
+                                        offset_x=spec.grid_offset_x,
+                                        offset_y=spec.grid_offset_y)
+        else:
+            gridded = plain.copy()
     except MemoryError:
         raise RenderError(
             "Ran out of memory rendering this map. Try a smaller source image.")
@@ -114,14 +121,28 @@ def render_full(source: Image.Image, spec: MapSpec) -> Tuple[Image.Image, Image.
 
 # --- publishing ------------------------------------------------------------
 
-def filenames(slug: str) -> Tuple[str, str]:
-    """The two names FehDisplay's scanner will recognise.
+def filenames(slug: str) -> Tuple[str, str, str]:
+    """The three names FehDisplay's scanner will recognise.
 
     base_3840x2160.png       -> base "<slug>", plain artwork
     base_3840x2160_grid.png  -> base "<slug>", grid overlay
+    base_3840x2160_hex.png   -> base "<slug>", hex overlay
+
+    THE LAST TWO CARRY THE SAME PICTURE, and that is deliberate. The table's
+    overlay switch is a global mode (none / grid / hex), but a custom map's
+    grid was chosen by the person who imported it -- this map has hexes, or it
+    has squares, and it is not going to have both. Writing the chosen overlay
+    into both variants means the switch reads as "show this map's grid, or
+    don't", instead of a map mysteriously losing its grid because the table
+    happened to be left in the other mode.
+
+    This supersedes the original decision to write no _hex at all, which was
+    made when hex was unsupported and the pitch unmeasured. Both have since
+    changed: the hex geometry is measured off the shipped artwork (see
+    grid.py) and the user picks the style per map.
     """
-    return ("%s_%dx%d.png" % (slug, grid.FRAME_W, grid.FRAME_H),
-            "%s_%dx%d_grid.png" % (slug, grid.FRAME_W, grid.FRAME_H))
+    stem = "%s_%dx%d" % (slug, grid.FRAME_W, grid.FRAME_H)
+    return (stem + ".png", stem + "_grid.png", stem + "_hex.png")
 
 
 def _save_atomic(image: Image.Image, target: str) -> None:
@@ -159,9 +180,10 @@ def publish(source: Image.Image,
             raise PublishError("Could not create %s (%s)." % (library_dir, exc))
 
     plain, gridded = render_full(source, spec)
-    plain_name, grid_name = filenames(spec.slug)
-    plain_path = os.path.join(library_dir, plain_name)
-    grid_path = os.path.join(library_dir, grid_name)
+    names = filenames(spec.slug)
+    plain_path = os.path.join(library_dir, names[0])
+    grid_path = os.path.join(library_dir, names[1])
+    hex_path = os.path.join(library_dir, names[2])
 
     written = []
     try:
@@ -169,6 +191,8 @@ def publish(source: Image.Image,
         written.append(plain_path)
         _save_atomic(gridded, grid_path)
         written.append(grid_path)
+        _save_atomic(gridded, hex_path)
+        written.append(hex_path)
     except Exception:
         # Never leave one of a pair behind. A lone plain file would be a
         # perfectly valid background whose grid mode silently shows ungridded
@@ -181,13 +205,16 @@ def publish(source: Image.Image,
                 pass
         raise
 
-    # BOTH must exist before this is called a success, for the same reason.
-    missing = [p for p in (plain_path, grid_path) if not os.path.isfile(p)]
+    # ALL of them must exist before this is called a success, for the same
+    # reason: a missing variant is not an error anywhere, it is a silently
+    # wrong picture.
+    missing = [p for p in (plain_path, grid_path, hex_path)
+               if not os.path.isfile(p)]
     if missing:
         raise PublishError("Publish incomplete: %s missing."
                            % ", ".join(os.path.basename(p) for p in missing))
 
-    return {"plain": plain_path, "grid": grid_path}
+    return {"plain": plain_path, "grid": grid_path, "hex": hex_path}
 
 
 def unpublish(slug: str, library_dir: str) -> int:

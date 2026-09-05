@@ -10,6 +10,7 @@ quietly stay wrong.
 
 from __future__ import annotations
 
+import math
 from typing import Optional, Tuple
 
 from PIL import Image, ImageDraw
@@ -41,9 +42,54 @@ SAFE = (SAFE_W, SAFE_H)
 
 # Grid line appearance. Thin and low-contrast on purpose: at table distance a
 # heavy grid dominates the art beneath it.
+#
+# MEASURED off the shipped forest_3840x2160_grid.png: 2 px lines at exactly
+# 0.25 alpha, white, starting at x=0. Match it rather than invent something.
 LINE_WIDTH = 2
 LINE_OPACITY = 0.25
 LINE_RGB = (255, 255, 255)
+
+# Black lines, for maps that are pale enough that white disappears into them.
+#
+# Deliberately carried at a HIGHER opacity than white. The artwork here is
+# dark by house rule, and darkening something already dark is far less visible
+# than lightening it -- 0.25 black on a mid-tone map barely reads, where 0.25
+# white is clear. This is a perceptual asymmetry, not a preference.
+LINE_RGB_BLACK = (0, 0, 0)
+LINE_OPACITY_BLACK = 0.35
+
+# --- hexes -----------------------------------------------------------------
+#
+# MEASURED off the shipped forest_3840x2160_hex.png, the same way. The house
+# convention is FLAT-TOP hexes in offset columns, and the hex is exactly one
+# square across: its flat-to-flat height is PITCH, so a hex is 5 ft just as a
+# square is.
+#
+#     flat-to-flat (vertical)      107.85   = PITCH = 5 ft
+#     circumradius R               62.267   = PITCH / sqrt(3)
+#     column spacing               93.401   = 1.5 * R
+#     odd columns offset down by   53.925   = PITCH / 2
+#
+# Checked against the file: the overlay's horizontal period over two columns
+# measures 187 px where 3R predicts 186.80.
+HEX_R = PITCH / math.sqrt(3.0)
+HEX_COL_SPACING = 1.5 * HEX_R
+HEX_ROW_SPACING = PITCH
+
+SQUARE = "square"
+HEX = "hex"
+NONE = "none"
+STYLES = (NONE, SQUARE, HEX)
+
+WHITE = "white"
+BLACK = "black"
+
+
+def colour_for(name: str) -> Tuple[Tuple[int, int, int], float]:
+    """(rgb, opacity) for a named line colour."""
+    if (name or WHITE).lower() == BLACK:
+        return LINE_RGB_BLACK, LINE_OPACITY_BLACK
+    return LINE_RGB, LINE_OPACITY
 
 
 def safe_box() -> Tuple[int, int, int, int]:
@@ -135,6 +181,80 @@ def draw(image: Image.Image,
         j += 1
 
     return Image.alpha_composite(base, layer).convert("RGB")
+
+
+def draw_hex(image: Image.Image,
+             pitch: float = PITCH,
+             offset_x: float = 0.0,
+             offset_y: float = 0.0,
+             width: int = LINE_WIDTH,
+             opacity: float = LINE_OPACITY,
+             rgb: Tuple[int, int, int] = LINE_RGB) -> Image.Image:
+    """Return a copy of `image` with a flat-top hex grid drawn over it.
+
+    `pitch` is the hex's flat-to-flat height, so it means the same thing it
+    does for squares: one 5 ft space. Passing a scaled pitch draws a scaled
+    grid, which is how the proxy preview stays honest.
+
+    Each hexagon is stroked as a closed polygon, so neighbours redraw their
+    shared edges. That is fine and is why this composites through a layer
+    rather than blending: ImageDraw WRITES pixel values, it does not blend
+    them, so an edge drawn twice is not twice as opaque. Blend once, at the
+    end, exactly as the square grid does.
+    """
+    if pitch <= 0:
+        raise ValueError("hex pitch must be positive, got %r" % (pitch,))
+
+    base = image.convert("RGBA")
+    layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    pen = ImageDraw.Draw(layer)
+    colour = (rgb[0], rgb[1], rgb[2],
+              int(round(max(0.0, min(1.0, opacity)) * 255)))
+
+    w, h = base.size
+    scale = pitch / PITCH
+    r = HEX_R * scale
+    col = HEX_COL_SPACING * scale
+    row = HEX_ROW_SPACING * scale
+
+    # Flat-top: vertices at 0, 60, 120, 180, 240, 300 degrees.
+    unit = [(math.cos(math.radians(a)) * r, math.sin(math.radians(a)) * r)
+            for a in range(0, 360, 60)]
+
+    # Start a column early and finish one late so partial hexes at the edges
+    # are drawn rather than leaving a bare margin.
+    i0 = int(math.floor((-offset_x - r) / col)) - 1
+    i1 = int(math.ceil((w - offset_x + r) / col)) + 1
+    for i in range(i0, i1 + 1):
+        cx = offset_x + i * col
+        stagger = (row / 2.0) if (i % 2) else 0.0
+        j0 = int(math.floor((-offset_y - stagger - r) / row)) - 1
+        j1 = int(math.ceil((h - offset_y - stagger + r) / row)) + 1
+        for j in range(j0, j1 + 1):
+            cy = offset_y + stagger + j * row
+            pts = [(cx + dx, cy + dy) for dx, dy in unit]
+            pen.line(pts + [pts[0]], fill=colour, width=width, joint="curve")
+
+    return Image.alpha_composite(base, layer).convert("RGB")
+
+
+def draw_overlay(image: Image.Image,
+                 style: str = SQUARE,
+                 colour: str = WHITE,
+                 pitch: float = PITCH,
+                 offset_x: float = 0.0,
+                 offset_y: float = 0.0,
+                 width: int = LINE_WIDTH) -> Image.Image:
+    """Draw whichever overlay the map asked for. The one entry point callers
+    should use, so a new style is a change here and nowhere else."""
+    style = (style or NONE).lower()
+    if style == NONE:
+        return image.convert("RGB")
+
+    rgb, opacity = colour_for(colour)
+    fn = draw_hex if style == HEX else draw
+    return fn(image, pitch=pitch, offset_x=offset_x, offset_y=offset_y,
+              width=width, opacity=opacity, rgb=rgb)
 
 
 def draw_safe_area(image: Image.Image,

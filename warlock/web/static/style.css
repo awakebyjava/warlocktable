@@ -1264,6 +1264,8 @@ body.locked { overflow: hidden; }
 }
 
 .square-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.check-row.three { grid-template-columns: repeat(3, 1fr); }
+#grid-style-row button, #grid-colour-row button { margin: 0; }
 
 .map-busy {
   position: absolute; inset: 0; z-index: 4;
