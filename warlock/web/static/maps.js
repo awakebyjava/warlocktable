@@ -237,6 +237,23 @@
     $(output).textContent = label;
   }
 
+  /* The sticky preview has to sit exactly below the header, and the header
+     grows and shrinks -- the players bar appears when someone claims a seat.
+     Measured rather than assumed, and kept measured. */
+  function trackHeaderHeight() {
+    var header = document.querySelector("header");
+    if (!header) return;
+    var set = function () {
+      document.documentElement.style.setProperty(
+        "--header-h", Math.round(header.getBoundingClientRect().height) + "px");
+    };
+    set();
+    window.addEventListener("resize", set);
+    window.addEventListener("orientationchange", set);
+    if (window.ResizeObserver) new ResizeObserver(set).observe(header);
+  }
+  trackHeaderHeight();
+
   // ----------------------------------------------------- the local preview
   /*
    * A browser-side copy of what render.py composes, drawn from the proxy at

@@ -410,31 +410,47 @@
             <input type="range" id="s-panx" min="-3840" max="3840" step="1">
             <output id="o-panx"></output>
           </div>
-          <div class="nudge-row">
-            <button data-nudge="pan_x" data-by="-107.85" class="small">&#9664; 1 sq</button>
-            <button data-nudge="pan_x" data-by="-1" class="small">&#9664; 1 px</button>
-            <button data-nudge="pan_x" data-by="1" class="small">1 px &#9654;</button>
-            <button data-nudge="pan_x" data-by="107.85" class="small">1 sq &#9654;</button>
+          <!-- Three sizes, because one pixel is far too fine to travel any
+               real distance with and one square is too coarse to land on. -->
+          <div class="nudge-row six">
+            <button data-nudge="pan_x" data-by="-107.85" class="small">&#9664; sq</button>
+            <button data-nudge="pan_x" data-by="-10" class="small">&#9664; 10</button>
+            <button data-nudge="pan_x" data-by="-1" class="small">&#9664; 1</button>
+            <button data-nudge="pan_x" data-by="1" class="small">1 &#9654;</button>
+            <button data-nudge="pan_x" data-by="10" class="small">10 &#9654;</button>
+            <button data-nudge="pan_x" data-by="107.85" class="small">sq &#9654;</button>
           </div>
           <div class="slider-row">
             <label>Up / Down</label>
             <input type="range" id="s-pany" min="-2160" max="2160" step="1">
             <output id="o-pany"></output>
           </div>
-          <div class="nudge-row">
-            <button data-nudge="pan_y" data-by="-107.85" class="small">&#9650; 1 sq</button>
-            <button data-nudge="pan_y" data-by="-1" class="small">&#9650; 1 px</button>
-            <button data-nudge="pan_y" data-by="1" class="small">1 px &#9660;</button>
-            <button data-nudge="pan_y" data-by="107.85" class="small">1 sq &#9660;</button>
+          <div class="nudge-row six">
+            <button data-nudge="pan_y" data-by="-107.85" class="small">&#9650; sq</button>
+            <button data-nudge="pan_y" data-by="-10" class="small">&#9650; 10</button>
+            <button data-nudge="pan_y" data-by="-1" class="small">&#9650; 1</button>
+            <button data-nudge="pan_y" data-by="1" class="small">1 &#9660;</button>
+            <button data-nudge="pan_y" data-by="10" class="small">10 &#9660;</button>
+            <button data-nudge="pan_y" data-by="107.85" class="small">sq &#9660;</button>
           </div>
           <div class="slider-row">
             <label>Rotation</label>
             <input type="range" id="s-rot" min="-180" max="180" step="0.1">
             <output id="o-rot"></output>
           </div>
-          <div class="nudge-row">
+          <!-- Relative: turn it a bit from wherever it is. -->
+          <div class="nudge-row six">
+            <button data-nudge="rotation" data-by="-30" class="small">&minus;30&deg;</button>
+            <button data-nudge="rotation" data-by="-5" class="small">&minus;5&deg;</button>
+            <button data-nudge="rotation" data-by="-1" class="small">&minus;1&deg;</button>
+            <button data-nudge="rotation" data-by="1" class="small">+1&deg;</button>
+            <button data-nudge="rotation" data-by="5" class="small">+5&deg;</button>
+            <button data-nudge="rotation" data-by="30" class="small">+30&deg;</button>
+          </div>
+          <!-- Absolute: the square turns, and back to straight. -->
+          <div class="nudge-row three">
             <button data-set="rotation" data-by="-90" class="small">&minus;90&deg;</button>
-            <button data-set="rotation" data-by="0" class="small">0&deg;</button>
+            <button data-set="rotation" data-by="0" class="small">reset 0&deg;</button>
             <button data-set="rotation" data-by="90" class="small">+90&deg;</button>
           </div>
         </section>

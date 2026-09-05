@@ -259,8 +259,13 @@ is "move a control, look at the map", and that loop defeated it.
 
 Two changes, together:
 
-1. **The preview is sticky.** It pins to the top and stays there while the
-   controls scroll under it.
+1. **The preview is sticky**, pinned below the header and never taller than
+   what is left under it. Both halves of that matter: the page header is
+   `position: sticky; top: 0; z-index: 10`, so a stage stuck at `top: 4px`
+   slides underneath it and loses the top of the map, and with no height cap
+   the bottom falls off a short screen. The header's height is measured at
+   runtime into `--header-h`, because it changes when the players bar
+   appears.
 2. **The browser draws its own preview**, from the proxy, at whatever the
    sliders currently say -- about 17 ms, so it tracks a thumb. The server's
    render still follows a moment after you stop and replaces it.
@@ -296,16 +301,20 @@ All six are always live, on every map, always.
 
 | Control | Range | Default | Step |
 |---|---|---|---|
-| **Pan X** | ±1 full frame width | centred | 1 px fine / 1 square coarse |
-| **Pan Y** | ±1 full frame height | centred | 1 px fine / 1 square coarse |
+| **Pan X** | ±1 full frame width | centred | 1 px / 10 px / 1 square |
+| **Pan Y** | ±1 full frame height | centred | 1 px / 10 px / 1 square |
 | **Scale** | 0.05× – 8× | detection's guess, else fit-to-frame | 0.1% fine |
 
 Plus two exact entries, **width in squares** and **height in squares**. Either
 sets the scale on its own; which one is known depends on the map, and both are
 exact arithmetic where everything else here is judged by eye.
-| **Rotation** | −180° to +180° | 0° | 0.1° fine / 90° snap |
+| **Rotation** | −180° to +180° | 0° | ±1° / ±5° / ±30°, plus ±90° and reset |
 | **Brightness** | 0.15× – 1.5× | measured ceiling (§9) | 1% |
 | **Contrast** | 0.5× – 1.5× | 1.0 | 1% |
+
+**Three step sizes, not two.** One pixel is too fine to travel any real
+distance with and one square is too coarse to land on, so a middle step is
+needed -- 10 px for pan, 5° and 30° for rotation. Found by using it.
 
 **Pan must be sub-square precise.** Getting the pitch right is not enough —
 grid *phase* matters just as much. If a map's rooms sit half a square off the

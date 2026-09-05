@@ -1216,7 +1216,16 @@ body.locked { overflow: hidden; }
    avoid. It stays put while the controls move under it. */
 .map-stage {
   position: sticky;
-  top: 4px;
+  /* CLEAR THE HEADER. It is `position: sticky; top: 0; z-index: 10`, so a
+     stage stuck at top:4px slides underneath it and loses the top of the map.
+     --header-h is measured at runtime in maps.js, because the header's height
+     changes when the players bar appears. The fallback is only for the first
+     paint. */
+  top: calc(var(--header-h, 64px) + 4px);
+  /* And never taller than what is left below the header, or the bottom of the
+     map falls off the screen instead. object-fit:contain letterboxes inside
+     the box, so the whole frame stays visible either way. */
+  max-height: calc(100vh - var(--header-h, 64px) - 20px);
   z-index: 6;
   box-shadow: 0 6px 18px rgba(0,0,0,0.75);   /* lifts it off what passes beneath */
   margin: 14px 0;
@@ -1304,7 +1313,9 @@ body.locked { overflow: hidden; }
   display: grid; grid-template-columns: repeat(4, 1fr);
   gap: 6px; margin: -4px 0 12px 104px;
 }
-.nudge-row button { margin: 0; }
+.nudge-row.six   { grid-template-columns: repeat(6, 1fr); }
+.nudge-row.three { grid-template-columns: repeat(3, 1fr); margin-top: -6px; }
+.nudge-row button { margin: 0; padding: 6px 2px; }
 
 .warn-text { color: var(--rust-bright); }
 
@@ -1312,4 +1323,8 @@ body.locked { overflow: hidden; }
   .slider-row { flex-wrap: wrap; }
   .slider-row label { flex: 0 0 100%; }
   .nudge-row { margin-left: 0; grid-template-columns: repeat(2, 1fr); }
+  /* Six across is too narrow to hit with a thumb on a phone; two rows of
+     three is still one tap per step. */
+  .nudge-row.six { grid-template-columns: repeat(3, 1fr); }
+  .square-fields { grid-template-columns: 1fr; }
 }
