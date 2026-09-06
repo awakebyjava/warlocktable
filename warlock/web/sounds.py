@@ -180,8 +180,12 @@ class SoundsPanel(object):
                 "uploaded, but the table could not refresh its sound list "
                 "(%s) -- it will appear after a restart" % exc)
 
-        self.log.record("sounds.uploaded", name=info["name"], kind=kind,
-                        seconds=info["after"]["seconds"])
+        # `sound_kind`, not `kind`: EventLog.record's own first parameter
+        # is called kind, so a field of that name is a TypeError at runtime
+        # -- and only on the success path, which is how it survived to the
+        # table. The upload had already been written when it blew up.
+        self.log.record("sounds.uploaded", name=info["name"],
+                        sound_kind=kind, seconds=info["after"]["seconds"])
         handler._send_json(info)
 
     def _delete(self, handler, kind: str, name: str) -> None:
@@ -204,5 +208,5 @@ class SoundsPanel(object):
             self.controller.audio.rescan()
         except Exception:             # noqa: BLE001
             pass
-        self.log.record("sounds.deleted", name=name, kind=kind)
+        self.log.record("sounds.deleted", name=name, sound_kind=kind)
         handler._send_json(self.report())
