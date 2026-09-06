@@ -88,6 +88,9 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                                          which pygame 1.9.6 refuses to open
                      voice_check.py      run ON THE PI: does the Entity work,
                                          and how often will it actually speak
+                     catalog_sfx.py      describe a sound library into one CSV,
+                                         so a shortlist can be made without
+                                         listening to thousands of files
 branding/          the wordmark, app icons, and the table's two sigils
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy. `generated/` is patterngen.py's output (30);
