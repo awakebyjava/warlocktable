@@ -95,6 +95,8 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                      audio_worksheet.py  what still needs recording
                      normalise_wavs.py   strip the JUNK chunk ffmpeg leaves,
                                          which pygame 1.9.6 refuses to open
+                     card_render.py      (in voices/) the 54 playing cards
+                                         spoken in the Entity's own voice
                      voice_check.py      run ON THE PI: does the Entity work,
                                          and how often will it actually speak
                      catalog_sfx.py      describe a sound library into one CSV,
@@ -211,6 +213,15 @@ table for it; and a scene change FADES THE CUE, because a change of location
 is a scene break. Cues deliberately do not live in `audio_paths` -- anything
 there shows up in `available_tracks()`, and the effect picker and scene
 editor would fill with music.
+
+**The playing cards are read out loud**, in the Entity's voice rather than a
+separate dealer's -- both were rendered and compared at the table. That makes
+three layers on one channel and the order is the design: the sting is the
+card arriving, the announcement is the table reading it, the Entity's line is
+its opinion of it, and each waits for the last on the same clock. Which cards
+get an announcement is decided by what is on disk, not by a list in the code:
+the 54 exist as files and the 25 tarot do not, so render a new one and it
+announces itself.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.

@@ -203,6 +203,19 @@ ducking, same layering over the soundscape, no pollution of the library.
 - Track the real duration so cooldown starts at the end.
 - On any failure, log and carry on. Never raise into the controller.
 
+**The 54 playing cards are announced, and that makes three layers.** The
+Entity also reads a playing card's name when one is tapped -- same voice,
+same LEGION chain, rendered by `voices/card_render.py`, which imports
+`entity_render` rather than copying its constants so retuning one retunes
+both. Unlike everything else here it is DETERMINISTIC: `on_trigger` asks
+whether the Entity feels like speaking, `announce` always speaks, because it
+is not a remark but the table reading the card. It has its own switch
+(`announce_cards`), since the deck being read and the commentary being silent
+is an ordinary preference. Which cards qualify is settled by what is on disk
+-- no suit matching anywhere -- so the tarot silently get nothing. The
+ordering is sting, then announcement, then remark, all on the one
+`_sting_until` clock rather than a second gate.
+
 **Never on top of a sting.** Added once the 54 sound effects landed, because
 the two systems both fire on a card tap and both want the effect channel.
 `on_trigger` takes a `min_delay`, and the caller passes the sting's own
