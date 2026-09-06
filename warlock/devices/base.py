@@ -151,6 +151,13 @@ class AudioDevice(ABC):
         two: picture first, sound catching up afterwards.
         """
 
+    def set_cue_volume(self, level: float) -> None:
+        """Trim the music layer, 0.0-1.0, applied on top of the master.
+
+        Concrete rather than abstract: a device with no music layer is
+        entitled to ignore this.
+        """
+
     def rescan(self) -> dict:
         """Re-read the search paths after a file was added to them.
 

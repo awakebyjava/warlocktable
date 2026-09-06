@@ -1190,6 +1190,19 @@ $("#rec-toggle").addEventListener("click", async (ev) => {
 /* ---------- sound ---------- */
 
 function renderAudio(a) {
+  // The music trim. Hidden entirely when there are no cues -- a slider for
+  // a layer with no files is a control that cannot do anything.
+  const row = $("#music-vol-row");
+  const cue = $("#cue-vol");
+  if (row && cue) {
+    row.hidden = !a.cues;
+    if (document.activeElement !== cue) {
+      const cv = Math.round((a.cue_volume == null ? 0.8 : a.cue_volume) * 100);
+      cue.value = String(cv);
+      $("#cue-vol-val").textContent = cv + "%";
+    }
+  }
+
   const slider = $("#vol");
   // Do not fight a finger: a poll landing mid-drag must not snap the slider
   // back to the server's value.
@@ -1240,6 +1253,18 @@ vol.addEventListener("input", () => { $("#vol-val").textContent = vol.value + "%
 vol.addEventListener("change", () => {
   fire("set_volume", { level: Number(vol.value) / 100 });
 });
+
+// The music trim. Same on-release rule as the master: each change is a
+// config write, and the SD card is the one component here with a wear limit.
+const cueVol = $("#cue-vol");
+if (cueVol) {
+  cueVol.addEventListener("input", () => {
+    $("#cue-vol-val").textContent = cueVol.value + "%";
+  });
+  cueVol.addEventListener("change", () => {
+    fire("set_music_volume", { level: Number(cueVol.value) / 100 });
+  });
+}
 
 const bright = $("#bright");
 bright.addEventListener("input", () => {

@@ -118,7 +118,7 @@ class ConfigStore:
                                 new_count=count)
             return count
 
-    def set_audio(self, volume=None, device=None):
+    def set_audio(self, volume=None, device=None, cue_volume=None):
         """Persist the master volume and/or the chosen output.
 
         Own rollback for the same reason set_player_count has one:
@@ -127,21 +127,27 @@ class ConfigStore:
         refused write is what that machinery exists to prevent.
         """
         with self._lock:
-            before = (self.config.volume, self.config.audio_device)
+            before = (self.config.volume, self.config.audio_device,
+                      self.config.cue_volume)
             if volume is not None:
                 self.config.volume = max(0.0, min(1.0, float(volume)))
             if device is not None:
                 self.config.audio_device = device
+            if cue_volume is not None:
+                self.config.cue_volume = max(0.0, min(1.0, float(cue_volume)))
             try:
                 self._commit("audio", volume=self.config.volume,
-                             device=self.config.audio_device)
+                             device=self.config.audio_device,
+                             cue_volume=self.config.cue_volume)
             except Exception as exc:
-                self.config.volume, self.config.audio_device = before
+                (self.config.volume, self.config.audio_device,
+                 self.config.cue_volume) = before
                 self.log.record("config.save_failed", change="audio",
                                 error=str(exc))
                 raise
             return {"volume": self.config.volume,
-                    "device": self.config.audio_device}
+                    "device": self.config.audio_device,
+                    "cue_volume": self.config.cue_volume}
 
     def set_voice(self, enabled=None, chattiness=None, mood=None,
                   announce_cards=None):

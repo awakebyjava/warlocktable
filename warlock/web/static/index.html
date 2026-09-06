@@ -232,6 +232,20 @@
           <input type="range" id="vol" min="0" max="100" value="80" step="5">
           <span id="vol-val">80%</span>
         </div>
+
+        <!-- The music layer's balance against everything else. Its own
+             control because it is a different question from "how loud is
+             the table": cues are rendered under the beds already, but how
+             far under is a judgement made in a room with people talking.
+             Hidden when the table has no cues installed. -->
+        <div id="music-vol-row" hidden>
+          <p class="note" style="margin:.6rem 0 .2rem">Music, against
+             everything else</p>
+          <div class="bright-row">
+            <input type="range" id="cue-vol" min="0" max="100" value="80" step="5">
+            <span id="cue-vol-val">80%</span>
+          </div>
+        </div>
         <div id="audio-out-row" class="check-row" style="margin-top:.8rem"></div>
         <p class="note" id="audio-note"></p>
       </section>

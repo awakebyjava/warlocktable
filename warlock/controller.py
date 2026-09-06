@@ -860,6 +860,18 @@ class Controller:
         self._supersede()
         self._try("lights", self.lights.set_brightness, level)
 
+    @action(ParamSpec("level", "float"))
+    def set_music_volume(self, level: float) -> None:
+        """How loud the music sits against everything else, 0.0-1.0.
+
+        Not a _supersede action, same reasoning as set_volume: balancing the
+        music mid-scene is a preference, not a scene change, and must not
+        cancel a pending interruption revert.
+        """
+        level = max(0.0, min(1.0, float(level)))
+        self._try("audio", self.audio.set_cue_volume, level)
+        self._persist_audio(cue_volume=level)
+
     @action(ParamSpec("cue_name", "str",
                       choices=lambda c: c.audio.available_cues()))
     def play_music_cue(self, cue_name: str) -> None:
@@ -921,7 +933,8 @@ class Controller:
         self._persist_audio(device=device)
         self.log.record("audio.output_changed", name=name, device=device)
 
-    def _persist_audio(self, volume=None, device=None) -> None:
+    def _persist_audio(self, volume=None, device=None,
+                       cue_volume=None) -> None:
         store = getattr(getattr(self, "_runtime", None), "store", None)
         if store is None:
             # Interactive CLI with nothing to save to: honour it in memory.
@@ -929,9 +942,12 @@ class Controller:
                 self.config.volume = volume
             if device is not None:
                 self.config.audio_device = device
+            if cue_volume is not None:
+                self.config.cue_volume = cue_volume
             return
         try:
-            store.set_audio(volume=volume, device=device)
+            store.set_audio(volume=volume, device=device,
+                            cue_volume=cue_volume)
         except Exception as exc:   # noqa: BLE001
             # A failed write must not undo a change the operator can hear.
             self.log.record("audio.persist_failed", error=str(exc))
@@ -949,6 +965,11 @@ class Controller:
         outputs = dict(self.config.audio_outputs)
         return {
             "volume": self.config.volume,
+            # The music trim, and whether there is any music to trim. A
+            # slider for a layer the table has no files for is a control
+            # that cannot do anything.
+            "cue_volume": self.config.cue_volume,
+            "cues": status.get("cues", 0),
             "outputs": sorted(outputs),
             "current": next((n for n, d in outputs.items() if d == current),
                             None),

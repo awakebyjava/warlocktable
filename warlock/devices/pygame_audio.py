@@ -267,6 +267,7 @@ class PygameAudio(AudioDevice):
             "cues": len(self._cues),
             "soundscape": self.soundscape,
             "cue": self.cue,
+            "cue_volume": self._cue_volume,
             "error": self.last_error,
         }
 
@@ -622,6 +623,29 @@ class PygameAudio(AudioDevice):
         if stopped:
             self.log.record("audio.effects_stopped", channels=stopped,
                             fade_ms=fade_ms)
+
+    def set_cue_volume(self, level: float) -> None:
+        """Trim the music layer against everything else, live.
+
+        SEPARATE FROM THE MASTER, which moves the whole table. This is the
+        balance between the music and the room it plays under: the cues are
+        rendered at -32 dBFS against the beds' -30, but how far under a bed
+        music should sit is a taste judgement made at a table with people
+        talking over it, not something to settle by re-rendering fifteen
+        files.
+
+        Applied on top of the master, so turning the table down turns the
+        music down with it.
+        """
+        level = max(0.0, min(1.0, float(level)))
+        with self._lock:
+            self._cue_volume = level
+            for channel in self._cue_channels:
+                try:
+                    channel.set_volume(level * self._master)
+                except Exception:   # noqa: BLE001
+                    pass
+        self.log.record("audio.cue_volume", level=level)
 
     def rescan(self) -> dict:
         """Re-read the search paths after something was added to them.

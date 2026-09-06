@@ -283,6 +283,10 @@ class Config:
     # a scene crossfade on purpose: music arriving abruptly announces itself
     # as a table effect, which is the opposite of what an underscore is for.
     cue_crossfade_s: float = 3.0
+    # How loud the music sits against everything else, on top of the master.
+    # A taste judgement made at a table with people talking over it, so it
+    # is a live control rather than something baked into the files.
+    cue_volume: float = 0.8
 
     # Where sound uploaded through the panel is written. The table OWNS this
     # directory; `tracks/` and `cues/` under it are prepended to the two
@@ -469,6 +473,8 @@ def load_config(path: str) -> Config:
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
         cue_paths=list(raw.get("settings", {}).get("cue_paths", [])),
         cue_crossfade_s=float(raw.get("settings", {}).get("cue_crossfade_s", 3.0)),
+        cue_volume=max(0.0, min(1.0, float(
+            raw.get("settings", {}).get("cue_volume", 0.8)))),
         sound_upload_path=raw.get("settings", {}).get("sound_upload_path"),
         background_paths=list(raw.get("settings", {}).get("background_paths", [])),
         custom_background_path=raw.get("settings", {}).get("custom_background_path"),
@@ -512,6 +518,7 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "audio_paths": list(config.audio_paths),
         "cue_paths": list(config.cue_paths),
         "cue_crossfade_s": config.cue_crossfade_s,
+        "cue_volume": config.cue_volume,
         "sound_upload_path": config.sound_upload_path,
         "background_paths": list(config.background_paths),
         "custom_background_path": config.custom_background_path,

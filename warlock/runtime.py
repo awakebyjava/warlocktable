@@ -316,6 +316,14 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     except Exception as exc:   # noqa: BLE001
         log.record("audio.volume_restore_failed", error=str(exc))
 
+    # The music trim, for exactly the same reason. It is applied AFTER the
+    # master because set_cue_volume multiplies the two, so it has to see the
+    # master already in place.
+    try:
+        audio.set_cue_volume(config.cue_volume)
+    except Exception as exc:   # noqa: BLE001
+        log.record("audio.cue_volume_restore_failed", error=str(exc))
+
     # The recorder follows --real-audio: if the sound hardware is real, the
     # microphone attached to it is too.
     if getattr(args, "real_audio", False):

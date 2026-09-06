@@ -116,6 +116,7 @@ class FakeAudioDevice(AudioDevice):
         self.output = "(fake)"
         self.soundscape: Optional[str] = None
         self.cue: Optional[str] = None
+        self.cue_volume = 1.0
 
     def play_soundscape(self, track: Optional[str], crossfade_s: float) -> None:
         if track is None:
@@ -143,8 +144,13 @@ class FakeAudioDevice(AudioDevice):
             "cues": len(FAKE_CUES),
             "soundscape": self.soundscape,
             "cue": self.cue,
+            "cue_volume": self.cue_volume,
             "error": None,
         }
+
+    def set_cue_volume(self, level: float) -> None:
+        self.cue_volume = max(0.0, min(1.0, float(level)))
+        self.log.record("audio.cue_volume", level=self.cue_volume)
 
     def rescan(self) -> dict:
         return {"tracks": len(FAKE_TRACKS), "cues": len(FAKE_CUES)}
