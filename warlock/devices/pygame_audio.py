@@ -623,6 +623,27 @@ class PygameAudio(AudioDevice):
             self.log.record("audio.effects_stopped", channels=stopped,
                             fade_ms=fade_ms)
 
+    def rescan(self) -> dict:
+        """Re-read the search paths after something was added to them.
+
+        The same seam the map import uses on the display: the importer writes
+        a file and asks the device to look again. Without it an upload does
+        not exist until the service restarts, which mid-session is not an
+        option.
+
+        The Sound cache is keyed by PATH, so a REPLACED file of the same name
+        would keep playing the old audio out of memory. Dropping the cache is
+        the only correct thing to do here -- the cost is one re-read the next
+        time each sound plays.
+        """
+        with self._lock:
+            self._cache.clear()
+            del self._cache_order[:]
+        self._scan_library()
+        counts = {"tracks": len(self._library), "cues": len(self._cues)}
+        self.log.record("audio.rescan", **counts)
+        return counts
+
     def available_tracks(self) -> List[str]:
         return sorted(self._library.keys(), key=str.lower)
 

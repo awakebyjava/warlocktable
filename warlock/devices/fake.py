@@ -146,6 +146,9 @@ class FakeAudioDevice(AudioDevice):
             "error": None,
         }
 
+    def rescan(self) -> dict:
+        return {"tracks": len(FAKE_TRACKS), "cues": len(FAKE_CUES)}
+
     def available_cues(self) -> List[str]:
         return sorted(FAKE_CUES)
 

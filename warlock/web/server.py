@@ -163,11 +163,19 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         return self.sfx.route(self, method, path)
 
+    def _sounds_api(self, method: str, path: str) -> bool:
+        """Hand /api/sounds/* to the audio upload panel. See web/sounds.py."""
+        if getattr(self, "sounds", None) is None                 or not path.startswith("/api/sounds"):
+            return False
+        return self.sounds.route(self, method, path)
+
     def do_PUT(self):
         # PUT exists solely for map upload: the body IS the file, which avoids
         # multipart parsing in a stdlib server. See web/maps.py.
         path = self.path.split("?", 1)[0]
         if self._maps("PUT", path):
+            return
+        if self._sounds_api("PUT", path):
             return
         self._send_json({"error": "unknown endpoint"}, 404)
 
@@ -178,6 +186,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self._voice_api("GET", path):
             return
         if self._sfx_api("GET", path):
+            return
+        if self._sounds_api("GET", path):
             return
 
         # Three front doors. The QR code on the table points at "/", which
@@ -251,6 +261,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         path = self.path.split("?", 1)[0]
         if self._maps("DELETE", path):
+            return
+        if self._sounds_api("DELETE", path):
             return
         if path.startswith("/api/config/scenes/"):
             name = _unquote(path[len("/api/config/scenes/"):])
@@ -843,12 +855,14 @@ class WebPanel:
         from .maps import MapsPanel
         from .voice import VoicePanel
         from .sfx import SfxPanel
+        from .sounds import SoundsPanel
         handler = type("_BoundHandler", (_Handler,), {
             "controller": self.controller,
             "runtime": self.runtime,
             "maps": MapsPanel(self.runtime, self.controller, self.log),
             "voice": VoicePanel(self.runtime, self.controller, self.log),
             "sfx": SfxPanel(self.runtime, self.controller, self.log),
+            "sounds": SoundsPanel(self.runtime, self.controller, self.log),
         })
         try:
             self._server = ThreadingHTTPServer((self.host, self.port), handler)

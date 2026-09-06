@@ -151,6 +151,14 @@ class AudioDevice(ABC):
         two: picture first, sound catching up afterwards.
         """
 
+    def rescan(self) -> dict:
+        """Re-read the search paths after a file was added to them.
+
+        Concrete, not abstract: a device with a fixed library is entitled to
+        do nothing here, and should not be forced to implement a no-op.
+        """
+        return {}
+
     @abstractmethod
     def available_cues(self) -> List[str]:
         """The music cues this device can play, by name.

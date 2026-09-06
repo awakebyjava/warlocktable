@@ -254,6 +254,25 @@ class Runtime:
             _timed("lights", closer)
 
 
+def _with_uploads(config):
+    """(track paths, cue paths) with the upload directories in front.
+
+    Done here rather than written into config.audio_paths so the stored
+    configuration keeps saying what the OPERATOR set. A derived value that
+    quietly persists itself is the kind of thing that is impossible to
+    reason about three months later.
+    """
+    import os
+    tracks = list(config.audio_paths)
+    cues = list(config.cue_paths)
+    root = getattr(config, "sound_upload_path", None)
+    if root:
+        root = os.path.expanduser(root)
+        tracks.insert(0, os.path.join(root, "tracks"))
+        cues.insert(0, os.path.join(root, "cues"))
+    return tracks, cues
+
+
 def build(args, log: EventLog, on_card=None) -> Runtime:
     """Construct devices and the controller from parsed arguments.
 
@@ -275,8 +294,13 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
 
     if getattr(args, "real_audio", False):
         from .devices.pygame_audio import PygameAudio
-        audio = PygameAudio(log, search_paths=config.audio_paths,
-                            cue_paths=config.cue_paths,
+        # Panel uploads are prepended to both search paths, so an uploaded
+        # sound is found with no further configuration AND wins over a file
+        # of the same name that shipped with the table. Replacing a bed then
+        # means uploading one called "forest"; the original stays on disk.
+        track_paths, cue_paths = _with_uploads(config)
+        audio = PygameAudio(log, search_paths=track_paths,
+                            cue_paths=cue_paths,
                             device=config.audio_device,
                             duck_level=config.duck_level,
                             duck_ramp_s=config.duck_ramp_s)

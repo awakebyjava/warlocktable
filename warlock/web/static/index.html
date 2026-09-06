@@ -432,6 +432,35 @@
         <h2>Sound Effects</h2>
       </div>
 
+      <!-- UPLOAD. Sound arrives through the panel rather than by rsync, and
+           is converted on the way in: everything the table plays has to be
+           44100 stereo with a canonical WAV header, because the mixer
+           resamples anything else on load and pygame 1.9.6 refuses a file
+           with a JUNK chunk outright. The kind matters -- a one-shot must
+           not be loop-closed, and must not be RMS-levelled. -->
+      <section id="sound-upload-section">
+        <h2>Add a Sound</h2>
+        <p class="note">Any format. It is converted to match the table, levelled
+           against what is already there, and available immediately.</p>
+        <div class="check-row" id="sound-kind-row"
+             style="grid-template-columns:repeat(3,1fr)"></div>
+        <label class="field">
+          <span>Call it <span class="muted">optional &mdash; taken from the
+                filename otherwise</span></span>
+          <input type="text" id="sound-name" placeholder="e.g. tavern_brawl"
+                 autocapitalize="off" autocomplete="off" spellcheck="false">
+        </label>
+        <button id="sound-upload-btn" class="wide primary">Choose a File</button>
+        <input type="file" id="sound-file" hidden accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a,.aac,.opus">
+        <p class="note" id="sound-note"></p>
+        <div id="sound-result" hidden></div>
+      </section>
+
+      <section>
+        <h2>Uploaded <span class="muted" id="sound-count"></span></h2>
+        <div id="sound-list" class="cards"></div>
+      </section>
+
       <section>
         <h2>Profiles <span class="muted">quick sets</span></h2>
         <p class="note">A starting point. Individual sounds below stay however
@@ -738,5 +767,6 @@
 <script src="/maps.js"></script>
 <script src="/sfx.js"></script>
 <script src="/scenes.js"></script>
+<script src="/sounds.js"></script>
 </body>
 </html>

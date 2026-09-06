@@ -284,6 +284,16 @@ class Config:
     # as a table effect, which is the opposite of what an underscore is for.
     cue_crossfade_s: float = 3.0
 
+    # Where sound uploaded through the panel is written. The table OWNS this
+    # directory; `tracks/` and `cues/` under it are prepended to the two
+    # search paths at startup, so an upload is found without further
+    # configuration and takes precedence over a file of the same name that
+    # shipped with the table.
+    #
+    # Deliberately not any of the existing search paths: those point at
+    # recordings the table did not make and must never overwrite.
+    sound_upload_path: Optional[str] = None
+
     # Govee accent strips (plan doc 3.13). Device IDS, not IPs: those are
     # DHCP and move. An empty list disables the whole thing, which is the
     # right default -- discovery would otherwise find every Govee device in
@@ -459,6 +469,7 @@ def load_config(path: str) -> Config:
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
         cue_paths=list(raw.get("settings", {}).get("cue_paths", [])),
         cue_crossfade_s=float(raw.get("settings", {}).get("cue_crossfade_s", 3.0)),
+        sound_upload_path=raw.get("settings", {}).get("sound_upload_path"),
         background_paths=list(raw.get("settings", {}).get("background_paths", [])),
         custom_background_path=raw.get("settings", {}).get("custom_background_path"),
         map_data_path=raw.get("settings", {}).get("map_data_path"),
@@ -501,6 +512,7 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "audio_paths": list(config.audio_paths),
         "cue_paths": list(config.cue_paths),
         "cue_crossfade_s": config.cue_crossfade_s,
+        "sound_upload_path": config.sound_upload_path,
         "background_paths": list(config.background_paths),
         "custom_background_path": config.custom_background_path,
         "map_data_path": config.map_data_path,
