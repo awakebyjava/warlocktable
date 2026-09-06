@@ -1462,6 +1462,7 @@ new ResizeObserver(() => {
  */
 (function () {
   const enabled = $("#voice-enabled");
+  const announce = $("#voice-announce");
   const slider = $("#voice-chattiness");
   const out = $("#voice-chattiness-out");
   const note = $("#voice-note");
@@ -1482,6 +1483,13 @@ new ResizeObserver(() => {
 
   function render(s) {
     enabled.checked = !!s.enabled;
+    if (announce) {
+      announce.checked = s.announce_cards !== false;
+      // The announcement is the Entity's voice too, so it cannot play with
+      // the voice switched off. Showing it live while it is inert would be
+      // a lie about what the table will do.
+      announce.disabled = !s.enabled;
+    }
     const v = Math.round((s.chattiness == null ? 0.5 : s.chattiness) * 100);
     if (document.activeElement !== slider) slider.value = v;
     out.textContent = describe(v);
@@ -1516,6 +1524,10 @@ new ResizeObserver(() => {
   }
 
   enabled.addEventListener("change", () => post("enabled", { enabled: enabled.checked }));
+  if (announce) {
+    announce.addEventListener("change", () =>
+      post("announce-cards", { announce_cards: announce.checked }));
+  }
 
   // Label follows the thumb; the server only hears about it on release, so a
   // drag is one config write rather than twenty.

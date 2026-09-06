@@ -58,6 +58,11 @@ class VoicePanel(object):
             handler._send_json(self.set_enabled(bool(body.get("enabled"))))
             return
 
+        if method == "POST" and rest == "announce-cards":
+            body = handler._read_json()
+            handler._send_json(self.set_announce(bool(body.get("announce_cards"))))
+            return True
+
         if method == "POST" and rest == "chattiness":
             body = handler._read_json()
             handler._send_json(self.set_chattiness(body.get("chattiness")))
@@ -107,12 +112,24 @@ class VoicePanel(object):
                           "The voice is enabled but did not start -- check "
                           "lines_json and audio_dir in the table's config."),
                 "chattiness": settings.chattiness,
+                "announce_cards": settings.announce_cards,
                 "mood": settings.mood,
                 "speaking": False,
                 "lines": 0,
             }
         out["running"] = voice is not None
         return out
+
+    def set_announce(self, on: bool) -> dict:
+        """Whether a tapped playing card gets read out.
+
+        Separate from the voice's own switch: the announcement is
+        deterministic and fires on all 54, while the Entity's remarks are
+        occasional. Wanting the deck read and the commentary silent is a
+        perfectly ordinary preference.
+        """
+        self.runtime.store.set_voice(announce_cards=on)
+        return self.status()
 
     def set_enabled(self, enabled: bool) -> dict:
         """Turn the Entity on or off, persistently.

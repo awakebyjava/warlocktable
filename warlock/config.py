@@ -154,6 +154,13 @@ class EntityVoice:
     lines_json: Optional[str] = None
     audio_dir: Optional[str] = None
 
+    # Read the name of a playing card out loud when one is tapped. Its own
+    # switch rather than part of `enabled`, because the two are different
+    # things: the Entity's remarks are occasional flavour, while an
+    # announcement is deterministic and fires on all 54. Someone may well
+    # want the deck read and the commentary silent, or the reverse.
+    announce_cards: bool = True
+
     # Measured from when a line FINISHES, not when it starts. Lines run to
     # 7.9 seconds, so the difference is audible.
     global_cooldown_s: float = 180.0
@@ -698,6 +705,7 @@ def _load_voice(raw) -> EntityVoice:
         enabled=bool(raw.get("enabled", False)),
         lines_json=raw.get("lines_json"),
         audio_dir=raw.get("audio_dir"),
+        announce_cards=bool(raw.get("announce_cards", True)),
         global_cooldown_s=max(0.0, float(raw.get("global_cooldown_s", 180.0))),
         default_probability=max(0.0, min(1.0, float(raw.get("default_probability", 0.12)))),
         chattiness=max(0.0, min(1.0, float(raw.get("chattiness", 0.5)))),
@@ -713,6 +721,7 @@ def _dump_voice(voice: EntityVoice) -> dict:
         "enabled": voice.enabled,
         "lines_json": voice.lines_json,
         "audio_dir": voice.audio_dir,
+        "announce_cards": voice.announce_cards,
         "global_cooldown_s": voice.global_cooldown_s,
         "default_probability": voice.default_probability,
         "chattiness": voice.chattiness,

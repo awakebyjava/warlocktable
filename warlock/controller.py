@@ -536,6 +536,28 @@ class Controller:
             # the table had nothing witty to say.
             pass
 
+    def _announce(self, card: str) -> None:
+        """Read a playing card's name out, after its sting has finished.
+
+        Extends _sting_until by the announcement's length, so _voice -- which
+        already waits on that clock -- holds the Entity's commentary until the
+        card has actually been read. Reusing the existing gate rather than
+        adding a second one keeps all three layers on one timeline.
+        """
+        voice = self.voice
+        if voice is None:
+            return
+        try:
+            wait = max(0.0, self._sting_until - time.monotonic())
+            delay = (wait + self.VOICE_AFTER_STING_S) if wait > 0 else 0.0
+            spoken = voice.announce(card, min_delay=delay)
+            if spoken:
+                self._note_sting(delay + spoken)
+        except Exception:      # noqa: BLE001
+            # Same rule as the voice: a card tap must never fail because the
+            # table could not pronounce it.
+            pass
+
     def _sting(self, sound_id: str) -> None:
         """Fire a named sound effect. Never blocks, never raises.
 
@@ -645,6 +667,14 @@ class Controller:
         self._supersede(stop_effects=True)
         interruption = self.config.interruptions[interruption_name]
         self._sting_for("card", interruption_name)
+        # THEN the card is read out, THEN the Entity may remark on it. Three
+        # layers on one channel, so the order is the whole design: the sting
+        # is the card arriving, the announcement is the table reading it, and
+        # the line is the Entity's opinion of it. Each waits for the last.
+        #
+        # Only the 54 playing cards have an announcement; _announce returns
+        # 0.0 for the tarot and the ordering collapses back to sting-then-voice.
+        self._announce(interruption_name)
         self._voice(entity_triggers.for_interruption(interruption_name))
         self.log.record("interruption.start", name=interruption_name,
                          reverts_to=self.current_scene.name if self.current_scene else None)

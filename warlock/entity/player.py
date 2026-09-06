@@ -71,6 +71,46 @@ class VoicePlayer(object):
 
         return self._speak(line)
 
+    def speak_file(self, path: str, label: str, delay_s: float = 0.0) -> float:
+        """Play a voice file by path, returning its duration.
+
+        For the card announcements, which are the same voice through the same
+        chain but are NOT lines: they have no trigger, no mood, and no say in
+        whether they play. Returns the duration so the caller can hold the
+        Entity's own commentary until after the card has been read out --
+        otherwise the two talk over each other, which is the exact fault the
+        sting/voice ordering already had to fix once.
+
+        A delayed call cannot know the duration yet, so it returns the file's
+        own length measured up front rather than what the device reports.
+        """
+        duration = 0.0
+        try:
+            import wave
+            with wave.open(path, "rb") as w:
+                duration = w.getnframes() / float(w.getframerate() or 1)
+        except Exception:             # noqa: BLE001
+            # Not fatal: the announcement still plays, the caller just gets
+            # no duration to schedule against.
+            pass
+
+        def _go():
+            try:
+                self.audio.play_file(path, True)
+                self.log.record("voice.announced", card=label,
+                                duration_s=round(duration, 2))
+            except Exception as exc:  # noqa: BLE001
+                self.log.record("voice.announce_failed", card=label,
+                                error="%s: %s" % (type(exc).__name__, exc))
+
+        if delay_s > 0:
+            timer = threading.Timer(delay_s, _go)
+            timer.daemon = True
+            timer.start()
+        else:
+            _go()
+        return duration
+
     def _speak(self, line: Line) -> bool:
         try:
             # duck=True: the Entity talks OVER the soundscape, which dips

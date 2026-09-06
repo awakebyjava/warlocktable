@@ -142,7 +142,8 @@ class ConfigStore:
             return {"volume": self.config.volume,
                     "device": self.config.audio_device}
 
-    def set_voice(self, enabled=None, chattiness=None, mood=None):
+    def set_voice(self, enabled=None, chattiness=None, mood=None,
+                  announce_cards=None):
         """Persist the Entity voice controls.
 
         Same shape and the same rollback reasoning as set_audio: these are
@@ -152,8 +153,11 @@ class ConfigStore:
         """
         with self._lock:
             voice = self.config.entity_voice
-            before = (voice.enabled, voice.chattiness, voice.mood)
+            before = (voice.enabled, voice.chattiness, voice.mood,
+                      voice.announce_cards)
 
+            if announce_cards is not None:
+                voice.announce_cards = bool(announce_cards)
             if enabled is not None:
                 voice.enabled = bool(enabled)
             if chattiness is not None:
@@ -164,15 +168,18 @@ class ConfigStore:
 
             try:
                 self._commit("voice", enabled=voice.enabled,
-                             chattiness=voice.chattiness, mood=voice.mood)
+                             chattiness=voice.chattiness, mood=voice.mood,
+                             announce_cards=voice.announce_cards)
             except Exception as exc:
-                voice.enabled, voice.chattiness, voice.mood = before
+                (voice.enabled, voice.chattiness, voice.mood,
+                 voice.announce_cards) = before
                 self.log.record("config.save_failed", change="voice",
                                 error=str(exc))
                 raise
             return {"enabled": voice.enabled,
                     "chattiness": voice.chattiness,
-                    "mood": voice.mood}
+                    "mood": voice.mood,
+                    "announce_cards": voice.announce_cards}
 
     def set_sfx(self, enabled=None, family=None, on=None,
                 muted=None, profile=None):

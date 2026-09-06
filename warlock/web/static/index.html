@@ -286,8 +286,12 @@
            so a tuning session does not need a text editor. -->
       <section id="voice-section">
         <h2>The Table&rsquo;s Voice <span class="muted" id="voice-state"></span></h2>
-        <div class="check-row">
+        <div class="check-row" style="grid-template-columns:repeat(2,1fr)">
           <label><input type="checkbox" id="voice-enabled"> Let the table speak</label>
+          <!-- Its own switch. The announcement fires on all 54 playing cards
+               and is not a remark, so wanting the deck read out with the
+               commentary silent is an ordinary preference. -->
+          <label><input type="checkbox" id="voice-announce"> Read playing cards aloud</label>
         </div>
         <div class="slider-row">
           <label>How often</label>

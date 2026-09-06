@@ -43,6 +43,11 @@ class EntityVoice(object):
         self.picker: Optional[Picker] = None
         self.player: Optional[VoicePlayer] = None
         self.last: Optional[Decision] = None
+        # Where the 54 card announcements live. A sibling of the line
+        # directory rather than a separate setting: they are the same voice,
+        # rendered by the same pipeline, and splitting the configuration
+        # would let the two drift apart on a table where only one was copied.
+        self.card_dir: Optional[str] = None
         self.healthy = False
         self.last_error: Optional[str] = None
         self._lock = threading.Lock()
@@ -64,6 +69,7 @@ class EntityVoice(object):
                 self.log.record("voice.unavailable", error=self.last_error)
                 return False
 
+            self.card_dir = os.path.join(os.path.dirname(audio_dir), "cards")
             self.library = LineLibrary.load(path, audio_dir)
             self.picker = Picker(self.library, self.settings)
             self.player = VoicePlayer(self.audio, self.log,
@@ -153,6 +159,43 @@ class EntityVoice(object):
 
     # --- the manual path --------------------------------------------------
 
+    def announce(self, card: str, min_delay: float = 0.0) -> float:
+        """Say a playing card's name. Returns how long it will sound for.
+
+        DETERMINISTIC, unlike everything else in here. on_trigger asks whether
+        the Entity feels like speaking; this always speaks, because it is not
+        a remark -- it is the table reading the card you just put on it.
+
+        WHICH CARDS GET ONE IS DECIDED BY WHAT IS ON DISK. There is no list of
+        playing cards here and no suit matching: the 54 announcements exist as
+        files and the 25 tarot do not, so a missing file simply means silence.
+        That keeps the deck's composition entirely out of the code -- render a
+        new card and it announces itself.
+
+        Returns 0.0 for anything with no announcement, so the caller can add
+        it to a delay without checking first.
+        """
+        if not self.settings.enabled or not self.settings.announce_cards:
+            return 0.0
+        if not self.card_dir or self.player is None:
+            return 0.0
+        # A card name reaches this from config and is used to build a path.
+        # Nothing but the flat name is ever a real card, so refuse anything
+        # that could climb out of the directory.
+        if not card or "/" in card or "\\" in card or card.startswith("."):
+            return 0.0
+
+        path = os.path.join(self.card_dir, card + ".wav")
+        if not os.path.isfile(path):
+            return 0.0
+
+        try:
+            return float(self.player.speak_file(path, card, min_delay) or 0.0)
+        except Exception as exc:      # noqa: BLE001
+            self.log.record("voice.announce_failed", card=card,
+                            error="%s: %s" % (type(exc).__name__, exc))
+            return 0.0
+
     def say(self, line_id: str) -> bool:
         """Play one line by id, now.
 
@@ -197,6 +240,7 @@ class EntityVoice(object):
             "healthy": self.healthy,
             "error": self.last_error,
             "chattiness": self.settings.chattiness,
+            "announce_cards": self.settings.announce_cards,
             "mood": self.settings.mood,
             "speaking": self.is_speaking,
             "cooldown_s": round(self.picker.scaled_cooldown(), 1) if self.picker else None,
