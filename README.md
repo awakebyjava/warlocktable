@@ -28,6 +28,7 @@ driven from an iPad web panel or from the cards themselves.
 | Generate artwork for the TV | [`display-image-specifications.md`](display-image-specifications.md) |
 | Upload and scale a battle map | [`map-import-specification.md`](map-import-specification.md) |
 | Make the table talk | [`entity-voice-specification.md`](entity-voice-specification.md) |
+| Give the table its sound effects | [`soundeffects/table-sfx.json`](soundeffects/table-sfx.json) |
 | Deploy to, or debug, the Pi | [`deploy/README.md`](deploy/README.md) |
 | Build any UI | [`warlock-table-style-guide.html`](warlock-table-style-guide.html) |
 
@@ -91,6 +92,8 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                      catalog_sfx.py      describe a sound library into one CSV,
                                          so a shortlist can be made without
                                          listening to thousands of files
+                     render_sfx.py       generate the table's 54 stingers from
+                                         soundeffects/table-sfx.json
 branding/          the wordmark, app icons, and the table's two sigils
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy. `generated/` is patterngen.py's output (30);
