@@ -22,6 +22,17 @@ env/
 # only the log is excluded.
 data/events.log
 
+# The sampled sound libraries under soundeffects/ are a laptop-side working
+# set, not project data. The *.wav rule above already keeps the audio out;
+# these are the bits of the download that slipped past it — a bundle filelist
+# and the vendors' own readme. The LICENSE PDF beside them stays tracked, on
+# purpose: it is the terms the shipped stings were made under.
+soundeffects/*Filelist.xlsx
+soundeffects/Readme.txt
+
+# catalog_sfx.py's error log. Build output, regenerated on every run.
+catalog_errors.log
+
 # Finished display artwork — same rule as audio, one order of magnitude down.
 #
 # `map-sources/` holds the small raw generator output (~1MB each) and IS
