@@ -104,20 +104,25 @@ class EntityVoice(object):
         if self.picker is not None:
             self.picker.begin_gesture()
 
-    def on_trigger(self, trigger: str) -> Optional[str]:
+    def on_trigger(self, trigger: str, min_delay: float = 0.0) -> Optional[str]:
         """Maybe speak. Returns the line id that played, or None.
+
+        `min_delay` is how long to hold the line back regardless of the
+        trigger's own configured delay. The controller passes the remaining
+        length of a sting through it, so the Entity comments on what the table
+        just did instead of talking over it.
 
         NEVER RAISES, and never blocks: the table action has already happened
         by the time this is called, and must not be able to un-happen.
         """
         try:
-            return self._on_trigger(trigger)
+            return self._on_trigger(trigger, min_delay)
         except Exception as exc:      # noqa: BLE001
             self.log.record("voice.error", trigger=trigger,
                             error="%s: %s" % (type(exc).__name__, exc))
             return None
 
-    def _on_trigger(self, trigger: str) -> Optional[str]:
+    def _on_trigger(self, trigger: str, min_delay: float = 0.0) -> Optional[str]:
         if not self.healthy or self.picker is None or self.player is None:
             return None
 
@@ -133,7 +138,9 @@ class EntityVoice(object):
                             reason=decision.reason)
             return None
 
-        delay = self.settings.delay_for(trigger)
+        # Whichever is longer: the beat this trigger wants, or the wait for
+        # the sting to finish.
+        delay = max(self.settings.delay_for(trigger), float(min_delay or 0.0))
         if not self.player.play(decision.line, delay_s=delay):
             # The audio was missing or the device refused. Do not hold the
             # cooldown for a line nobody heard.

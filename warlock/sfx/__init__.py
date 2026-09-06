@@ -127,59 +127,69 @@ class SoundEffects(object):
 
     # --- firing -----------------------------------------------------------
 
-    def play(self, sound_id: str, force: bool = False) -> bool:
-        """Play one sound. `force` is the panel's audition button, which
-        ignores every toggle so a muted sound can still be heard."""
+    def play(self, sound_id: str, force: bool = False) -> float:
+        """Play one sound. Returns how long it will sound for, in seconds, or
+        0.0 if nothing played.
+
+        The duration is what lets the controller keep the Entity's voice off
+        the top of a sting -- see Controller._sting.
+
+        `force` is the panel's audition button, which ignores every toggle so
+        a muted sound can still be heard.
+        """
         try:
             return self._play(sound_id, force)
         except Exception as exc:      # noqa: BLE001
             self.log.record("sfx.error", sound=sound_id,
                             error="%s: %s" % (type(exc).__name__, exc))
-            return False
+            return 0.0
 
-    def _play(self, sound_id: str, force: bool) -> bool:
+    def _play(self, sound_id: str, force: bool) -> float:
         if not self.healthy:
-            return False
+            return 0.0
         entry = self.sounds.get(sound_id)
         if entry is None:
-            return False
+            return 0.0
         if not force and not self.is_on(sound_id):
-            return False
+            return 0.0
 
         path = entry["path"]
         if not os.path.isfile(path):
             if sound_id not in self._warned:
                 self._warned.add(sound_id)
                 self.log.record("sfx.missing_audio", sound=sound_id, path=path)
-            return False
+            return 0.0
 
         duck = self.settings.duck_for(entry.get("family", ""))
         # play_file, NOT play_soundscape. This is the whole point: the effect
         # channel layers over the bed, so a scene's ongoing audio keeps
         # running underneath its own arrival sting.
-        self.audio.play_file(path, duck)
+        seconds = self.audio.play_file(path, duck)
         with self._lock:
             self.last_played = sound_id
-        return True
+        try:
+            return float(seconds or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
 
     # --- what the controller calls ----------------------------------------
 
     def for_card(self, card_id: str) -> Optional[str]:
         return self.by_card.get((card_id or "").lower())
 
-    def on_card(self, card_id: str) -> bool:
+    def on_card(self, card_id: str) -> float:
         """An interruption fired. Cannot affect the card's timing: every
         interruption reverts on its own duration_s and carries no audio."""
         sid = self.for_card(card_id)
-        return self.play(sid) if sid else False
+        return self.play(sid) if sid else 0.0
 
-    def on_scene(self, scene_name: str) -> bool:
+    def on_scene(self, scene_name: str) -> float:
         """A scene was applied. THE STING ONLY -- the bed is started
         separately by the controller and is not this layer's business."""
         sid = self.for_card((scene_name or "").lower())
-        return self.play(sid) if sid else False
+        return self.play(sid) if sid else 0.0
 
-    def on_event(self, sound_id: str) -> bool:
+    def on_event(self, sound_id: str) -> float:
         """A named interface, system, combat or player sound."""
         return self.play(sound_id)
 

@@ -51,6 +51,10 @@ class Controller:
         # separately below and must keep running underneath.
         self.sfx = None
 
+        # When the current sting stops sounding (time.monotonic). The voice
+        # waits for this, so the two do not talk over each other.
+        self._sting_until = 0.0
+
         self._revert_timer: Optional[threading.Timer] = None
         self._lock = threading.Lock()
 
@@ -490,6 +494,20 @@ class Controller:
 
     # ---- internal: precedence ------------------------------------------
 
+    # How long after a sting finishes before the Entity speaks. A beat, so
+    # the line reads as a REACTION to what the table was made to do rather
+    # than as something competing with it.
+    VOICE_AFTER_STING_S = 0.35
+
+    def _note_sting(self, seconds) -> None:
+        try:
+            seconds = float(seconds or 0.0)
+        except (TypeError, ValueError):
+            return
+        if seconds > 0:
+            self._sting_until = max(self._sting_until,
+                                    time.monotonic() + seconds)
+
     def _voice(self, trigger: str) -> None:
         """Offer the Entity a chance to say something. Never blocks, never
         raises, never affects anything.
@@ -503,7 +521,15 @@ class Controller:
         if voice is None:
             return
         try:
-            voice.on_trigger(trigger)
+            # HOLD THE LINE UNTIL THE STING HAS FINISHED. Both layers duck the
+            # soundscape and both fire off the same trigger, so without this
+            # they land on top of each other and neither is intelligible. The
+            # sting is what the table was made to do; the line is the Entity's
+            # comment on having done it, so it goes second.
+            wait = max(0.0, self._sting_until - time.monotonic())
+            voice.on_trigger(trigger,
+                             min_delay=(wait + self.VOICE_AFTER_STING_S)
+                             if wait > 0 else 0.0)
         except Exception:      # noqa: BLE001
             # Already guarded inside EntityVoice; belt and braces, because the
             # one thing that must never happen is a card tap failing because
@@ -521,7 +547,7 @@ class Controller:
         if sfx is None:
             return
         try:
-            sfx.on_event(sound_id)
+            self._note_sting(sfx.on_event(sound_id))
         except Exception:      # noqa: BLE001
             pass
 
@@ -532,9 +558,9 @@ class Controller:
             return
         try:
             if kind == "scene":
-                sfx.on_scene(name)
+                self._note_sting(sfx.on_scene(name))
             else:
-                sfx.on_card(name)
+                self._note_sting(sfx.on_card(name))
         except Exception:      # noqa: BLE001
             pass
 
@@ -580,12 +606,13 @@ class Controller:
         scene = self.config.scenes[scene_name]
         self.current_scene = scene
         self.log.record("scene.apply", name=scene_name)
-        self._voice(entity_triggers.for_scene(scene_name))
-        # The arrival sting. Fired AFTER _supersede(stop_effects=True) above,
-        # so it is not immediately cancelled, and it goes to the EFFECT
-        # channel -- the scene's ongoing soundscape is started in `jobs`
-        # below and keeps running underneath it.
+        # STING FIRST, THEN THE VOICE -- _voice waits on _sting_until, which
+        # only exists once the sting has been fired. Fired after
+        # _supersede(stop_effects=True) above so it is not cancelled on
+        # arrival, and on the EFFECT channel, so the scene's ongoing
+        # soundscape (started in `jobs` below) keeps running underneath.
         self._sting_for("scene", scene_name)
+        self._voice(entity_triggers.for_scene(scene_name))
         self._session_log("scene", name=scene_name)
         # Each subsystem is attempted independently and CONCURRENTLY: a dead
         # Pixelblaze must not stop the soundscape (plan doc 5.2), and the
