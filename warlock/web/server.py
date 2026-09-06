@@ -231,6 +231,12 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(self.controller.zone_report())
         elif path == "/api/config/cards":
             self._send_json({"cards": self.runtime.store.list_cards()})
+        elif path == "/api/config/scenes":
+            self._send_json({
+                "scenes": self.runtime.store.list_scenes(),
+                "options": self.runtime.store.scene_options(self.controller),
+                "idle_scene": self.controller.config.idle_scene_name,
+            })
         elif path == "/api/config/targets":
             self._send_json(self.runtime.store.valid_targets())
         elif path == "/api/config/unassigned":
@@ -246,6 +252,21 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if self._maps("DELETE", path):
             return
+        if path.startswith("/api/config/scenes/"):
+            name = _unquote(path[len("/api/config/scenes/"):])
+            from ..config import ConfigError
+            try:
+                self.runtime.store.delete_scene(name)
+            except ConfigError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json({"ok": True,
+                             "scenes": self.runtime.store.list_scenes()})
+            return
+
         if path.startswith("/api/config/cards/"):
             uid = _unquote(path[len("/api/config/cards/"):])
             from ..config import ConfigError
@@ -557,6 +578,31 @@ class _Handler(BaseHTTPRequestHandler):
 
         if path == "/api/initiative/clear":
             self._send_json(self.controller.clear_initiative())
+            return
+
+        if path == "/api/config/scenes":
+            body = self._read_json()
+            from ..config import ConfigError
+            try:
+                result = self.runtime.store.set_scene(
+                    name=body.get("name", ""),
+                    lights=body.get("lights", ""),
+                    soundscape=body.get("soundscape"),
+                    background=body.get("background"),
+                    crossfade_s=body.get("crossfade_s"),
+                    duck=body.get("duck"),
+                    # Validated against what the devices actually have, so a
+                    # scene cannot be saved naming something that is not there.
+                    options=self.runtime.store.scene_options(self.controller),
+                )
+            except ConfigError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json({"ok": True, "scene": result,
+                             "scenes": self.runtime.store.list_scenes()})
             return
 
         # --- Action surface: does something NOW ---

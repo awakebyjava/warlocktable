@@ -257,10 +257,15 @@ function buildBackgroundPicker(names) {
   });
 }
 
-async function buildUI() {
+/* Rebuild everything the vocabulary drives: the scene buttons, the grouped
+ * interruptions, the random tables and the map picker.
+ *
+ * Exposed on window because the scene editor changes what exists, and leaving
+ * the Run panel showing a stale set until someone reloads is exactly the kind
+ * of quiet inconsistency this panel is meant not to have.
+ */
+async function rebuildVocabulary() {
   const v = await api("/api/vocabulary");
-  // Idle is on its own always-visible button; listing it twice invites
-  // tapping the wrong one mid-session.
   addButtons($("#scenes"),
              v.scenes.filter(n => n !== v.idle_scene),
              "apply_scene", "scene_name", null);
@@ -270,7 +275,14 @@ async function buildUI() {
   addButtons($("#tables"), v.random_tables,
              "roll_table", "table_name", "roll");
   if (!v.random_tables.length) $("#tables-section").style.display = "none";
+  return v;
+}
+window.rebuildVocabulary = rebuildVocabulary;
 
+async function buildUI() {
+  // Idle is on its own always-visible button; listing it twice invites
+  // tapping the wrong one mid-session -- see rebuildVocabulary.
+  await rebuildVocabulary();
   await refreshCards();
   await refreshSeats();
   await refreshInitiative();
@@ -1182,7 +1194,7 @@ if ("serviceWorker" in navigator) {
  * the window lands somewhere sensible rather than nowhere.
  */
 
-const PANELS = ["players", "run", "dice", "settings", "cards", "maps", "sfx"];
+const PANELS = ["players", "run", "dice", "settings", "cards", "maps", "sfx", "scenes"];
 const LANDING = "players";      // people arriving is what happens first
 let current = LANDING;
 
@@ -1201,7 +1213,7 @@ function goto(name) {
   // Cards is not a destination of its own, so nothing lights up for it.
   // Settings stays lit while you are inside it, because that is where you
   // came from and where the back button returns you.
-  if (name === "cards" || name === "maps" || name === "sfx") {
+  if (["cards", "maps", "sfx", "scenes"].indexOf(name) >= 0) {
     document.querySelectorAll('[data-goto="settings"]').forEach(t =>
       t.classList.add("active"));
   }
@@ -1209,8 +1221,7 @@ function goto(name) {
   // what reveals the close control the missing tab bar would have been.
   document.body.classList.toggle(
     "panel-over", name === "dice" || name === "settings" ||
-                  name === "cards" || name === "maps" ||
-                  name === "sfx");
+                  ["cards", "maps", "sfx", "scenes"].indexOf(name) >= 0);
   // A panel switch scrolls to the top of the new panel, not to wherever
   // the last one was left.
   window.scrollTo(0, 0);
@@ -1227,6 +1238,8 @@ $("#cards-back").addEventListener("click", () => goto("settings"));
 $("#open-maps").addEventListener("click", () => goto("maps"));
 $("#open-sfx").addEventListener("click", () => goto("sfx"));
 $("#sfx-back").addEventListener("click", () => goto("settings"));
+$("#open-scenes").addEventListener("click", () => goto("scenes"));
+$("#scenes-back").addEventListener("click", () => goto("settings"));
 $("#maps-back").addEventListener("click", () => goto("settings"));
 window.goto = goto;
 window.api = api;

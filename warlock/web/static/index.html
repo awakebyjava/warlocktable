@@ -285,6 +285,13 @@
         <p class="note" id="voice-note"></p>
       </section>
 
+      <section>
+        <h2>Scenes</h2>
+        <p class="note">What a scene is made of &mdash; its lights, its ongoing
+           soundscape and its map. Configuration, like the cards.</p>
+        <button id="open-scenes" class="wide">Scene Editor</button>
+      </section>
+
       <section id="sfx-entry">
         <h2>Sound Effects <span class="muted" id="sfx-state"></span></h2>
         <div class="check-row">
@@ -336,6 +343,66 @@
       <section>
         <h2>Cards <span class="muted" id="card-count"></span></h2>
         <div id="cards" class="cards"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============================================================= SCENES
+       A page, not a panel: this is the table's wiring, and editing it during
+       play is not something to make easy. -->
+  <section class="panel page" id="panel-scenes" data-panel="scenes" hidden>
+    <div class="panel-col wide-col">
+      <div class="page-head">
+        <button id="scenes-back" class="ghost">&#9664; Settings</button>
+        <h2>Scene Editor</h2>
+      </div>
+
+      <section>
+        <h2 id="scene-form-title">New Scene</h2>
+        <p class="note">Every list below offers only what the table actually
+           has, so a scene cannot be saved pointing at something missing.</p>
+
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="scene-name" maxlength="40"
+                 placeholder="the_old_keep">
+        </label>
+
+        <label class="field">
+          <span>Lights <span class="muted">required</span></span>
+          <select id="scene-lights"></select>
+        </label>
+
+        <label class="field">
+          <span>Soundscape <span class="muted">the ongoing bed &mdash; optional</span></span>
+          <select id="scene-soundscape"></select>
+        </label>
+
+        <label class="field">
+          <span>Map <span class="muted">optional</span></span>
+          <select id="scene-background"></select>
+        </label>
+
+        <div class="slider-row">
+          <label>Crossfade</label>
+          <input type="range" id="scene-crossfade" min="0" max="8" step="0.5" value="1.5">
+          <output id="scene-crossfade-out">1.5s</output>
+        </div>
+
+        <div class="check-row">
+          <label><input type="checkbox" id="scene-duck" checked>
+                 Dip the soundscape under stings</label>
+        </div>
+
+        <div class="map-actions">
+          <button id="scene-save" class="primary">Save Scene</button>
+          <button id="scene-clear" class="ghost">Clear</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Existing <span class="muted" id="scene-count"></span></h2>
+        <div id="scene-list" class="cards"></div>
       </section>
     </div>
   </section>
@@ -654,5 +721,6 @@
 <script src="/app.js"></script>
 <script src="/maps.js"></script>
 <script src="/sfx.js"></script>
+<script src="/scenes.js"></script>
 </body>
 </html>

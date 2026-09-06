@@ -1384,3 +1384,20 @@ body.locked { overflow: hidden; }
   font-family: inherit; font-size: 13px;
 }
 #background-pick:focus { outline: none; border-color: var(--brass); }
+
+/* Scene editor. .field span is block, which pushes the muted hint onto its
+   own line and makes every label look like two labels. Keep hints inline. */
+#panel-scenes .field > span > .muted,
+#panel-maps .field > span > .muted { display: inline; text-transform: none; }
+
+#panel-scenes select {
+  width: 100%;
+  padding: 10px;
+  background: var(--black-2);
+  color: var(--bone);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font-family: inherit; font-size: 13px;
+}
+#panel-scenes select:focus { outline: none; border-color: var(--brass); }
+#panel-scenes .card-row .uid { min-width: 12ch; }

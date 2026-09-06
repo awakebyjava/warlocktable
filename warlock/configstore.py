@@ -22,11 +22,16 @@ always matches what is on disk.
 from __future__ import annotations
 
 import copy
+import re
 import threading
 from typing import Dict, List, Optional, Tuple
 
-from .config import Card, Config, ConfigError, Target, save_config
+from .config import Scene, Transition, Card, Config, ConfigError, Target, save_config
 from .zones import MAX_PLAYERS
+
+
+# Scene names end up as config keys and in URLs, so keep them plain.
+NAME_OK = re.compile(r"^[a-z0-9_-]+$")
 
 
 class ConfigStore:
@@ -252,6 +257,115 @@ class ConfigStore:
                                       target="%s:%s" % (kind, name))
         return {"uid": uid, "label": label, "target_kind": kind,
                 "target_name": name, "action": action}
+
+    # ------------------------------------------------------------- scenes
+
+    def list_scenes(self) -> List[dict]:
+        out = []
+        for name, sc in sorted(self.config.scenes.items()):
+            out.append({
+                "name": name,
+                "lights": sc.lights,
+                "soundscape": sc.soundscape,
+                "background": sc.background,
+                "crossfade_s": sc.transition.crossfade_s,
+                "duck": sc.transition.duck,
+                "is_idle": name == self.config.idle_scene_name,
+                "used_by": self.usage_of("scene", name),
+            })
+        return out
+
+    def scene_options(self, controller) -> dict:
+        """Everything a scene may point at, asked of the live devices.
+
+        Same principle as valid_targets and the action registry (plan doc
+        4.5): the editor offers what actually exists, so a scene cannot be
+        saved naming a pattern or a track that is not there.
+        """
+        def safe(fn, fallback=None):
+            try:
+                return list(fn())
+            except Exception:              # noqa: BLE001
+                return list(fallback or [])
+
+        return {
+            "lights": safe(controller.lights.available_patterns),
+            "soundscapes": safe(controller.audio.available_tracks),
+            "backgrounds": safe(controller.background_choices),
+        }
+
+    def set_scene(self, name, lights, soundscape=None, background=None,
+                  crossfade_s=None, duck=None, options=None) -> dict:
+        """Create or update a scene.
+
+        `options` is scene_options() when the caller has a controller to ask.
+        Given it, a scene cannot be saved referring to a pattern, track or
+        background that does not exist -- the referential integrity rule from
+        4.5, applied at the point of writing rather than discovered at the
+        table when the card is tapped.
+        """
+        name = (name or "").strip().lower().replace(" ", "_")
+        lights = (lights or "").strip()
+        if not name:
+            raise ConfigError("scene name is required")
+        if not NAME_OK.match(name):
+            raise ConfigError("scene name may only use letters, numbers, "
+                              "dash and underscore")
+        if not lights:
+            raise ConfigError("a lighting pattern is required")
+
+        soundscape = (soundscape or "").strip() or None
+        background = (background or "").strip() or None
+
+        if options:
+            if options.get("lights") and lights not in options["lights"]:
+                raise ConfigError("no lighting pattern named %r" % lights)
+            if soundscape and options.get("soundscapes")                     and soundscape not in options["soundscapes"]:
+                raise ConfigError("no soundscape named %r" % soundscape)
+            if background and options.get("backgrounds")                     and background not in options["backgrounds"]:
+                raise ConfigError("no background named %r" % background)
+
+        existing = self.config.scenes.get(name)
+        transition = Transition(
+            crossfade_s=(float(crossfade_s) if crossfade_s is not None
+                         else (existing.transition.crossfade_s if existing else 1.5)),
+            duck=(bool(duck) if duck is not None
+                  else (existing.transition.duck if existing else True)),
+        )
+
+        def mutate():
+            self.config.scenes[name] = Scene(
+                name=name, lights=lights, soundscape=soundscape,
+                background=background, transition=transition)
+            return "updated" if existing else "created"
+
+        action = self._with_rollback("scene", mutate, name=name, lights=lights)
+        return {"name": name, "action": action}
+
+    def delete_scene(self, name: str) -> None:
+        """Remove a scene. Refuses if anything still points at it."""
+        name = (name or "").strip()
+        if name not in self.config.scenes:
+            raise ConfigError("no scene named %r" % name)
+        if name == self.config.idle_scene_name:
+            raise ConfigError(
+                "%r is the idle scene -- the table falls back to it, so "
+                "removing it would leave no resting state." % name)
+
+        users = self.usage_of("scene", name)
+        if users:
+            # Deleting out from under a card would leave a tap that does
+            # nothing and says nothing, which is the failure this whole
+            # referential-integrity idea exists to prevent.
+            raise ConfigError(
+                "%r is still used by %d card(s): %s"
+                % (name, len(users), ", ".join(users[:4])))
+
+        def mutate():
+            del self.config.scenes[name]
+            return "deleted"
+
+        self._with_rollback("scene", mutate, name=name)
 
     def delete_card(self, uid: str) -> None:
         with self._lock:
