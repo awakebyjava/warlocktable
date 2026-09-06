@@ -1,0 +1,485 @@
+{
+  "_meta": {
+    "description": "Every sound effect the Warlock Table needs, and the prompt that generates it. Sibling of voices/entity-lines.json: same shape, same render-then-process pipeline, so the stingers and the Entity's voice sit together sonically instead of sounding like they came from different rooms.",
+    "character_reference": "voices/warlock-table-entity-character-bible.md",
+    "elevenlabs": {
+      "endpoint": "https://api.elevenlabs.io/v1/sound-generation",
+      "auth_header": "xi-api-key",
+      "env_var": "ELEVENLABS_API_KEY",
+      "output_format": "mp3_44100_128",
+      "default_prompt_influence": 0.45,
+      "output_dir": "audio/sfx/",
+      "raw_dir": "audio/sfx/_raw/",
+      "note": "Duration is capped by the API at roughly 22s. Nothing here needs more: aura cards hold for 60s via the interruption's duration_s, and the LIGHT carries that time. The audio is a sting at the top, not a bed."
+    },
+
+    "aesthetic": {
+      "why": "The bible, section 3: the Entity has no sight. It knows the room through CONTACT and through VIBRATION IN THE WOOD. So the table's sounds are not signals played AT the room -- they are the sound of the table's own body being struck, pressed, or made to resonate. That single idea should be audible in every file here.",
+
+      "prefix": "A dry, close-recorded sound originating inside a large slab of old hardwood, as though the wood itself were the instrument.",
+
+      "suffix": "Low-mid weighted, woody and resonant with audible grain. Dry, close, no music, no melody, no synthesiser, no vocal. Short natural tail. Restrained -- quiet rather than loud.",
+
+      "prefix_and_suffix_are_prepended_by_the_renderer": true,
+      "why_shared": "The four aces have to sound like ONE family, and twelve auras have to sound like each other's siblings. Coherence comes from a shared skeleton plus identical post-processing, never from writing fifty freehand prompts and hoping. Per-sound `prompt` fields carry ONLY what is specific to that sound.",
+
+      "prohibitions": [
+        "No music, melody or chord -- the bible forbids fantasy-generic vocabulary and this is its audio equivalent.",
+        "No bright synthetic UI blips. Section 6: containment, not volume. The worse things are, the flatter it gets.",
+        "No human voice, ever. The Entity's voice is a separate layer and must stay the only thing that speaks.",
+        "No sparkle, shimmer or magic-wand tinkle.",
+        "Nothing cheerful. The table is not pleased to be doing this."
+      ],
+
+      "compelled_performance": "Bible section 4: a triggered effect is not something the table offers, it is something PULLED OUT of it. Card sounds should carry a trace of that -- something under strain, extracted, a body made to answer. Interface sounds are the Warlock's hand on the leash and should be small, precise and unresentful; the table saves its objection for the cards."
+    },
+
+    "families": {
+      "boon": "The four aces share ONE sound. Per the bible section 8, suit changes the colour of the light, not the response -- and the Entity's boon lines are a shared pool for the same reason. One chime, four colours.",
+      "person": "Nine cards, nine sounds. A person arriving at the table. Each is a distinct physical event -- something settling, shifting, taking up space -- rather than a character theme.",
+      "aura": "Twelve cards, twelve sounds. A STATE settling over the room. Longer, with a tail, but still a sting: the card holds for 60s on the lights, not on the audio.",
+      "scene": "The five lands. The soundscape bed already carries the mood; this is only the moment of the change -- the room becoming somewhere else.",
+      "interface": "The Warlock's panel. Fires constantly, so must survive fifty repetitions in an evening. Small, dry, precise. If in doubt, quieter.",
+      "system": "The table waking, sleeping, and reporting on itself.",
+      "combat": "Initiative. The turn sound fires every few seconds and is the single most-repeated sound in the build -- it must be almost subliminal.",
+      "player": "Things a player does from their phone, or at their seat."
+    }
+  },
+
+  "sounds": [
+    {
+      "id": "boon_chime",
+      "family": "boon",
+      "used_by": ["ace_of_swords", "ace_of_cups", "ace_of_wands", "ace_of_pentacles"],
+      "trigger": "tarot_boon_any",
+      "intent": "Something has been given. The Entity resents that it was not given to it.",
+      "prompt": "A single warm struck tone, like a heavy wooden beam hit once with a soft mallet, blooming and then fading.",
+      "duration_seconds": 3.0
+    },
+
+    {
+      "id": "person_the_magician",
+      "family": "person",
+      "used_by": ["the_magician"],
+      "intent": "Sleight of hand. Something done quickly and neatly before you could watch it.",
+      "prompt": "A fast dry wooden snap followed immediately by a soft hollow knock, as if something changed places.",
+      "duration_seconds": 2.0
+    },
+    {
+      "id": "person_the_high_priestess",
+      "family": "person",
+      "used_by": ["the_high_priestess"],
+      "intent": "Something withheld. A door not opened.",
+      "prompt": "A slow deep wooden creak that stops abruptly before it finishes, leaving silence.",
+      "duration_seconds": 2.5
+    },
+    {
+      "id": "person_the_empress",
+      "family": "person",
+      "used_by": ["the_empress"],
+      "intent": "Abundance pressing down. Weight arriving, warm.",
+      "prompt": "A soft heavy settling, like a great weight easing down onto old timber, with a low warm resonance.",
+      "duration_seconds": 3.0
+    },
+    {
+      "id": "person_the_emperor",
+      "family": "person",
+      "used_by": ["the_emperor"],
+      "intent": "Authority. A decision landing and not being discussed.",
+      "prompt": "One flat heavy strike on thick timber, blunt and final, with almost no ring.",
+      "duration_seconds": 2.0
+    },
+    {
+      "id": "person_the_hierophant",
+      "family": "person",
+      "used_by": ["the_hierophant"],
+      "intent": "Ritual, repetition, an institution older than anyone present.",
+      "prompt": "Three evenly spaced dull wooden knocks, unhurried and ceremonial, with a long low decay under them.",
+      "duration_seconds": 3.5
+    },
+    {
+      "id": "person_the_hermit",
+      "family": "person",
+      "used_by": ["the_hermit"],
+      "intent": "One presence, apart from the rest. The Entity approves of this and would not say so.",
+      "prompt": "A single small dry tap on wood, alone, with a long empty hollow decay around it.",
+      "duration_seconds": 3.0
+    },
+    {
+      "id": "person_the_lovers",
+      "family": "person",
+      "used_by": ["the_lovers"],
+      "intent": "Two things meeting. Contact, held.",
+      "prompt": "Two soft wooden tones sounding a moment apart and then ringing together, close and warm.",
+      "duration_seconds": 3.0
+    },
+    {
+      "id": "person_the_hanged_man",
+      "family": "person",
+      "used_by": ["the_hanged_man"],
+      "intent": "Suspension. Something stopped mid-fall and left there.",
+      "prompt": "A wooden groan under slow tension, rising slightly and then holding without resolving.",
+      "duration_seconds": 3.5
+    },
+    {
+      "id": "person_the_fool",
+      "family": "person",
+      "used_by": ["the_fool"],
+      "intent": "A step taken without looking. The Entity finds this stupid and slightly endearing.",
+      "prompt": "A light hollow wooden bounce, one soft knock skipping into a second and a third, unsteady.",
+      "duration_seconds": 2.5
+    },
+
+    {
+      "id": "aura_the_sun",
+      "family": "aura",
+      "used_by": ["the_sun"],
+      "intent": "Warmth flooding in. Uncomfortably total.",
+      "prompt": "A slow warm swell rising through timber, broad and open, settling into a steady low glow.",
+      "duration_seconds": 5.0
+    },
+    {
+      "id": "aura_the_moon",
+      "family": "aura",
+      "used_by": ["the_moon"],
+      "intent": "Something is wrong and cannot be located.",
+      "prompt": "A distant hollow wooden moan, wavering slightly out of tune, receding.",
+      "duration_seconds": 5.5
+    },
+    {
+      "id": "aura_the_star",
+      "family": "aura",
+      "used_by": ["the_star"],
+      "intent": "Distant, clean, indifferent. Hope at a great remove.",
+      "prompt": "A thin high sustained resonance struck from wood, faint and far away, decaying very slowly.",
+      "duration_seconds": 5.5
+    },
+    {
+      "id": "aura_temperance",
+      "family": "aura",
+      "used_by": ["temperance"],
+      "intent": "Two things brought into balance, patiently.",
+      "prompt": "A slow steady pouring resonance through hollow wood, evening out into a level tone.",
+      "duration_seconds": 5.0
+    },
+    {
+      "id": "aura_strength",
+      "family": "aura",
+      "used_by": ["strength"],
+      "intent": "Something enormous, restrained, breathing.",
+      "prompt": "A deep low sustained hum felt through heavy timber, slow and patient, with a faint pulse.",
+      "duration_seconds": 5.5
+    },
+    {
+      "id": "aura_justice",
+      "family": "aura",
+      "used_by": ["justice"],
+      "intent": "A measurement being taken. Nothing personal.",
+      "prompt": "A slow deliberate wooden tick and counter-tick, like a heavy balance settling, then stillness.",
+      "duration_seconds": 4.5
+    },
+    {
+      "id": "aura_judgement",
+      "family": "aura",
+      "used_by": ["judgement"],
+      "intent": "A summons. Something is called and must answer.",
+      "prompt": "A long low resonant call rising through the body of the wood, broad and inevitable.",
+      "duration_seconds": 5.5
+    },
+    {
+      "id": "aura_the_devil",
+      "family": "aura",
+      "used_by": ["the_devil"],
+      "intent": "Appetite. Something enjoying itself at your expense.",
+      "prompt": "A low uneven crackle and roll under the wood, guttural and shifting, refusing to settle.",
+      "duration_seconds": 5.0
+    },
+    {
+      "id": "aura_the_tower",
+      "family": "aura",
+      "used_by": ["the_tower"],
+      "intent": "Structural failure. The one card the Entity might enjoy.",
+      "prompt": "A sharp splitting crack through heavy timber followed by a deep collapsing rumble.",
+      "duration_seconds": 5.0
+    },
+    {
+      "id": "aura_death",
+      "family": "aura",
+      "used_by": ["death"],
+      "intent": "An ending. Ordinary, not dramatic.",
+      "prompt": "A single deep hollow tone struck once and left to decay completely into nothing.",
+      "duration_seconds": 6.0
+    },
+    {
+      "id": "aura_the_world",
+      "family": "aura",
+      "used_by": ["the_world"],
+      "intent": "Completion. A circle closing.",
+      "prompt": "A broad full resonance opening through the whole slab of wood and rounding off cleanly.",
+      "duration_seconds": 5.5
+    },
+    {
+      "id": "aura_the_chariot",
+      "family": "aura",
+      "used_by": ["the_chariot"],
+      "intent": "Momentum. Something moving that will not be stopped.",
+      "prompt": "A driving low wooden rumble building in pace, urgent and rolling forward.",
+      "duration_seconds": 5.0
+    },
+
+    {
+      "id": "wheel_of_fortune",
+      "family": "aura",
+      "used_by": ["wheel_of_fortune"],
+      "trigger": "tarot_wheel_of_fortune",
+      "intent": "Chance. It rolls one of the twelve auras, so this plays FIRST and the aura's own sound follows it.",
+      "prompt": "A heavy wooden ratchet spinning down through slowing clicks and stopping dead on one.",
+      "duration_seconds": 3.5
+    },
+
+    {
+      "id": "scene_forest",
+      "family": "scene",
+      "used_by": ["forest"],
+      "intent": "The room becomes somewhere green and growing. Mana green.",
+      "prompt": "A soft organic shift, wood swelling and settling as though growing slightly.",
+      "duration_seconds": 3.0
+    },
+    {
+      "id": "scene_plains",
+      "family": "scene",
+      "used_by": ["plains"],
+      "intent": "Open, ordered, flat. Mana white.",
+      "prompt": "A clean broad opening resonance, level and unhurried, with air behind it.",
+      "duration_seconds": 3.0
+    },
+    {
+      "id": "scene_swamp",
+      "family": "scene",
+      "used_by": ["swamp"],
+      "intent": "Something old waking under the wood. Mana black.",
+      "prompt": "A thick low wet shift beneath the timber, sluggish and clinging.",
+      "duration_seconds": 3.5
+    },
+    {
+      "id": "scene_island",
+      "family": "scene",
+      "used_by": ["island"],
+      "intent": "It goes quiet and deep. Mana blue.",
+      "prompt": "A hollow submerged tone opening downward, cool and enclosed, pressure building gently.",
+      "duration_seconds": 3.5
+    },
+    {
+      "id": "scene_mountain",
+      "family": "scene",
+      "used_by": ["mountain"],
+      "intent": "Everything gets loud. Mana red.",
+      "prompt": "A hard grinding stone-on-wood shift with heat and friction in it.",
+      "duration_seconds": 3.0
+    },
+    {
+      "id": "scene_idle",
+      "family": "scene",
+      "used_by": ["idle"],
+      "intent": "The table returning to rest. Nobody asked it to do anything.",
+      "prompt": "A long slow exhalation through hollow wood, releasing tension, settling to nothing.",
+      "duration_seconds": 4.0
+    },
+
+    {
+      "id": "ui_tap",
+      "family": "interface",
+      "intent": "A panel control was pressed. The most repeated sound in the build after the initiative turn -- keep it almost nothing.",
+      "prompt": "A very short soft fingertip tap on wood, dry and quiet.",
+      "duration_seconds": 0.8,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "ui_confirm",
+      "family": "interface",
+      "intent": "Something was committed -- a card assigned, a map published, a setting saved.",
+      "prompt": "A small firm wooden click seating into place, like a peg pushed home.",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "ui_back",
+      "family": "interface",
+      "intent": "Leaving a page. Undoing a step.",
+      "prompt": "A soft short wooden knock with a slight downward drop in pitch.",
+      "duration_seconds": 0.8,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "ui_toggle",
+      "family": "interface",
+      "intent": "A mode changed -- grid overlay, hex, mute.",
+      "prompt": "A small dry wooden switch flicking over, two-part, crisp.",
+      "duration_seconds": 0.8,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "ui_refused",
+      "family": "interface",
+      "intent": "The table would not do it. A dead Pixelblaze, a missing file, a bad name. Must read as refusal, not as an error chime.",
+      "prompt": "A dull flat wooden thud that does not resonate, stopping short.",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "ui_map_change",
+      "family": "interface",
+      "intent": "The picture on the table changed.",
+      "prompt": "A smooth heavy sliding of one flat wooden panel across another, ending softly.",
+      "duration_seconds": 2.0
+    },
+    {
+      "id": "ui_handoff",
+      "family": "interface",
+      "intent": "The screen given away to the Apple TV. The Entity is briefly replaced and does not love it.",
+      "prompt": "A hollow wooden withdrawal, something drawing back and away, leaving an empty space.",
+      "duration_seconds": 2.5
+    },
+    {
+      "id": "ui_status_screen",
+      "family": "interface",
+      "intent": "The table showing its own diagnostics. It is being asked to explain itself.",
+      "prompt": "A brief dry wooden rattle resolving into a single steady low tone.",
+      "duration_seconds": 2.0
+    },
+    {
+      "id": "ui_recording_start",
+      "family": "interface",
+      "intent": "The room mic is now listening.",
+      "prompt": "A soft low wooden intake, drawing inward and holding.",
+      "duration_seconds": 1.5
+    },
+    {
+      "id": "ui_recording_stop",
+      "family": "interface",
+      "intent": "The mic is off.",
+      "prompt": "A soft low wooden release, letting go and settling.",
+      "duration_seconds": 1.5
+    },
+
+    {
+      "id": "system_startup",
+      "family": "system",
+      "trigger": "system_startup",
+      "intent": "The table waking. Something very old coming back to attention, reluctantly.",
+      "prompt": "A deep slow wooden groan waking and rising into a low steady resonance, as something large comes to attention.",
+      "duration_seconds": 5.0
+    },
+    {
+      "id": "system_shutdown",
+      "family": "system",
+      "trigger": "system_shutdown",
+      "intent": "The table going down. Relief, if it admitted to any.",
+      "prompt": "A long descending wooden settle, tension leaving the grain, ending in complete stillness.",
+      "duration_seconds": 4.5
+    },
+    {
+      "id": "system_check_pass",
+      "family": "system",
+      "intent": "Table Check found nothing wrong.",
+      "prompt": "Two quiet wooden taps a beat apart, even and unremarkable.",
+      "duration_seconds": 1.5,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "system_check_fail",
+      "family": "system",
+      "intent": "Table Check found something. Must be noticeable across a noisy room without being an alarm.",
+      "prompt": "A low uneven wooden knock that lands wrong, followed by a short dead pause.",
+      "duration_seconds": 2.0,
+      "prompt_influence": 0.6
+    },
+
+    {
+      "id": "combat_start",
+      "family": "combat",
+      "trigger": "panel_combat_on",
+      "intent": "Initiative begins. The room tightens.",
+      "prompt": "A sharp low wooden tightening, grain pulling taut, holding under pressure.",
+      "duration_seconds": 2.5
+    },
+    {
+      "id": "combat_turn",
+      "family": "combat",
+      "intent": "THE MOST REPEATED SOUND IN THE BUILD -- every few seconds through a whole fight. It must be almost subliminal, or it will be the thing that gets the feature switched off.",
+      "prompt": "One very short soft wooden tick, quiet and dry, barely there.",
+      "duration_seconds": 0.5,
+      "prompt_influence": 0.7
+    },
+    {
+      "id": "combat_end",
+      "family": "combat",
+      "trigger": "panel_combat_off",
+      "intent": "Initiative over. The weight eases.",
+      "prompt": "A slow wooden release, tension leaving, settling downward into rest.",
+      "duration_seconds": 2.5
+    },
+    {
+      "id": "combat_flash_player",
+      "family": "combat",
+      "intent": "Pointing at one seat. A finger laid on the wood in front of somebody.",
+      "prompt": "A single soft directional press on wood, close and specific.",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.6
+    },
+
+    {
+      "id": "player_seat_claim",
+      "family": "player",
+      "intent": "Someone sat down and named themselves. The Entity counts presences and does not care about names.",
+      "prompt": "A warm low wooden settle, weight arriving and taking its place.",
+      "duration_seconds": 1.5
+    },
+    {
+      "id": "player_seat_release",
+      "family": "player",
+      "intent": "Someone left the table.",
+      "prompt": "A soft wooden lift, weight removed, leaving a faint hollow.",
+      "duration_seconds": 1.5
+    },
+    {
+      "id": "player_dice_roll",
+      "family": "player",
+      "trigger": "dice_roll",
+      "intent": "Dice landing. The bible names dice explicitly as something the table feels through contact.",
+      "prompt": "Small hard objects tumbling and coming to rest on thick timber, close and dry.",
+      "duration_seconds": 2.0
+    },
+    {
+      "id": "player_signal_question",
+      "family": "player",
+      "intent": "A player raised a quiet question mark from their phone. Must not interrupt play.",
+      "prompt": "A single soft rising wooden tap, questioning, very quiet.",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "player_signal_alert",
+      "family": "player",
+      "intent": "A player raised an exclamation. More urgent, still not an alarm.",
+      "prompt": "Two quick firm wooden taps close together, insistent but low.",
+      "duration_seconds": 1.0,
+      "prompt_influence": 0.6
+    },
+    {
+      "id": "player_whisper",
+      "family": "player",
+      "intent": "A private message arrived. The Entity hears everything spoken and would resent being cut out of this.",
+      "prompt": "A brief muffled wooden rustle, close and secretive, quickly stopping.",
+      "duration_seconds": 1.5
+    },
+    {
+      "id": "card_unknown",
+      "family": "player",
+      "intent": "An unregistered tag touched the reader. Contact without meaning -- exactly the bible's description of the Entity's blindness.",
+      "prompt": "A small blunt press against wood that produces nothing, followed by silence.",
+      "duration_seconds": 1.2,
+      "prompt_influence": 0.6
+    }
+  ]
+}

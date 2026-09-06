@@ -273,6 +273,16 @@
         <p class="note" id="voice-note"></p>
       </section>
 
+      <section id="sfx-entry">
+        <h2>Sound Effects <span class="muted" id="sfx-state"></span></h2>
+        <div class="check-row">
+          <label><input type="checkbox" id="sfx-enabled"> Play sound effects</label>
+        </div>
+        <p class="note">Stings when a card is tapped or the panel is used. The
+           scene soundscapes keep playing underneath &mdash; these sit on top.</p>
+        <button id="open-sfx" class="wide">Choose Which Sounds Play</button>
+      </section>
+
       <section>
         <h2>Maps</h2>
         <p class="note">Upload a battle map and scale it to the table's grid.
@@ -314,6 +324,38 @@
       <section>
         <h2>Cards <span class="muted" id="card-count"></span></h2>
         <div id="cards" class="cards"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============================================================= SOUNDS
+       A page rather than a panel: 54 toggles is configuration, not play. -->
+  <section class="panel page" id="panel-sfx" data-panel="sfx" hidden>
+    <div class="panel-col wide-col">
+      <div class="page-head">
+        <button id="sfx-back" class="ghost">&#9664; Settings</button>
+        <h2>Sound Effects</h2>
+      </div>
+
+      <section>
+        <h2>Profiles <span class="muted">quick sets</span></h2>
+        <p class="note">A starting point. Individual sounds below stay however
+           you left them.</p>
+        <div id="sfx-profiles" class="check-row three"></div>
+      </section>
+
+      <section>
+        <h2>Groups</h2>
+        <p class="note">Switch a whole family off &mdash; the cards, or just the
+           panel clicks.</p>
+        <div id="sfx-families"></div>
+      </section>
+
+      <section>
+        <h2>Every Sound <span class="muted" id="sfx-count"></span></h2>
+        <p class="note">Tap the name to hear it. The speaker plays even a
+           switched-off sound, so you can judge before deciding.</p>
+        <div id="sfx-list" class="cards"></div>
       </section>
     </div>
   </section>
@@ -599,5 +641,6 @@
 <script src="/dice-presets.js"></script>
 <script src="/app.js"></script>
 <script src="/maps.js"></script>
+<script src="/sfx.js"></script>
 </body>
 </html>

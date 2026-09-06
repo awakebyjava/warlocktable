@@ -348,6 +348,15 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     else:
         log.record("voice.disabled")
 
+    # Sound effects, attached the same way and just as optional.
+    if config.sound_effects.enabled:
+        from .sfx import SoundEffects
+        sfx = SoundEffects(config.sound_effects, audio, log)
+        if sfx.start():
+            controller.sfx = sfx
+    else:
+        log.record("sfx.disabled")
+
     store = ConfigStore(config, os.path.abspath(args.config), log,
                         backup_dir=os.path.join(
                             os.path.dirname(os.path.abspath(args.config)), "backups"))

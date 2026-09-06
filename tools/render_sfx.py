@@ -78,9 +78,28 @@ def load_spec():
 
 
 def build_prompt(meta, sound):
-    """The skeleton plus the specific. See the JSON's `why_shared`."""
+    """The family's skeleton wrapped around this sound's specific.
+
+    THE SKELETON IS PER-FAMILY, not global. A single global one is what made
+    the first pass uniformly inert: the rule that keeps a card sting huge and
+    the rule that keeps a panel tap quick are not the same rule, and forcing
+    both through one description flattened everything to the same texture.
+
+    Falls back to _meta.aesthetic for a family that defines neither, so an
+    incomplete edit degrades to the old behaviour rather than dropping the
+    skeleton entirely and silently producing something uncharacterised.
+    """
     aesthetic = meta.get("aesthetic", {})
-    parts = [aesthetic.get("prefix", ""), sound["prompt"], aesthetic.get("suffix", "")]
+    family = (meta.get("families", {}) or {}).get(sound.get("family"), {}) or {}
+
+    prefix = family.get("prefix", aesthetic.get("prefix", ""))
+    suffix = family.get("suffix", aesthetic.get("suffix", ""))
+
+    # _meta.aesthetic.shared is documentation, NOT part of the prompt. It says
+    # "mixed loud and confident", which is right for a card sting and directly
+    # contradicts "clear and quick" on a panel tap. The family suffix already
+    # carries everything each family needs.
+    parts = [prefix, sound["prompt"], suffix]
     return " ".join(p.strip() for p in parts if p and p.strip())
 
 

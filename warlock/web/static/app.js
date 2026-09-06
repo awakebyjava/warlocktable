@@ -1097,7 +1097,7 @@ if ("serviceWorker" in navigator) {
  * the window lands somewhere sensible rather than nowhere.
  */
 
-const PANELS = ["players", "run", "dice", "settings", "cards", "maps"];
+const PANELS = ["players", "run", "dice", "settings", "cards", "maps", "sfx"];
 const LANDING = "players";      // people arriving is what happens first
 let current = LANDING;
 
@@ -1116,7 +1116,7 @@ function goto(name) {
   // Cards is not a destination of its own, so nothing lights up for it.
   // Settings stays lit while you are inside it, because that is where you
   // came from and where the back button returns you.
-  if (name === "cards" || name === "maps") {
+  if (name === "cards" || name === "maps" || name === "sfx") {
     document.querySelectorAll('[data-goto="settings"]').forEach(t =>
       t.classList.add("active"));
   }
@@ -1124,7 +1124,8 @@ function goto(name) {
   // what reveals the close control the missing tab bar would have been.
   document.body.classList.toggle(
     "panel-over", name === "dice" || name === "settings" ||
-                  name === "cards" || name === "maps");
+                  name === "cards" || name === "maps" ||
+                  name === "sfx");
   // A panel switch scrolls to the top of the new panel, not to wherever
   // the last one was left.
   window.scrollTo(0, 0);
@@ -1139,6 +1140,8 @@ $("#cards-back").addEventListener("click", () => goto("settings"));
 // Maps lives in maps.js; it only needs the navigation hooks from here, and
 // `goto` plus `api` are what it borrows off window.
 $("#open-maps").addEventListener("click", () => goto("maps"));
+$("#open-sfx").addEventListener("click", () => goto("sfx"));
+$("#sfx-back").addEventListener("click", () => goto("settings"));
 $("#maps-back").addEventListener("click", () => goto("settings"));
 window.goto = goto;
 window.api = api;

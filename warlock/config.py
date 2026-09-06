@@ -191,6 +191,36 @@ class EntityVoice:
 
 
 @dataclass
+class SoundEffects:
+    """The stings. Toggleable per family and per sound, because 54 sounds is
+    plenty to want less of."""
+
+    enabled: bool = False
+    spec: Optional[str] = None
+    audio_dir: Optional[str] = None
+
+    # family -> on/off. Absent means on, so a family added to the spec later
+    # is audible rather than silently missing.
+    families: Dict[str, bool] = field(default_factory=dict)
+
+    # Individual sounds switched off, whatever their family says. This is the
+    # escape hatch for the one sound that grates -- a turn tick, a UI tap --
+    # without losing the family it belongs to.
+    muted: List[str] = field(default_factory=list)
+
+    # family -> whether it dips the soundscape while playing. NEVER stops it:
+    # ducking is a volume dip that restores (pygame_audio._duck).
+    duck: Dict[str, bool] = field(default_factory=dict)
+
+    def family_on(self, family: str) -> bool:
+        return bool(self.families.get(family, True))
+
+    def duck_for(self, family: str) -> bool:
+        from .sfx import DEFAULT_DUCK
+        return bool(self.duck.get(family, DEFAULT_DUCK.get(family, False)))
+
+
+@dataclass
 class Config:
     scenes: Dict[str, Scene]
     interruptions: Dict[str, Interruption]
@@ -262,6 +292,11 @@ class Config:
     # table that starts talking without being asked is a surprise, and the
     # assets live outside the repo so a fresh clone has nothing to play.
     entity_voice: "EntityVoice" = field(default_factory=lambda: EntityVoice())
+
+    # The sound effects (soundeffects/table-sfx.json). Off by default for the
+    # same reason as the voice: the audio lives outside the repo, so a fresh
+    # clone has nothing to play.
+    sound_effects: "SoundEffects" = field(default_factory=lambda: SoundEffects())
 
     # Parent for map import's non-render state: originals/, recipes/, work/.
     # Deliberately outside the backgrounds directory so the display's scanner
@@ -409,6 +444,7 @@ def load_config(path: str) -> Config:
         custom_background_path=raw.get("settings", {}).get("custom_background_path"),
         map_data_path=raw.get("settings", {}).get("map_data_path"),
         entity_voice=_load_voice(raw.get("settings", {}).get("entity_voice")),
+        sound_effects=_load_sfx(raw.get("settings", {}).get("sound_effects")),
         audio_device=raw.get("settings", {}).get("audio_device"),
         duck_level=float(raw.get("settings", {}).get("duck_level", 0.3)),
         duck_ramp_s=float(raw.get("settings", {}).get("duck_ramp_s", 0.25)),
@@ -448,6 +484,7 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "custom_background_path": config.custom_background_path,
         "map_data_path": config.map_data_path,
         "entity_voice": _dump_voice(config.entity_voice),
+        "sound_effects": _dump_sfx(config.sound_effects),
         "audio_device": config.audio_device,
         "duck_level": config.duck_level,
         "duck_ramp_s": config.duck_ramp_s,
@@ -669,4 +706,30 @@ def _dump_voice(voice: EntityVoice) -> dict:
         "gesture_settle_s": voice.gesture_settle_s,
         "mood": voice.mood,
         "triggers": {k: dict(v) for k, v in voice.triggers.items()},
+    }
+
+
+# --- the sound effects block ------------------------------------------------
+
+def _load_sfx(raw) -> SoundEffects:
+    if not isinstance(raw, dict):
+        return SoundEffects()
+    return SoundEffects(
+        enabled=bool(raw.get("enabled", False)),
+        spec=raw.get("spec"),
+        audio_dir=raw.get("audio_dir"),
+        families={str(k): bool(v) for k, v in (raw.get("families") or {}).items()},
+        muted=[str(x) for x in (raw.get("muted") or [])],
+        duck={str(k): bool(v) for k, v in (raw.get("duck") or {}).items()},
+    )
+
+
+def _dump_sfx(sfx: SoundEffects) -> dict:
+    return {
+        "enabled": sfx.enabled,
+        "spec": sfx.spec,
+        "audio_dir": sfx.audio_dir,
+        "families": dict(sfx.families),
+        "muted": list(sfx.muted),
+        "duck": dict(sfx.duck),
     }

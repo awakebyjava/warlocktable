@@ -46,6 +46,7 @@ class _Handler(BaseHTTPRequestHandler):
     runtime = None
     maps = None                 # web.maps.MapsPanel, or None if not wired
     voice = None                # web.voice.VoicePanel, or None if not wired
+    sfx = None                  # web.sfx.SfxPanel, or None if not wired
     server_version = "WarlockTable"
     sys_version = ""
 
@@ -157,6 +158,11 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         return self.voice.route(self, method, path)
 
+    def _sfx_api(self, method: str, path: str) -> bool:
+        if self.sfx is None or not path.startswith("/api/sfx"):
+            return False
+        return self.sfx.route(self, method, path)
+
     def do_PUT(self):
         # PUT exists solely for map upload: the body IS the file, which avoids
         # multipart parsing in a stdlib server. See web/maps.py.
@@ -170,6 +176,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self._maps("GET", path):
             return
         if self._voice_api("GET", path):
+            return
+        if self._sfx_api("GET", path):
             return
 
         # Three front doors. The QR code on the table points at "/", which
@@ -321,6 +329,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self._maps("POST", path):
             return
         if self._voice_api("POST", path):
+            return
+        if self._sfx_api("POST", path):
             return
 
         # --- Management surface: changes what things DO (plan doc 4.5) ---
@@ -680,11 +690,13 @@ class WebPanel:
         # reach the same object.
         from .maps import MapsPanel
         from .voice import VoicePanel
+        from .sfx import SfxPanel
         handler = type("_BoundHandler", (_Handler,), {
             "controller": self.controller,
             "runtime": self.runtime,
             "maps": MapsPanel(self.runtime, self.controller, self.log),
             "voice": VoicePanel(self.runtime, self.controller, self.log),
+            "sfx": SfxPanel(self.runtime, self.controller, self.log),
         })
         try:
             self._server = ThreadingHTTPServer((self.host, self.port), handler)

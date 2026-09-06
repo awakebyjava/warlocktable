@@ -46,6 +46,11 @@ class Controller:
         # None until runtime.build attaches one.
         self.voice = None
 
+        # Sound effects (warlock/sfx). Attached from outside like the voice.
+        # Fires the sting; NEVER touches the soundscape, which is started
+        # separately below and must keep running underneath.
+        self.sfx = None
+
         self._revert_timer: Optional[threading.Timer] = None
         self._lock = threading.Lock()
 
@@ -348,6 +353,7 @@ class Controller:
             if len(log) > self.ROLL_HISTORY:
                 del log[:len(log) - self.ROLL_HISTORY]
         self.log.record("dice.roll", colour=colour, roll=entry["label"])
+        self._sting("player_dice_roll")
         self._voice("dice_roll")
         self._session_log("roll", colour=colour, name=name,
                           roll=entry["label"], dice=dice)
@@ -504,6 +510,34 @@ class Controller:
             # the table had nothing witty to say.
             pass
 
+    def _sting(self, sound_id: str) -> None:
+        """Fire a named sound effect. Never blocks, never raises.
+
+        Separate from _voice because they are different layers with different
+        rules: the voice speaks rarely and probabilistically, a sting fires
+        every time its event does.
+        """
+        sfx = self.sfx
+        if sfx is None:
+            return
+        try:
+            sfx.on_event(sound_id)
+        except Exception:      # noqa: BLE001
+            pass
+
+    def _sting_for(self, kind: str, name: str) -> None:
+        """Fire the sting belonging to a card or a scene."""
+        sfx = self.sfx
+        if sfx is None:
+            return
+        try:
+            if kind == "scene":
+                sfx.on_scene(name)
+            else:
+                sfx.on_card(name)
+        except Exception:      # noqa: BLE001
+            pass
+
     def begin_gesture(self) -> None:
         """A fresh input arrived -- a card tap, a panel press.
 
@@ -547,6 +581,11 @@ class Controller:
         self.current_scene = scene
         self.log.record("scene.apply", name=scene_name)
         self._voice(entity_triggers.for_scene(scene_name))
+        # The arrival sting. Fired AFTER _supersede(stop_effects=True) above,
+        # so it is not immediately cancelled, and it goes to the EFFECT
+        # channel -- the scene's ongoing soundscape is started in `jobs`
+        # below and keeps running underneath it.
+        self._sting_for("scene", scene_name)
         self._session_log("scene", name=scene_name)
         # Each subsystem is attempted independently and CONCURRENTLY: a dead
         # Pixelblaze must not stop the soundscape (plan doc 5.2), and the
@@ -570,6 +609,7 @@ class Controller:
         once the audio finishes (plan doc 4.3)."""
         self._supersede(stop_effects=True)
         interruption = self.config.interruptions[interruption_name]
+        self._sting_for("card", interruption_name)
         self._voice(entity_triggers.for_interruption(interruption_name))
         self.log.record("interruption.start", name=interruption_name,
                          reverts_to=self.current_scene.name if self.current_scene else None)
@@ -664,6 +704,8 @@ class Controller:
         choice: Target = random.choice(table.entries)
         self.log.record("table.roll", table=table_name,
                          result_kind=choice.kind, result_name=choice.name)
+        if (table_name or "").lower() == entity_triggers.WHEEL_TABLE:
+            self._sting("wheel_of_fortune")
         self._voice(entity_triggers.for_table(table_name))
         self._dispatch(choice)
 
@@ -688,6 +730,7 @@ class Controller:
         self.begin_gesture()
         card = self.config.find_card(uid_or_label)
         if card is None:
+            self._sting("card_unknown")
             self.log.record("card.unregistered", scanned=uid_or_label)
             return False
         self.log.record("card.tap", uid=card.uid, label=card.label)
@@ -720,6 +763,7 @@ class Controller:
             self.show_status_screen()
             return
         self._try("display", self.display.set_background, name)
+        self._sting("ui_map_change")
         self._voice("panel_map_change")
 
     def background_choices(self) -> List[str]:
@@ -824,6 +868,7 @@ class Controller:
     def handoff_display(self, target: str) -> None:
         self._supersede()
         self._try("display", self.display.handoff, target)
+        self._sting("ui_handoff")
         self._voice("panel_appletv_handoff")
 
     @action()
@@ -902,6 +947,7 @@ class Controller:
         self._supersede(stop_effects=True)
         self.log.record("go_idle")
 
+        self._sting_for("scene", "idle")
         self._voice("system_idle")
         idle = self.config.scenes.get(self.config.idle_scene_name)
         if idle is None:
@@ -1098,6 +1144,7 @@ class Controller:
         if self.initiative.run() is None:
             self.log.record("initiative.no_order")
             return
+        self._sting("combat_start")
         self._voice("panel_combat_on")
         self._ensure_zones_pattern()
         self.log.record("initiative.run",
@@ -1115,6 +1162,7 @@ class Controller:
         if self.initiative.advance(int(step)) is None:
             self.log.record("initiative.not_running")
             return
+        self._sting("combat_turn")
         self.log.record("initiative.turn", seat=self.initiative.active_zone())
         self._push_active_zone()
 
@@ -1123,6 +1171,7 @@ class Controller:
         """Stop pointing at anyone. The order is kept for next time."""
         self.initiative.stop()
         self.log.record("initiative.stopped")
+        self._sting("combat_end")
         self._voice("panel_combat_off")
         self._push_active_zone()
 

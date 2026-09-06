@@ -77,6 +77,11 @@ install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps/work"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/voices"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/voices/audio"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/voices/audio/entity"
+# Sound effects. Same rule as the voice: the wavs are media, gitignored, and
+# arrive by rsync. Only table-sfx.json travels with the code.
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/soundeffects"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/soundeffects/audio"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/soundeffects/audio/sfx"
 
 if [[ -f "$DATA_DIR/config.json" ]]; then
     echo "  config.json exists - LEFT ALONE (this is your live data)"

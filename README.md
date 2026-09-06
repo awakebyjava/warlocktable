@@ -56,6 +56,9 @@ Panel: `http://raspberrypi.local:8080`
 ```
 warlock/
   controller.py    every action; precedence; per-subsystem fault isolation
+  sfx/             the stings. Fires on the EFFECT channel, so a scene's
+                   ongoing soundscape keeps playing underneath its own
+                   arrival sting. Toggleable per family and per sound.
   entity/          the table's voice: whether to speak, which line, and
                    playing it. Flavour only -- delete it and the table is
                    unchanged, which is the constraint that shapes it.

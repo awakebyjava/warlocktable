@@ -169,6 +169,38 @@ class ConfigStore:
                     "chattiness": voice.chattiness,
                     "mood": voice.mood}
 
+    def set_sfx(self, enabled=None, family=None, on=None,
+                muted=None, profile=None):
+        """Persist the sound-effect switches. Same shape as set_audio."""
+        with self._lock:
+            sfx = self.config.sound_effects
+            before = (sfx.enabled, dict(sfx.families), list(sfx.muted))
+
+            if enabled is not None:
+                sfx.enabled = bool(enabled)
+            if family is not None and on is not None:
+                sfx.families[str(family)] = bool(on)
+            if muted is not None:
+                sfx.muted = [str(x) for x in muted]
+            if profile is not None:
+                from .sfx import FAMILIES, PROFILES
+                wanted = PROFILES.get(profile)
+                if wanted is not None:
+                    sfx.families = {f: (f in wanted) for f in FAMILIES}
+
+            try:
+                self._commit("sfx", enabled=sfx.enabled,
+                             families=sum(1 for v in sfx.families.values() if v),
+                             muted=len(sfx.muted))
+            except Exception as exc:
+                sfx.enabled, sfx.families, sfx.muted = before
+                self.log.record("config.save_failed", change="sfx",
+                                error=str(exc))
+                raise
+            return {"enabled": sfx.enabled,
+                    "families": dict(sfx.families),
+                    "muted": list(sfx.muted)}
+
     # ---------------------------------------------------------------- cards
 
     def list_cards(self) -> List[dict]:

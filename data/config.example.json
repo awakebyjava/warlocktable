@@ -79,6 +79,14 @@
           "delay_s": 0.0
         }
       }
+    },
+    "sound_effects": {
+      "enabled": false,
+      "spec": "/var/lib/warlocktable/soundeffects/table-sfx.json",
+      "audio_dir": "/var/lib/warlocktable/soundeffects/audio/sfx",
+      "families": {},
+      "muted": [],
+      "duck": {}
     }
   },
   "zones": [
