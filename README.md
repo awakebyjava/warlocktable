@@ -86,6 +86,8 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                      audio_worksheet.py  what still needs recording
                      normalise_wavs.py   strip the JUNK chunk ffmpeg leaves,
                                          which pygame 1.9.6 refuses to open
+                     voice_check.py      run ON THE PI: does the Entity work,
+                                         and how often will it actually speak
 branding/          the wordmark, app icons, and the table's two sigils
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy. `generated/` is patterngen.py's output (30);

@@ -371,6 +371,35 @@ that is not byte-identical. **Run it after every render**, because
 
 ---
 
+## 10c. Checking it, on the table
+
+`tools/voice_check.py`, run **on the Pi**, because every bug this subsystem
+has had was a Pi-only bug.
+
+    tools/voice_check.py            # eight static checks
+    tools/voice_check.py --rates    # ...and how often it will actually speak
+    tools/voice_check.py --play     # ...and speak, out loud
+
+**It does not compete with the service for the audio device**, which is the
+detail that makes it safe to run during a session:
+
+* the load test opens the mixer on SDL's **dummy driver**, so it parses all 91
+  files through the real pygame while touching no hardware. That is the check
+  that would have caught the JUNK chunk (§10b).
+* the audible test opens nothing -- it asks the running service to speak via
+  `/api/voice/say`. The service owns the device; competing for it would be the
+  wrong way to ask whether it works.
+
+`--rates` answers "how often will this thing talk" by *running* the picker
+rather than by arithmetic, which matters because a probability and a cooldown
+in series are genuinely hard to reason about. At the shipped settings, over
+2000 taps 45s apart: a boon card speaks about 1 in 12, the Wheel about 1 in 6,
+a dice roll about 1 in 27.
+
+Exit code is 0 only if everything passed, so it can gate a deploy.
+
+---
+
 ## 11. Open, and worth deciding by ear
 
 1. **Rates.** Every number in §5 is a starting guess. They are in config
