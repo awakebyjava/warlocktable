@@ -713,6 +713,19 @@ class _Handler(BaseHTTPRequestHandler):
 _GROUP_ORDER = ("Boons", "Persons", "Auras", "Fortune",
                 "Hearts", "Diamonds", "Clubs", "Spades", "Jokers", "Other")
 
+# What the block is CALLED on screen, which is not the same as what it is
+# keyed on. Keyed on the lights pattern, the three tarot blocks come out as
+# "Boons", "Persons" and "Auras" -- the table's own vocabulary for what a card
+# does, and meaningless to someone looking for The Tower. Prefixing them says
+# which deck they came out of, which is the split the panel was asked for,
+# without giving up the more useful sort underneath it.
+_GROUP_LABELS = {
+    "Boons":   "Tarot · Boons",
+    "Persons": "Tarot · Figures",
+    "Auras":   "Tarot · Forces",
+    "Fortune": "Tarot · Fortune",
+}
+
 _SUITS = ("hearts", "diamonds", "clubs", "spades")
 
 
@@ -754,7 +767,7 @@ def _group_interruptions(config):
                         if low.endswith("_of_" + suit)), "Other")
         groups.setdefault(key, []).append(name)
 
-    return [{"name": k, "items": groups[k]}
+    return [{"name": _GROUP_LABELS.get(k, k), "items": groups[k]}
             for k in _GROUP_ORDER if groups.get(k)]
 
 

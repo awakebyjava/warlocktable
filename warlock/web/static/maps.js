@@ -626,12 +626,7 @@
 
   // Load the library the first time the page is opened, not at startup:
   // most sessions never come in here, and the listing reads the disk.
-  var opened = false;
-  var openBtn = document.getElementById("open-maps");
-  if (openBtn) {
-    openBtn.addEventListener("click", function () {
-      if (!opened) { opened = true; }
-      loadLibrary();
-    });
-  }
+  document.addEventListener("panelshown", function (ev) {
+    if (ev.detail === "maps") loadLibrary();
+  });
 })();

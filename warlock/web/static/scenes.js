@@ -151,10 +151,8 @@
   });
 
   var lastOptions = {};
-  var open = document.getElementById("open-scenes");
-  if (open) {
-    open.addEventListener("click", function () {
-      refresh().then(function (d) { if (d) lastOptions = d.options || {}; });
-    });
-  }
+  document.addEventListener("panelshown", function (ev) {
+    if (ev.detail !== "scenes") return;
+    refresh().then(function (d) { if (d) lastOptions = d.options || {}; });
+  });
 })();

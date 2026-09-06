@@ -1135,17 +1135,28 @@ body.locked { overflow: hidden; }
   #panel-players, #panel-run,
   #panel-players[hidden], #panel-run[hidden] { display: block !important; }
 
-  /* Dice, Settings and Cards drop OVER the pair rather than replacing them
-     -- the same argument as the whisper overlay, and it keeps the table's
-     state visible behind whatever was opened. */
-  #panel-dice, #panel-settings, #panel-cards {
+  /* Dice, Settings and every `.page` drop OVER the pair rather than
+     replacing them -- the same argument as the whisper overlay, and it keeps
+     the table's state visible behind whatever was opened.
+
+     SELECTED BY CLASS, NOT BY ID, and that matters. This rule used to name
+     #panel-dice, #panel-settings and #panel-cards one by one, so every page
+     added afterwards had to be remembered in three separate places here. It
+     was not: Maps, Sound Effects and the Scene Editor all shipped rendering
+     at 674px inside the half-width Run column at desktop width, while
+     looking correct on a tablet. The file already carries a comment about
+     this exact class of miss when the breakpoint was first built.
+
+     Every full-width page is marked `class="panel page"`, so keying off that
+     means a new one is correct by default rather than by memory. */
+  #panel-dice, #panel-settings, .panel.page {
     position: fixed; inset: 0; z-index: 30;
     overflow-y: auto;
     background: var(--black);
     padding: 20px 28px calc(20px + env(safe-area-inset-bottom));
     grid-template-columns: 1fr 1fr; gap: 0 36px;
   }
-  #panel-dice[hidden], #panel-settings[hidden], #panel-cards[hidden] {
+  #panel-dice[hidden], #panel-settings[hidden], .panel.page[hidden] {
     display: none;
   }
 
@@ -1162,9 +1173,25 @@ body.locked { overflow: hidden; }
      should simply be as tall as they need to be. */
   #panel-dice .panel-col,
   #panel-settings .panel-col,
-  #panel-cards .panel-col {
+  .panel.page .panel-col {
     max-height: none;
     overflow: visible;
+  }
+
+  /* A page with one column should use the width, not sit in a 1fr half with
+     the other half empty. Maps in particular: the preview is 16:9 and was
+     being drawn into half the screen for no reason. */
+  .panel.page { grid-template-columns: 1fr; }
+
+  /* Capped, and CENTRED. Reading a full 1400px line of settings text is
+     tiring, so the cap stays -- but left-aligning it against a 300px band
+     of empty black just looks like the layout broke. Long-hand margins
+     rather than margin-inline: the iPad this is really built for is on
+     whatever Safari it shipped with, and the long-hand has always worked. */
+  .panel.page .wide-col {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   /* The way IN, since the tab bar is not there to provide one either.

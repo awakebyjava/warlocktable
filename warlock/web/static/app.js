@@ -205,7 +205,12 @@ function buildInterruptionGroups(groups) {
   // First run: open the tarot, collapse the rest. Those are the ones a
   // session actually uses; the playing cards are a deck you reach into.
   const remembered = openGroups();
-  const open = remembered || ["Boons", "Persons", "Auras", "Fortune"];
+  // Open the tarot blocks, collapse the playing cards. Matched on the "Tarot"
+  // prefix rather than on a list of names copied from the server -- the names
+  // live in one place there, and a copy here would go stale silently the next
+  // time one is renamed.
+  const open = remembered ||
+    groups.filter(g => g.name.indexOf("Tarot") === 0).map(g => g.name);
 
   groups.forEach(group => {
     const wrap = el("div", "cardgroup");
@@ -1195,6 +1200,12 @@ if ("serviceWorker" in navigator) {
  */
 
 const PANELS = ["players", "run", "dice", "settings", "cards", "maps", "sfx", "scenes"];
+// The pages you reach THROUGH Settings rather than from the tab bar. At
+// browser width they are full-screen overlays with a close control, because
+// there is no tab bar out there to leave by. Adding a page means adding it
+// here and giving its section class="panel page" -- the CSS keys off the
+// class, so it does not need a third list.
+const SUBPAGES = ["cards", "maps", "sfx", "scenes"];
 const LANDING = "players";      // people arriving is what happens first
 let current = LANDING;
 
@@ -1213,18 +1224,27 @@ function goto(name) {
   // Cards is not a destination of its own, so nothing lights up for it.
   // Settings stays lit while you are inside it, because that is where you
   // came from and where the back button returns you.
-  if (["cards", "maps", "sfx", "scenes"].indexOf(name) >= 0) {
+  if (SUBPAGES.indexOf(name) >= 0) {
     document.querySelectorAll('[data-goto="settings"]').forEach(t =>
       t.classList.add("active"));
   }
-  // At browser width these three are fixed overlays; the body class is
-  // what reveals the close control the missing tab bar would have been.
+  // At browser width these are fixed overlays; the body class is what
+  // reveals the close control the missing tab bar would have been.
   document.body.classList.toggle(
     "panel-over", name === "dice" || name === "settings" ||
-                  ["cards", "maps", "sfx", "scenes"].indexOf(name) >= 0);
+                  SUBPAGES.indexOf(name) >= 0);
   // A panel switch scrolls to the top of the new panel, not to wherever
   // the last one was left.
   window.scrollTo(0, 0);
+
+  // Tell whoever owns this page that it is now on screen.
+  //
+  // The pages used to load their data on the click of the button that opens
+  // them, which meant reaching one any other way -- goto() directly, or a
+  // future deep link -- showed an empty page with no error. Keying off the
+  // navigation rather than off one particular button removes that whole
+  // class of "opened it the wrong way and it was blank".
+  document.dispatchEvent(new CustomEvent("panelshown", { detail: name }));
 }
 
 document.querySelectorAll(".tab, .wide-nav-btn").forEach(t =>

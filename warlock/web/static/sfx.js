@@ -167,8 +167,10 @@
     });
   }
 
-  var open = document.getElementById("open-sfx");
-  if (open) open.addEventListener("click", refresh);
+  // Load when the page is shown, however it was reached.
+  document.addEventListener("panelshown", function (ev) {
+    if (ev.detail === "sfx") refresh();
+  });
 
   window.api("/api/sfx").then(renderEntry).catch(function () {
     var entry = document.getElementById("sfx-entry");
