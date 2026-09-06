@@ -51,6 +51,48 @@ except ImportError:                                  # pragma: no cover
 
 AUDIO_EXTS = (".wav", ".wave", ".flac", ".mp3", ".aif", ".aiff", ".ogg", ".m4a")
 
+# --- Windows long paths ----------------------------------------------------
+#
+# THIS IS NOT OPTIONAL FOR THIS LIBRARY. Sonniss filenames are long and
+# descriptive on purpose, the vendor folders are long too, and together they
+# sail past Windows' 260-character MAX_PATH:
+#
+#   Epic Stock Media - Humanoid Creatures Vol 4 - Monstrous and Undead
+#   Creature Vocalization Sound Sets\HMNBrth_Construction Kit Male Screeching
+#   Breath Inhale Weak Squeal 05_ESM_HC4.wav
+#
+# ...is 232 characters before the drive and folders in front of it.
+#
+# Prefixing an absolute path with that marker tells Windows to skip the legacy
+# parsing and its length limit. Verified: a 386-character path is created,
+# found by os.walk, and opened by pedalboard with the prefix, and fails all
+# three ways without it.
+#
+# The prefix is used ONLY for filesystem access. Everything written to the CSV
+# is the clean relative path, because the CSV is the deliverable and nobody
+# wants to read that prefix in a spreadsheet.
+_WINDOWS = os.name == "nt"
+# Four characters: backslash, backslash, question mark, backslash.
+_PREFIX = "\\\\?\\"
+_UNC = "\\\\"
+
+
+def _fs(path):
+    """The form to hand to the filesystem. On Windows, long-path safe.
+
+    Only a fully-qualified path may carry the prefix, and forward slashes are
+    not allowed after it. abspath settles both.
+    """
+    if not _WINDOWS:
+        return path
+    full = os.path.abspath(path)
+    if full.startswith(_PREFIX):
+        return full
+    if full.startswith(_UNC):
+        # \\server\share needs the UNC spelling of the prefix.
+        return _PREFIX + "UNC" + full[1:]
+    return _PREFIX + full
+
 # Analyse at most this much of any one file. A ninety-second drone's character
 # is entirely established in the first half minute, and reading all of it for
 # thousands of files would dominate the runtime for nothing. The TRUE duration
@@ -84,7 +126,7 @@ def read_wav_metadata(path):
     """
     out = {"bwf_description": "", "bwf_originator": "", "ixml_description": ""}
     try:
-        with open(path, "rb") as fh:
+        with open(_fs(path), "rb") as fh:
             head = fh.read(12)
             if len(head) < 12 or head[:4] != b"RIFF" or head[8:12] != b"WAVE":
                 return out
@@ -153,7 +195,7 @@ def _ixml_text(raw: bytes) -> str:
 
 def analyse(path):
     """Read (a bounded amount of) the audio and describe it."""
-    with AudioFile(str(path)) as f:
+    with AudioFile(_fs(path)) as f:
         samplerate = float(f.samplerate)
         channels = int(f.num_channels)
         total_frames = int(f.frames)
@@ -278,7 +320,7 @@ def _spectrum(mono, samplerate):
 # --- walking ---------------------------------------------------------------
 
 def find_audio(root):
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(_fs(root)):
         dirnames.sort()
         for name in sorted(filenames):
             if name.lower().endswith(AUDIO_EXTS) and not name.startswith("._"):
@@ -327,8 +369,9 @@ def main():
 
     print("scanning %s ..." % root)
     all_files = list(find_audio(root))
+    walk_root = _fs(root)
     todo = [p for p in all_files
-            if os.path.relpath(p, root).replace("\\", "/") not in done]
+            if os.path.relpath(p, walk_root).replace("\\", "/") not in done]
     if args.limit:
         todo = todo[:args.limit]
 
@@ -351,7 +394,7 @@ def main():
     oneshots = 0
 
     for n, path in enumerate(todo, 1):
-        rel = os.path.relpath(path, root).replace("\\", "/")
+        rel = os.path.relpath(path, walk_root).replace("\\", "/")
         try:
             row = analyse(path)
             meta = (read_wav_metadata(path)
@@ -363,7 +406,7 @@ def main():
             row["filename"] = os.path.splitext(os.path.basename(path))[0]
             row["folder"] = os.path.basename(os.path.dirname(path))
             row["format"] = os.path.splitext(path)[1].lstrip(".").lower()
-            row["size_mb"] = round(os.path.getsize(path) / 1048576.0, 3)
+            row["size_mb"] = round(os.path.getsize(_fs(path)) / 1048576.0, 3)
             writer.writerow(row)
             ok += 1
             total_duration += row["duration_sec"]
