@@ -136,6 +136,17 @@ EntityVoice.set_mood(mood) / .mood
 
 ## Things that will bite
 
+**WAV chunk order — this one bit.** The Pi runs pygame 1.9.6 (SDL 1.2), whose
+WAV loader requires `fmt ` to be the first chunk. ffmpeg writes a 52-byte
+`JUNK` chunk ahead of it, and SDL then refuses the file with a bare "Unable to
+open file" even though it is a perfectly valid WAV that Python's `wave` module
+reads without complaint. All 91 rendered lines were affected. After any render,
+run:
+
+    tools/normalise_wavs.py voices/audio/entity
+
+It rewrites them canonically and verifies the PCM is unchanged.
+
 **Startup latency.** Loading and decoding a WAV on first play adds a delay that reads as the table hesitating. Preload into memory — 91 short WAVs is small enough that holding them all is reasonable on a Pi 4. Measure before optimizing.
 
 **Timing against the light effect.** A voice line landing at the same instant as a comet sweep competes with it. A short delay — a beat after the visual starts — will probably feel better. Make it configurable per trigger.

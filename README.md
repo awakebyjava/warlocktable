@@ -84,6 +84,8 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                      sync_seat_colours.py realign a live config's palette
                      icon_manifest.py    the icon set the interface needs
                      audio_worksheet.py  what still needs recording
+                     normalise_wavs.py   strip the JUNK chunk ffmpeg leaves,
+                                         which pygame 1.9.6 refuses to open
 branding/          the wordmark, app icons, and the table's two sigils
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy. `generated/` is patterngen.py's output (30);

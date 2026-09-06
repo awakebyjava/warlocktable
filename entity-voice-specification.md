@@ -345,6 +345,32 @@ other device failure already was.
 
 ---
 
+## 10b. The one that only the real table could find
+
+**pygame 1.9.6 on the Pi could not open a single one of the 91 files.**
+
+    pygame.error: Unable to open file '.../system_startup_03.wav'
+
+The files were fine by every other measure: valid 44.1 kHz mono 16-bit,
+correct duration, right permissions, readable by Python's `wave` module,
+identical to the ones tested on the laptop. The cause was a **52-byte `JUNK`
+chunk sitting before `fmt `** -- ffmpeg writes one to reserve space in case
+the output has to become RF64. `wave` skips unknown chunks; SDL 1.2, which is
+what pygame 1.9.6 is built on, expects `fmt ` first and refuses the file.
+
+Nothing on the laptop could have caught this. The fakes do not open audio,
+and a modern Pillow/pygame would have loaded the file without complaint. It
+took the real device, and the only symptom was silence plus one `voice.failed`
+line in the journal -- and `preloaded=0`, which was the same failure happening
+91 times without a word.
+
+`tools/normalise_wavs.py` rewrites the files as canonical RIFF/`fmt `/`data`,
+comparing the PCM frames before and after and refusing to replace anything
+that is not byte-identical. **Run it after every render**, because
+`entity_render.py` will reintroduce the chunk each time.
+
+---
+
 ## 11. Open, and worth deciding by ear
 
 1. **Rates.** Every number in §5 is a starting guess. They are in config
