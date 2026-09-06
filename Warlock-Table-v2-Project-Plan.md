@@ -2246,9 +2246,11 @@ Stand up the core software on the Pi once hardware is trusted.
   is the part that matters: every audio fault this table has had was a
   format fault that gave no sign of itself. See `warlock/audioimport/`.
 - [x] **§4.5 step 4a:** author scenes from scratch — done, the scene editor.
-- [ ] **§4.5 step 4b:** author interruptions from scratch. Cards can be
-  re-pointed from the panel, but a brand-new interruption still needs a
-  config edit.
+- [x] **§4.5 step 4b:** author interruptions from scratch — done, the
+  interruption editor. Lights are optional there, unlike a scene: leaving
+  them blank means "a sound over whatever is already showing", which is a
+  card a scene cannot express. The rule is instead that it must do
+  something.
 - [x] **Cut input-to-effect latency** — measured and largely fixed
   2026-08-22 (§5.7). The chain was timed rather than guessed at, and the
   biggest cost turned out not to be a device at all: the controller

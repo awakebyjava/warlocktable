@@ -240,5 +240,13 @@ RMS-levelling a short hit makes its loudness depend on how much silence
 follows it. Uploads land in a directory the table owns and take precedence
 over a shipped file of the same name, which the panel says out loud.
 
+**Interruptions can be authored from the panel**, which closes plan §4.5:
+scenes, cards, maps, sound and now interruptions are all editable without an
+ssh. Lights are optional there and required on a scene, which is not an
+oversight -- an interruption with no lighting means "a sound over whatever
+is already showing", and the rule is instead that the card must do
+something, since one with no sound, no lights and no map is a tap that
+produces nothing and explains nothing.
+
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.
