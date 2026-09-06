@@ -655,9 +655,62 @@ class _Handler(BaseHTTPRequestHandler):
         return {
             "scenes": sorted(cfg.scenes),
             "interruptions": sorted(cfg.interruptions),
+            "interruption_groups": _group_interruptions(cfg),
             "random_tables": sorted(cfg.random_tables),
             "idle_scene": cfg.idle_scene_name,
+            "backgrounds": self.controller.background_choices(),
         }
+
+# The order the panel shows the groups in: the tarot first, because those are
+# the ones reached for during play, then the playing cards, which are 54 of the
+# 79 and would otherwise bury everything else.
+_GROUP_ORDER = ("Boons", "Persons", "Auras", "Fortune",
+                "Hearts", "Diamonds", "Clubs", "Spades", "Jokers", "Other")
+
+_SUITS = ("hearts", "diamonds", "clubs", "spades")
+
+
+def _group_interruptions(config):
+    """Sort the interruptions into named blocks for the Run panel.
+
+    CLASSIFIED OFF THE LIGHTS PATTERN, which is the authoritative statement of
+    what a card is and is already in the live config: Boon-Cups, Person-Fool,
+    Aura-Tower, Card-Comet-Red.
+
+    Not off warlock/entity/triggers, which was the obvious source and is
+    wrong for this: that taxonomy comes from the voice line database, where
+    the author grouped Justice and Death as "persons" while the card spec has
+    them as auras and Fool and Lovers as persons. Both groupings are valid for
+    their own purpose; the panel should show what the card DOES, and the
+    pattern name is that.
+
+    Playing cards take their suit from the name, since Card-Comet-Red covers
+    both hearts and diamonds.
+    """
+    groups = {}
+    for name in sorted(config.interruptions):
+        entry = config.interruptions[name]
+        lights = (getattr(entry, "lights", "") or "")
+        low = name.lower()
+
+        if lights.startswith("Boon-"):
+            key = "Boons"
+        elif lights.startswith("Person-"):
+            key = "Persons"
+        elif lights.startswith("Aura-"):
+            key = "Auras"
+        elif "joker" in low:
+            key = "Jokers"
+        elif "wheel" in low or "fortune" in low:
+            key = "Fortune"
+        else:
+            key = next((suit.capitalize() for suit in _SUITS
+                        if low.endswith("_of_" + suit)), "Other")
+        groups.setdefault(key, []).append(name)
+
+    return [{"name": k, "items": groups[k]}
+            for k in _GROUP_ORDER if groups.get(k)]
+
 
 def _read_version() -> Optional[str]:
     """What build is deployed, for the panel footer (plan doc 5.5)."""

@@ -118,6 +118,16 @@
              guess where a cycle will land. -->
         <div id="overlay-row" class="check-row"
              style="grid-template-columns:repeat(3,1fr)"></div>
+
+        <!-- The map, changeable on its own. set_background is an independent
+             action, so this works mid-scene or with no scene at all -- the
+             common case of "keep the mood, change the map" had no control
+             before this. -->
+        <label class="field">
+          <span>Map / background <span class="muted">changes on its own,
+                without touching the scene</span></span>
+          <select id="background-pick"></select>
+        </label>
         <p class="note" id="display-note"></p>
       </section>
 
@@ -129,8 +139,10 @@
 
     <div class="panel-col">
       <section>
-        <h2>Interruptions</h2>
-        <div id="interruptions" class="grid"></div>
+        <h2>Interruptions <span class="muted" id="interruption-count"></span></h2>
+        <!-- Grouped and collapsed by default. 79 cards in one flat grid meant
+             the 25 tarot were buried under 54 playing cards. -->
+        <div id="interruption-groups"></div>
       </section>
     </div>
   </section>

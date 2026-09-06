@@ -1341,3 +1341,46 @@ body.locked { overflow: hidden; }
   .nudge-row.six { grid-template-columns: repeat(3, 1fr); }
   .square-fields { grid-template-columns: 1fr; }
 }
+
+/* ================================================== GROUPED INTERRUPTIONS
+   79 cards in one flat grid buried the 25 tarot under 54 playing cards.
+   Grouped, collapsible, and the open set is remembered per device. */
+
+.cardgroup { margin-bottom: 8px; }
+
+.cardgroup-head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; margin: 0 0 6px;
+  padding: 9px 12px;
+  text-align: left;
+  border-color: var(--line);
+  background: var(--black-2);
+}
+.cardgroup-head:hover { border-color: var(--brass-dim); }
+/* An open group gets the gold edge, so which blocks are expanded reads at a
+   glance in a dim room rather than needing the carets to be studied. */
+.cardgroup-head.open { border-color: var(--gold-dim); color: var(--bone); }
+
+.cardgroup-head .caret {
+  color: var(--gold-dim);
+  font-size: 11px;
+  width: 10px;
+}
+/* Count sits hard right, so the group names stay in one readable column. */
+.cardgroup-head .kind { margin-left: auto; color: var(--bone-dim); }
+
+.cardgroup-body { margin-bottom: 14px; }
+.cardgroup-body[hidden] { display: none; }
+
+/* The map picker sits in Table Screen, under the overlay buttons. */
+#display-section .field { margin-top: 14px; margin-bottom: 8px; }
+#background-pick {
+  width: 100%;
+  padding: 10px;
+  background: var(--black-2);
+  color: var(--bone);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font-family: inherit; font-size: 13px;
+}
+#background-pick:focus { outline: none; border-color: var(--brass); }

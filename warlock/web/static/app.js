@@ -173,6 +173,90 @@ function addButtons(container, names, action, paramName, kindLabel) {
   });
 }
 
+/* Interruptions, grouped and collapsible.
+ *
+ * 79 cards in one flat grid put the 25 tarot -- the ones actually reached for
+ * during play -- underneath 54 playing cards. Groups come from the server,
+ * classified off each card's lights pattern; see _group_interruptions.
+ *
+ * Which groups are open is remembered per device, because a table that runs
+ * mostly tarot and a table that runs mostly playing cards want different
+ * things open, and re-collapsing the same block every session is a small
+ * insult that adds up.
+ */
+function openGroups() {
+  try { return JSON.parse(localStorage.getItem("openGroups") || "null") || null; }
+  catch (e) { return null; }
+}
+
+function rememberGroups(open) {
+  try { localStorage.setItem("openGroups", JSON.stringify(open)); } catch (e) {}
+}
+
+function buildInterruptionGroups(groups) {
+  const host = $("#interruption-groups");
+  if (!host) return;
+  host.innerHTML = "";
+
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  const count = $("#interruption-count");
+  if (count) count.textContent = total + " cards";
+
+  // First run: open the tarot, collapse the rest. Those are the ones a
+  // session actually uses; the playing cards are a deck you reach into.
+  const remembered = openGroups();
+  const open = remembered || ["Boons", "Persons", "Auras", "Fortune"];
+
+  groups.forEach(group => {
+    const wrap = el("div", "cardgroup");
+    const head = el("button", "cardgroup-head");
+    const caret = el("span", "caret", "▸");
+    head.append(caret);
+    head.append(document.createTextNode(" " + group.name));
+    head.append(el("span", "kind", String(group.items.length)));
+
+    const body = el("div", "grid cardgroup-body");
+    addButtons(body, group.items, "play_interruption", "interruption_name", null);
+
+    const show = shown => {
+      body.hidden = !shown;
+      caret.textContent = shown ? "▾" : "▸";
+      head.classList.toggle("open", shown);
+    };
+    show(open.indexOf(group.name) >= 0);
+
+    head.addEventListener("click", () => {
+      const nowOpen = body.hidden;
+      show(nowOpen);
+      const set = new Set(openGroups() || open);
+      if (nowOpen) set.add(group.name); else set.delete(group.name);
+      rememberGroups([...set]);
+    });
+
+    wrap.append(head);
+    wrap.append(body);
+    host.append(wrap);
+  });
+}
+
+/* The map picker. set_background is its own action, so this changes the
+ * picture without touching lights or sound -- mid-scene or with none. */
+function buildBackgroundPicker(names) {
+  const sel = $("#background-pick");
+  if (!sel) return;
+  sel.innerHTML = "";
+  sel.append(el("option", null, "— choose a map —"));
+  names.forEach(n => {
+    const o = el("option", null, n);
+    o.value = n;
+    sel.append(o);
+  });
+  sel.addEventListener("change", () => {
+    if (!sel.value) return;
+    fire("set_background", { name: sel.value }, sel);
+  });
+}
+
 async function buildUI() {
   const v = await api("/api/vocabulary");
   // Idle is on its own always-visible button; listing it twice invites
@@ -180,8 +264,9 @@ async function buildUI() {
   addButtons($("#scenes"),
              v.scenes.filter(n => n !== v.idle_scene),
              "apply_scene", "scene_name", null);
-  addButtons($("#interruptions"), v.interruptions,
-             "play_interruption", "interruption_name", null);
+  buildInterruptionGroups(v.interruption_groups || [
+    { name: "Interruptions", items: v.interruptions }]);
+  buildBackgroundPicker(v.backgrounds || []);
   addButtons($("#tables"), v.random_tables,
              "roll_table", "table_name", "roll");
   if (!v.random_tables.length) $("#tables-section").style.display = "none";

@@ -10,7 +10,7 @@
       "default_prompt_influence": 0.6,
       "output_dir": "audio/sfx/",
       "raw_dir": "audio/sfx/_raw/",
-      "note": "Duration is capped by the API at roughly 22s. Nothing here needs more: aura cards hold for 60s via the interruption's duration_s, and the LIGHT carries that time. The audio is a sting at the top, not a bed."
+      "note": "MEASURED, not assumed: duration_seconds must be between 0.5 and 30. The API says so itself -- asking for 60 returns invalid_generation_settings naming the range. Stings need nowhere near it; beds take the full 30 and lose 3s to the loop crossfade, leaving a 27s loop."
     },
     "aesthetic": {
       "v1_was_wrong": "The first pass took the character bible's rules for how the Entity SPEAKS and applied them to how the table SOUNDS. That was a category error. Section 3 describes how the Entity PERCEIVES -- contact, vibration, wood -- and section 6's 'containment, not volume' governs its dialogue delivery. Neither is a rule about card effects. The players do not hear through the wood; they hear a supernatural event in the room. Constraining everything to dry woody knocks with no sparkle produced 54 sounds that were tasteful, coherent and completely inert.",
@@ -64,6 +64,28 @@
         "description": "Things a player does. Small enchantments.",
         "prefix": "A short magical arcane sound effect for a tabletop game.",
         "suffix": "Warm shimmering tone with a bright glimmering edge and a gentle sparkling tail. Enchanted and pleasant."
+      }
+    },
+    "beds": {
+      "description": "The five scene soundscapes. NOT stings -- these loop for as long as the scene lasts, underneath everything else.",
+      "why_generated": "The originals were five files of five different provenances: 44.1/48/96kHz, 16-bit/24-bit/float32, 48s to 278s, and 7.6dB apart in level. The mixer runs at 44100/16/stereo, so only island matched it and the rest were being converted on load, which is where the level differences came from. Generating them means one format, one level, and a loop point we control.",
+      "loop": {
+        "use_api_loop": true,
+        "model_id": "eleven_text_to_sound_v2",
+        "note": "The API's own `loop` parameter, documented as producing a sound that loops smoothly, and available on this model. Preferred over stitching a crossfade afterwards: the model closes the loop, and no length is lost to the join.",
+        "crossfade_s": 0.0,
+        "fallback": "If a generated bed still steps at the seam, set crossfade_s above zero and render_sfx will blend the tail back over the head instead."
+      },
+      "prefix": "A continuous ambient soundscape loop for a tabletop game:",
+      "suffix": "Evolving, textural and immersive with no distinct events or sudden hits. Steady throughout, even in level, no build and no ending. Deep and wide.",
+      "target": {
+        "samplerate": 44100,
+        "bits": 16,
+        "channels": 2,
+        "rms_db": -30.0,
+        "crossfade_s": 0.0,
+        "note": "44100/16/stereo matches pygame's mixer exactly, so SDL never resamples or requantises on load -- which is where the level differences between the original beds came from. rms_db is measured on the MONO SUM, and min_correlation narrows any bed whose channels are too decorrelated to survive being summed: people sit around this table, close, so what they hear is near enough mono.",
+        "min_correlation": 0.35
       }
     }
   },
@@ -554,6 +576,43 @@
       "prompt": "An enchantment failing to take hold, a flat unresolved flicker of nothing.",
       "duration_seconds": 1.3,
       "prompt_influence": 0.6
+    }
+  ],
+  "beds": [
+    {
+      "id": "bed_forest",
+      "scene": "forest",
+      "intent": "Green mana. Deep canopy, dappled and growing.",
+      "prompt": "a deep forest at dusk, dense canopy, distant birds, faint wind through leaves, warm and alive",
+      "duration_seconds": 30.0
+    },
+    {
+      "id": "bed_plains",
+      "scene": "plains",
+      "intent": "White mana. Open, ordered, wind over grass.",
+      "prompt": "a vast open grassland, steady warm wind over long grass, wide open sky, distant and calm",
+      "duration_seconds": 30.0
+    },
+    {
+      "id": "bed_swamp",
+      "scene": "swamp",
+      "intent": "Black mana. Slow breathing bog, something old under it.",
+      "prompt": "a dark stagnant swamp at night, slow bubbling water, distant frogs and insects, thick heavy air, faintly ominous",
+      "duration_seconds": 30.0
+    },
+    {
+      "id": "bed_island",
+      "scene": "island",
+      "intent": "Blue mana. Quiet and deep, water and pressure.",
+      "prompt": "a calm deep ocean shore, slow rolling swells, water lapping, distant gulls, cool and spacious",
+      "duration_seconds": 30.0
+    },
+    {
+      "id": "bed_mountain",
+      "scene": "mountain",
+      "intent": "Red mana. Ember bands in dark rock, heat.",
+      "prompt": "a volcanic mountainside, low rumbling earth, distant fire and settling embers, dry heat and wind over stone",
+      "duration_seconds": 30.0
     }
   ]
 }
