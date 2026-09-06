@@ -2241,7 +2241,14 @@ Stand up the core software on the Pi once hardware is trusted.
   unnoticed as done.
 - [ ] Pattern authoring loop + "upload pattern" via the web panel — `tools/upload_pattern.py` does it from the command line already; the panel cannot, and the Pi cannot compile (no ARM wheel for V8).
 - [x] Card management — reassign/create/delete from the panel, plus registering an unknown tag by tapping it (§4.5 steps 1–2).
-- [ ] **§4.5 steps 3–4:** upload audio through the panel, and author scenes/interruptions from scratch.
+- [x] **§4.5 step 3:** upload audio through the panel — done. Converted on
+  the way in (44100 stereo, canonical header, levelled, loop closed), which
+  is the part that matters: every audio fault this table has had was a
+  format fault that gave no sign of itself. See `warlock/audioimport/`.
+- [x] **§4.5 step 4a:** author scenes from scratch — done, the scene editor.
+- [ ] **§4.5 step 4b:** author interruptions from scratch. Cards can be
+  re-pointed from the panel, but a brand-new interruption still needs a
+  config edit.
 - [x] **Cut input-to-effect latency** — measured and largely fixed
   2026-08-22 (§5.7). The chain was timed rather than guessed at, and the
   biggest cost turned out not to be a device at all: the controller

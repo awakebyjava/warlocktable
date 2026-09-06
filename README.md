@@ -62,6 +62,12 @@ warlock/
   entity/          the table's voice: whether to speak, which line, and
                    playing it. Flavour only -- delete it and the table is
                    unchanged, which is the constraint that shapes it.
+  audioimport/     uploaded sound -> something the table can play. CONVERTS
+                   rather than copies: 44100 stereo with a canonical WAV
+                   header, levelled against what is already there, loop
+                   closed if it loops. Every audio fault this table has had
+                   was a format fault that did not announce itself.
+                   ffmpeg does the decoding -- no armhf wheel needed.
   mapimport/       uploaded images -> table-correct backgrounds. Knows
                    nothing about the controller; writes files and asks the
                    display to rescan, which is the whole integration.
@@ -222,6 +228,17 @@ its opinion of it, and each waits for the last on the same clock. Which cards
 get an announcement is decided by what is on disk, not by a list in the code:
 the 54 exist as files and the 25 tarot do not, so render a new one and it
 announces itself.
+
+**Sound can be uploaded through the panel**, the way maps can. It is
+converted on the way in, not copied: the beds proved that a file at the
+wrong sample rate is silently resampled by SDL on load and comes out at the
+wrong level, and the voice lines proved that pygame 1.9.6 refuses a WAV with
+a JUNK chunk without saying so. The kind chosen at upload is not cosmetic --
+a bed and a cue are loop-closed and levelled to a target, while a one-shot
+is neither, because folding a sting's tail over its attack destroys it and
+RMS-levelling a short hit makes its loudness depend on how much silence
+follows it. Uploads land in a directory the table owns and take precedence
+over a shipped file of the same name, which the panel says out loud.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.
