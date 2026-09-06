@@ -203,6 +203,15 @@ ducking, same layering over the soundscape, no pollution of the library.
 - Track the real duration so cooldown starts at the end.
 - On any failure, log and carry on. Never raise into the controller.
 
+**Never on top of a sting.** Added once the 54 sound effects landed, because
+the two systems both fire on a card tap and both want the effect channel.
+`on_trigger` takes a `min_delay`, and the caller passes the sting's own
+measured duration, so the line starts after it finishes. Two lessons in one:
+`SoundEffects.play()` has to RETURN the duration for this to be possible, and
+the caller has to fire the sting BEFORE the voice -- the scene hook did it the
+other way round at first, which computed the delay from a sound that had not
+started yet and produced exactly the overlap it was meant to prevent.
+
 ---
 
 ## 7a. The two controls that live in Settings

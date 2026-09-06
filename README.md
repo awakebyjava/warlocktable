@@ -83,7 +83,12 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                      upload_pattern.py   upload a single named pattern
                      archive_patterns.py copy sources off before deleting
                      migrate_tarot.py    build card entries from the spec
+                     migrate_playing_cards.py  the same for the 54-card deck
                      enrol_cards.py      tap physical cards to register them
+                     enrol_offline.py    the same, but owning the reader
+                                         outright with the service stopped
+                     scan_deck.py        walk the 54-card deck in order,
+                                         tapping each one onto the table
                      tag_probe.py        identify an unknown tag and its chip
                      sync_seat_colours.py realign a live config's palette
                      icon_manifest.py    the icon set the interface needs
@@ -97,6 +102,14 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                                          listening to thousands of files
                      render_sfx.py       generate the table's 54 stingers from
                                          soundeffects/table-sfx.json
+                     fix_beds.py         repair the five scene soundscapes --
+                                         format, level and loop seam -- writing
+                                         copies, never touching the originals
+soundeffects/      what the table's 54 stings are MADE FROM, not the
+                   stings themselves. `table-sfx.json` is the database --
+                   one entry per sound, with the prompt that renders it --
+                   and is the tracked artifact; the sampled libraries
+                   beside it are gitignored and laptop-only.
 branding/          the wordmark, app icons, and the table's two sigils
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy. `generated/` is patterngen.py's output (30);
@@ -155,6 +168,30 @@ bars** page between d20, World of Darkness and BRP, and **d100** is
 allowed — which introduced a split worth knowing about: `controller.DICE`
 is what may be *rolled*, while the six shapes on the pad are what is
 *shown*, and they are deliberately different lists.
+
+Since that, still unreleased — **map import**: any image, including HEIC
+straight off a phone, scaled to the table's own 107.85px grid, with pan,
+scale, rotation, brightness and contrast always available by hand and a
+square or hex overlay in white or black for artwork drawn without one.
+**The Entity has a voice** — 91 pre-rendered lines chosen probabilistically,
+with an on/off switch and a how-often slider, and it never speaks over a
+sting. **Fifty-four sound effects**, generated rather than bought, firing on
+the effect channel so a scene's ongoing soundscape keeps playing underneath
+its own arrival sting; switchable per family, per sound, and by profile.
+**A scene editor**, so scenes stopped being an ssh job, and the map can now
+be changed mid-scene or with no scene at all. **The Run panel's
+interruptions are grouped** into collapsible blocks that remember what you
+left open.
+
+**The five scene soundscapes were repaired, not replaced.** They were at
+44100, 48000 and 96000 Hz against a mixer that runs at 44100, so SDL was
+converting four of the five on load — and that conversion, not the
+recordings, is where a 7.6 dB spread between quietest and loudest came
+from. Fixing the format fixed the level. Separately, `plains` had a
+completely dead right channel, and `island` ended at 4.15× the level it
+started at, which is the thump you heard every time round. Repaired copies
+live beside the originals and win by search order, so the two can still be
+A/B'd on the table; `tools/fix_beds.py --check` measures without writing.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.
