@@ -102,14 +102,20 @@ tools/             laptop-side, for the Pixelblaze and the live config:
                                          listening to thousands of files
                      render_sfx.py       generate the table's 54 stingers from
                                          soundeffects/table-sfx.json
+                     render_cues.py      generate the 15 music cues from
+                                         soundeffects/table-cues.json, then
+                                         put them through the bed repair chain
                      fix_beds.py         repair the five scene soundscapes --
                                          format, level and loop seam -- writing
                                          copies, never touching the originals
-soundeffects/      what the table's 54 stings are MADE FROM, not the
-                   stings themselves. `table-sfx.json` is the database --
-                   one entry per sound, with the prompt that renders it --
-                   and is the tracked artifact; the sampled libraries
-                   beside it are gitignored and laptop-only.
+soundeffects/      what the table's 54 stings and 15 music cues are MADE
+                   FROM, not the finished audio. `table-sfx.json` and
+                   `table-cues.json` are the databases -- one entry per sound,
+                   with the prompt that renders it -- and are the tracked
+                   artifacts. The sampled libraries and the rendered `cues/`
+                   beside them are gitignored and laptop-only; `cues/_raw/`
+                   holds every API response, so the whole set can be
+                   re-levelled later with no API calls at all.
 branding/          the wordmark, app icons, and the table's two sigils
 patterns/          Pixelblaze patterns, kept in git so the device is not the
                    only copy. `generated/` is patterngen.py's output (30);
@@ -192,6 +198,19 @@ completely dead right channel, and `island` ended at 4.15× the level it
 started at, which is the thump you heard every time round. Repaired copies
 live beside the originals and win by search order, so the two can still be
 A/B'd on the table; `tools/fix_beds.py --check` measures without writing.
+
+And a **music layer**, which is the one that changed shape while it was
+being built. It began as "music for each scene" and that was wrong: a scene
+says WHERE the party is, and what you actually want to underscore is WHAT IS
+HAPPENING. So a cue -- travel, ambush, arcane, dread, grief -- is chosen
+independently and combined with any scene. Fifteen of them in five groups,
+on their own reserved channel pair so a cue crossfades without touching the
+bed. Two rules, both decided at the table: a cue NEVER arms itself, combat
+included, because a GM who wants a silent round should not have to fight the
+table for it; and a scene change FADES THE CUE, because a change of location
+is a scene break. Cues deliberately do not live in `audio_paths` -- anything
+there shows up in `available_tracks()`, and the effect picker and scene
+editor would fill with music.
 
 Rollback is `git checkout <tag> && sudo ./deploy/install.sh`; the deployed
 build is recorded in `/opt/warlocktable/VERSION` and shown in the panel.
