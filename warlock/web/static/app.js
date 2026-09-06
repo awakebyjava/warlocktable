@@ -1192,10 +1192,10 @@ $("#rec-toggle").addEventListener("click", async (ev) => {
 function renderAudio(a) {
   // The music trim. Hidden entirely when there are no cues -- a slider for
   // a layer with no files is a control that cannot do anything.
-  const row = $("#music-vol-row");
+  const musicRow = $("#music-vol-row");
   const cue = $("#cue-vol");
-  if (row && cue) {
-    row.hidden = !a.cues;
+  if (musicRow && cue) {
+    musicRow.hidden = !a.cues;
     if (document.activeElement !== cue) {
       const cv = Math.round((a.cue_volume == null ? 0.8 : a.cue_volume) * 100);
       cue.value = String(cv);
