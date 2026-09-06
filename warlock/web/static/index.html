@@ -308,6 +308,13 @@
         <button id="open-scenes" class="wide">Scene Editor</button>
       </section>
 
+      <section>
+        <h2>Interruptions</h2>
+        <p class="note">The other half of the vocabulary &mdash; what a card
+           does when it layers over a scene rather than replacing it.</p>
+        <button id="open-int" class="wide">Interruption Editor</button>
+      </section>
+
       <section id="sfx-entry">
         <h2>Sound Effects <span class="muted" id="sfx-state"></span></h2>
         <div class="check-row">
@@ -419,6 +426,72 @@
       <section>
         <h2>Existing <span class="muted" id="scene-count"></span></h2>
         <div id="scene-list" class="cards"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ======================================================= INTERRUPTIONS
+       Cards could always be RE-POINTED from the panel; a brand-new one still
+       needed an ssh and a config edit. Same page shape as the scene editor,
+       because it is the same job on the other half of the vocabulary. -->
+  <section class="panel page" id="panel-cards-edit" data-panel="cards-edit" hidden>
+    <div class="panel-col wide-col">
+      <div class="page-head">
+        <button id="int-back" class="ghost">&#9664; Settings</button>
+        <h2>Interruption Editor</h2>
+      </div>
+
+      <section>
+        <h2 id="int-form-title">New Interruption</h2>
+        <p class="note">An interruption layers over whatever is playing, then
+           the table goes back to it. Every list offers only what the table
+           actually has.</p>
+
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="int-name" maxlength="40"
+                 placeholder="the_dragon_wakes" autocapitalize="off"
+                 autocomplete="off" spellcheck="false">
+        </label>
+
+        <label class="field">
+          <span>Sound <span class="muted">optional</span></span>
+          <select id="int-audio"></select>
+        </label>
+
+        <!-- Unlike a scene, lights are OPTIONAL here: leaving them alone is
+             a real card -- a sound over whatever is already showing. -->
+        <label class="field">
+          <span>Lights <span class="muted">optional &mdash; blank leaves the
+                current lighting alone</span></span>
+          <select id="int-lights"></select>
+        </label>
+
+        <label class="field">
+          <span>Map <span class="muted">optional</span></span>
+          <select id="int-background"></select>
+        </label>
+
+        <label class="field">
+          <span>Hold for <span class="muted" id="int-duration-note"></span></span>
+          <input type="number" id="int-duration" min="0" step="0.5"
+                 placeholder="as long as the sound runs">
+        </label>
+
+        <div class="check-row">
+          <label><input type="checkbox" id="int-duck" checked>
+                 Dip the soundscape while it plays</label>
+        </div>
+
+        <div class="map-actions">
+          <button id="int-save" class="primary">Save Interruption</button>
+          <button id="int-clear" class="ghost">Clear</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Existing <span class="muted" id="int-count"></span></h2>
+        <div id="int-list" class="cards"></div>
       </section>
     </div>
   </section>
@@ -768,5 +841,6 @@
 <script src="/sfx.js"></script>
 <script src="/scenes.js"></script>
 <script src="/sounds.js"></script>
+<script src="/interruptions.js"></script>
 </body>
 </html>

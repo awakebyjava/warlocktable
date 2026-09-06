@@ -247,6 +247,12 @@ class _Handler(BaseHTTPRequestHandler):
                 "options": self.runtime.store.scene_options(self.controller),
                 "idle_scene": self.controller.config.idle_scene_name,
             })
+        elif path == "/api/config/interruptions":
+            self._send_json({
+                "interruptions": self.runtime.store.list_interruptions(),
+                "options": self.runtime.store.interruption_options(
+                    self.controller),
+            })
         elif path == "/api/config/targets":
             self._send_json(self.runtime.store.valid_targets())
         elif path == "/api/config/unassigned":
@@ -277,6 +283,22 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             self._send_json({"ok": True,
                              "scenes": self.runtime.store.list_scenes()})
+            return
+
+        if path.startswith("/api/config/interruptions/"):
+            name = _unquote(path[len("/api/config/interruptions/"):])
+            from ..config import ConfigError
+            try:
+                self.runtime.store.delete_interruption(name)
+            except ConfigError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json({
+                "ok": True,
+                "interruptions": self.runtime.store.list_interruptions()})
             return
 
         if path.startswith("/api/config/cards/"):
@@ -615,6 +637,31 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             self._send_json({"ok": True, "scene": result,
                              "scenes": self.runtime.store.list_scenes()})
+            return
+
+        if path == "/api/config/interruptions":
+            body = self._read_json()
+            from ..config import ConfigError
+            try:
+                result = self.runtime.store.set_interruption(
+                    name=body.get("name", ""),
+                    audio=body.get("audio"),
+                    lights=body.get("lights"),
+                    background=body.get("background"),
+                    duck=body.get("duck"),
+                    duration_s=body.get("duration_s"),
+                    options=self.runtime.store.interruption_options(
+                        self.controller),
+                )
+            except ConfigError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            except Exception as exc:   # noqa: BLE001
+                self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+                return
+            self._send_json({
+                "ok": True, "interruption": result,
+                "interruptions": self.runtime.store.list_interruptions()})
             return
 
         # --- Action surface: does something NOW ---

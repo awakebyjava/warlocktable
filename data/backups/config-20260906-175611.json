@@ -305,6 +305,10 @@
       "duck": false,
       "duration_s": 60.0,
       "lights": "Aura-World"
+    },
+    "test_thing": {
+      "duck": true,
+      "lights": "KITT"
     }
   },
   "random_tables": {

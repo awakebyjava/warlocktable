@@ -26,7 +26,8 @@ import re
 import threading
 from typing import Dict, List, Optional, Tuple
 
-from .config import Scene, Transition, Card, Config, ConfigError, Target, save_config
+from .config import (Scene, Transition, Card, Config, ConfigError,
+                     Interruption, Target, save_config)
 from .zones import MAX_PLAYERS
 
 
@@ -373,6 +374,121 @@ class ConfigStore:
             return "deleted"
 
         self._with_rollback("scene", mutate, name=name)
+
+    # ------------------------------------------------------- interruptions
+
+    def interruption_options(self, controller) -> dict:
+        """Everything an interruption may point at, asked of the live devices.
+
+        Same principle as scene_options: the editor offers what actually
+        exists, so a card cannot be saved naming a clip that is not there.
+        """
+        def safe(fn, fallback=None):
+            try:
+                return list(fn())
+            except Exception:              # noqa: BLE001
+                return list(fallback or [])
+
+        return {
+            "audio": safe(controller.audio.available_tracks),
+            "lights": safe(controller.lights.available_patterns),
+            "backgrounds": safe(controller.background_choices),
+            "fallback_s": self.config.fallback_interruption_s,
+        }
+
+    def list_interruptions(self) -> List[dict]:
+        """Every interruption, with what points at it."""
+        out = []
+        with self._lock:
+            for name in sorted(self.config.interruptions):
+                i = self.config.interruptions[name]
+                out.append({
+                    "name": name,
+                    "audio": i.audio,
+                    "lights": i.lights,
+                    "background": i.background,
+                    "duck": i.duck,
+                    "duration_s": i.duration_s,
+                    "used_by": self.usage_of("interruption", name),
+                })
+        return out
+
+    def set_interruption(self, name, audio=None, lights=None, background=None,
+                         duck=None, duration_s=None, options=None) -> dict:
+        """Create or update an interruption.
+
+        UNLIKE A SCENE, lights are optional -- `None` means "leave the
+        current lighting alone", which is a real and useful card: a sound
+        over whatever is already showing. So the requirement cannot be "must
+        have lights"; it is that the card must do SOMETHING. An interruption
+        with no audio, no lights and no background is a tap that produces
+        nothing and explains nothing, which is exactly the failure the
+        referential-integrity rule exists to prevent.
+        """
+        name = (name or "").strip().lower().replace(" ", "_")
+        if not name:
+            raise ConfigError("interruption name is required")
+        if not NAME_OK.match(name):
+            raise ConfigError("interruption name may only use letters, "
+                              "numbers, dash and underscore")
+
+        audio = (audio or "").strip() or None
+        lights = (lights or "").strip() or None
+        background = (background or "").strip() or None
+
+        if not (audio or lights or background):
+            raise ConfigError(
+                "an interruption needs at least one of a sound, a lighting "
+                "pattern or a map -- otherwise tapping the card does nothing")
+
+        if duration_s in ("", None):
+            duration_s = None
+        else:
+            try:
+                duration_s = float(duration_s)
+            except (TypeError, ValueError):
+                raise ConfigError("duration must be a number of seconds")
+            if duration_s <= 0:
+                raise ConfigError("duration must be greater than zero")
+
+        if options:
+            if audio and options.get("audio") and audio not in options["audio"]:
+                raise ConfigError("no sound named %r" % audio)
+            if lights and options.get("lights")                     and lights not in options["lights"]:
+                raise ConfigError("no lighting pattern named %r" % lights)
+            if background and options.get("backgrounds")                     and background not in options["backgrounds"]:
+                raise ConfigError("no map named %r" % background)
+
+        existing = self.config.interruptions.get(name)
+        if duck is None:
+            duck = existing.duck if existing else True
+
+        def mutate():
+            self.config.interruptions[name] = Interruption(
+                name=name, audio=audio, lights=lights, background=background,
+                duck=bool(duck), duration_s=duration_s)
+            return "updated" if existing else "created"
+
+        action = self._with_rollback("interruption", mutate, name=name)
+        return {"name": name, "action": action}
+
+    def delete_interruption(self, name: str) -> None:
+        """Remove an interruption. Refuses if a card still points at it."""
+        name = (name or "").strip()
+        if name not in self.config.interruptions:
+            raise ConfigError("no interruption named %r" % name)
+
+        users = self.usage_of("interruption", name)
+        if users:
+            raise ConfigError(
+                "%r is still used by %d card(s): %s"
+                % (name, len(users), ", ".join(users[:4])))
+
+        def mutate():
+            del self.config.interruptions[name]
+            return "deleted"
+
+        self._with_rollback("interruption", mutate, name=name)
 
     def delete_card(self, uid: str) -> None:
         with self._lock:
