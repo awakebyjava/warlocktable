@@ -1,0 +1,115 @@
+{
+  "_meta": {
+    "description": "Music CUES for the Warlock Table. A cue is music for what is HAPPENING, not for where the party is -- the scene bed says forest, the cue says ambush, and the GM combines them. Cues are chosen by hand and never arm themselves.",
+    "layer": "Plays on its own reserved channel pair, under the scene bed and under the stings. A scene change FADES THE CUE OUT: a change of location is treated as a scene break.",
+    "elevenlabs": {
+      "endpoint": "https://api.elevenlabs.io/v1/music",
+      "model_id": "music_v2",
+      "force_instrumental": true,
+      "env_var": "ELEVENLABS_API_KEY",
+      "note": "music_length_ms accepts 3000-600000. Ten minutes, against the 30s ceiling on sound-generation -- which is why cues do not have the loop problem the ambience experiment had."
+    },
+    "processing": {
+      "rate": 44100,
+      "note": "44100 because that is what the mixer runs at. The beds taught this the hard way: three different source rates meant SDL converted on load, and THAT is where their 7.6 dB level spread came from.",
+      "target_rms_db": -32.0,
+      "target_note": "Beds sit at -30. A cue plays under one, so it sits below it.",
+      "crossfade_s": 4.0,
+      "crossfade_note": "Equal-power fold of the tail back over the head, the same chain fix_beds.py uses. Raised per cue if a musical phrase gets smeared by it."
+    },
+    "prompt_suffix": " Instrumental only, no vocals and no singing. Mixed to sit underneath ambience and conversation rather than on top of them.",
+    "default_length_ms": 180000
+  },
+  "cues": [
+    {
+      "name": "travel",
+      "group": "Journey",
+      "prompt": "Steady, forward-moving underscore for a party travelling across open country. A patient walking pulse in low strings, a simple modal figure passed between plucked strings and a distant horn. Warm but not triumphant, with a sense of distance still to cover. Never arrives.",
+      "length_ms": 180000
+    },
+    {
+      "name": "long_road",
+      "group": "Journey",
+      "prompt": "Weary night travel. Slow, tired and thinning out: sparse low strings, a lone woodwind well back, long gaps between phrases. The end of a hard day's walking with more of it still to come. Melancholy, not despairing.",
+      "length_ms": 180000
+    },
+    {
+      "name": "arrival",
+      "group": "Journey",
+      "prompt": "Coming into sight of somewhere at last. A slow opening out -- strings widening, a horn line resolving upward, air and space appearing in the arrangement. Relief and a little awe. Restrained, not a fanfare.",
+      "length_ms": 180000
+    },
+    {
+      "name": "ambush",
+      "group": "Threat",
+      "prompt": "Sudden danger. Hard low string stabs, tremolo strings climbing, a driving irregular pulse underneath, brass swelling in short bursts. Tense and physical -- the threat is already in the room, not approaching.",
+      "length_ms": 180000
+    },
+    {
+      "name": "combat",
+      "group": "Threat",
+      "prompt": "Sustained battle. A relentless driving ostinato in low strings and percussion, brass punching across the top in short figures, harmonically static so it can run for minutes without resolving. Built to be talked over during a fight, not listened to.",
+      "length_ms": 180000
+    },
+    {
+      "name": "stalking",
+      "group": "Threat",
+      "prompt": "Held breath. Very sparse and very quiet: a single low sustained note, occasional muted plucks, a high thin harmonic drifting in and out. Long silences. Something is hunting, and it has not found you yet.",
+      "length_ms": 180000
+    },
+    {
+      "name": "the_big_one",
+      "group": "Threat",
+      "prompt": "Monumental dread. Enormous slow low brass, a choir-like mass of strings grinding against itself, a deep irregular heartbeat far underneath. Vast and patient and entirely unimpressed by you.",
+      "length_ms": 180000
+    },
+    {
+      "name": "arcane",
+      "group": "Uncanny",
+      "prompt": "Magic being worked. Bowed metal and glass harmonics, a slow rising cluster of detuned strings, soft bell partials appearing and dissolving. Beautiful and slightly wrong, with no clear key centre. Awe with an edge, not sparkle.",
+      "length_ms": 180000
+    },
+    {
+      "name": "dread",
+      "group": "Uncanny",
+      "prompt": "Something is badly wrong and no one has said so yet. A low sustained unease that never resolves, faint scraping textures at the edges, pitch drifting slightly flat. Creeping and physical. No jump scares.",
+      "length_ms": 180000
+    },
+    {
+      "name": "revelation",
+      "group": "Uncanny",
+      "prompt": "A truth turning over. A single sustained chord opening slowly outward, bells far back, strings arriving underneath late. Weight and consequence -- the moment a card is turned and the room goes quiet.",
+      "length_ms": 180000
+    },
+    {
+      "name": "rest",
+      "group": "Between",
+      "prompt": "Recovery. Calm, gentle and unhurried: soft sustained strings, a simple descending figure, warmth without sentimentality. Safe for now.",
+      "length_ms": 180000
+    },
+    {
+      "name": "haven",
+      "group": "Between",
+      "prompt": "A warm room with people in it. Low and easy, a lightly plucked figure, a hint of a slow tune someone might be playing in the corner. Comfortable background, never the centre of attention.",
+      "length_ms": 180000
+    },
+    {
+      "name": "intrigue",
+      "group": "Between",
+      "prompt": "A watchful room. Measured and formal, a controlled pizzicato figure, restrained low strings, everything held slightly too still. Nobody is saying what they mean.",
+      "length_ms": 180000
+    },
+    {
+      "name": "grief",
+      "group": "Aftermath",
+      "prompt": "Loss. Slow, bare and unresolved: a solo string line high and exposed, long silences underneath, harmony arriving too late to comfort. Mournful and quiet. No swell.",
+      "length_ms": 180000
+    },
+    {
+      "name": "triumph",
+      "group": "Aftermath",
+      "prompt": "It is over and you are still standing. A slow build resolving upward, brass and strings together, dignified rather than celebratory -- earned, and tired.",
+      "length_ms": 180000
+    }
+  ]
+}

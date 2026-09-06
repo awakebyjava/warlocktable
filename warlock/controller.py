@@ -620,6 +620,14 @@ class Controller:
         jobs = [("lights", self.lights.set_pattern, scene.lights),
                 ("audio", self.audio.play_soundscape, scene.soundscape,
                  scene.transition.crossfade_s)]
+        # A CHANGE OF LOCATION ENDS THE MUSIC. A cue is chosen for what is
+        # happening, and moving somewhere else is a scene break -- so the
+        # ambush cue does not follow the party into the next room. The GM
+        # raises a new one if they want one. Fired only when something is
+        # actually playing, so an ordinary scene change logs nothing.
+        if getattr(self.audio, "cue", None):
+            jobs.append(("audio", self.audio.play_cue, None,
+                         self.config.cue_crossfade_s))
         if scene.background:
             jobs.append(("display", self.display.set_background, scene.background))
         if self.govee is not None:
@@ -821,6 +829,32 @@ class Controller:
     def set_brightness(self, level: float) -> None:
         self._supersede()
         self._try("lights", self.lights.set_brightness, level)
+
+    @action(ParamSpec("cue_name", "str",
+                      choices=lambda c: c.audio.available_cues()))
+    def play_music_cue(self, cue_name: str) -> None:
+        """Raise the music layer: what is HAPPENING, over wherever you are.
+
+        NOT a _supersede action. A cue is not a scene change and must not
+        cancel a pending interruption revert -- the same reasoning as
+        set_volume. Raising an ambush cue mid-card should not strand the
+        table on the card's lights.
+
+        Never arms itself. Combat music in particular is chosen by hand: a
+        GM who wants a silent round should not have to fight the table for
+        it.
+        """
+        self._try("audio", self.audio.play_cue, cue_name,
+                  self.config.cue_crossfade_s)
+        self.log.record("cue.play", name=cue_name)
+        self._session_log("cue", name=cue_name)
+
+    @action()
+    def stop_music_cue(self) -> None:
+        """Drop the music layer, leaving the scene's soundscape playing."""
+        self._try("audio", self.audio.play_cue, None,
+                  self.config.cue_crossfade_s)
+        self.log.record("cue.stop")
 
     @action(ParamSpec("level", "float"))
     def set_volume(self, level: float) -> None:

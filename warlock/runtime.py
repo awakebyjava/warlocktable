@@ -276,6 +276,7 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     if getattr(args, "real_audio", False):
         from .devices.pygame_audio import PygameAudio
         audio = PygameAudio(log, search_paths=config.audio_paths,
+                            cue_paths=config.cue_paths,
                             device=config.audio_device,
                             duck_level=config.duck_level,
                             duck_ramp_s=config.duck_ramp_s)

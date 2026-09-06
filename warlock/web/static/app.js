@@ -103,6 +103,16 @@ function render(s) {
   if (s.nfc) chip("nfc", s.nfc.healthy ? "ok" : "bad");
   else       chip("nfc", "absent");
 
+  // The music label and the Stop button follow the TABLE, not the last
+  // button pressed -- a cue also ends when the scene changes, so a Stop
+  // button left lit after that would be lying.
+  //
+  // Driven from /api/status here rather than from renderAudio, which only
+  // runs when the Settings panel fetches /api/audio. The Music section is in
+  // the Run panel, so hanging it off renderAudio meant it updated only if
+  // you happened to visit Settings.
+  if (window.markCue) markCue((s.audio || {}).cue || null);
+
   currentScene = s.scene;
   const sceneLine = $("#scene-now");
   sceneLine.innerHTML = "";
@@ -256,11 +266,79 @@ function buildBackgroundPicker(names) {
     o.value = n;
     sel.append(o);
   });
-  sel.addEventListener("change", () => {
-    if (!sel.value) return;
-    fire("set_background", { name: sel.value }, sel);
-  });
+  // Bound ONCE. rebuildVocabulary() runs again whenever the scene editor
+  // changes something, and addEventListener stacks -- so without this guard
+  // the second rebuild made every map choice fire set_background twice.
+  if (!sel.dataset.bound) {
+    sel.dataset.bound = "1";
+    sel.addEventListener("change", () => {
+      if (!sel.value) return;
+      fire("set_background", { name: sel.value }, sel);
+    });
+  }
 }
+
+/* The music cues, grouped the way the interruptions are.
+ *
+ * A cue is what is HAPPENING; the scene is where the party is. They are
+ * chosen separately and combined, so this lives beside the scene buttons
+ * rather than inside them.
+ *
+ * Nothing here arms itself, by explicit decision -- combat music included.
+ */
+function buildCueGroups(groups, playing) {
+  const host = $("#cue-groups");
+  if (!host) return;
+  host.innerHTML = "";
+
+  if (!groups.length) {
+    host.append(el("p", "note",
+      "No music installed. Cues live in the cue path — see cue_paths."));
+    markCue(null);
+    return;
+  }
+
+  groups.forEach(group => {
+    const wrap = el("div", "cardgroup");
+    const head = el("button", "cardgroup-head");
+    const caret = el("span", "caret", "▾");
+    head.append(caret);
+    head.append(document.createTextNode(" " + group.name));
+    head.append(el("span", "kind", String(group.items.length)));
+
+    const body = el("div", "grid cardgroup-body");
+    addButtons(body, group.items, "play_music_cue", "cue_name", null);
+
+    // Open by default: there are fifteen cues, not seventy-nine, and the
+    // whole point is reaching one fast in the middle of a scene.
+    head.classList.add("open");
+    head.addEventListener("click", () => {
+      const nowOpen = body.hidden;
+      body.hidden = !nowOpen;
+      caret.textContent = nowOpen ? "▾" : "▸";
+      head.classList.toggle("open", nowOpen);
+    });
+
+    wrap.append(head);
+    wrap.append(body);
+    host.append(wrap);
+  });
+  markCue(playing);
+}
+
+/* Show which cue is playing, and only offer Stop when there is something to
+ * stop. The table is the authority here, not the last button pressed: a cue
+ * also ends when the scene changes, and a Stop button left lit after that
+ * would be a lie. */
+function markCue(playing) {
+  document.querySelectorAll("#cue-groups button[data-name]").forEach(b =>
+    b.classList.toggle("active", b.dataset.name === playing));
+  const now = $("#cue-now");
+  if (now) now.textContent = playing || "";
+  const stop = $("#cue-stop");
+  if (stop) stop.hidden = !playing;
+}
+window.markCue = markCue;
 
 /* Rebuild everything the vocabulary drives: the scene buttons, the grouped
  * interruptions, the random tables and the map picker.
@@ -277,6 +355,7 @@ async function rebuildVocabulary() {
   buildInterruptionGroups(v.interruption_groups || [
     { name: "Interruptions", items: v.interruptions }]);
   buildBackgroundPicker(v.backgrounds || []);
+  buildCueGroups(v.cue_groups || [], v.cue_now || null);
   addButtons($("#tables"), v.random_tables,
              "roll_table", "table_name", "roll");
   if (!v.random_tables.length) $("#tables-section").style.display = "none";
@@ -439,6 +518,8 @@ async function poll() {
 /* ---------- wiring ---------- */
 
 $("#idle").addEventListener("click", (e) => fire("go_idle", {}, e.target));
+$("#cue-stop").addEventListener("click", (e) =>
+  fire("stop_music_cue", {}, e.target));
 
 async function runCheck(physical, btn) {
   const box = $("#check-results");

@@ -131,6 +131,18 @@
         <p class="note" id="display-note"></p>
       </section>
 
+      <!-- MUSIC. A separate layer from the scene: the scene says where the
+           party is, a cue says what is happening, and the GM combines them.
+           Nothing here arms itself -- combat music in particular is chosen
+           by hand, so a GM who wants a silent round gets one.
+           Changing the scene fades whatever is playing. -->
+      <section>
+        <h2>Music <span class="muted" id="cue-now"></span></h2>
+        <p class="note">Plays over any scene. A scene change fades it out.</p>
+        <div id="cue-groups"></div>
+        <button id="cue-stop" class="wide" hidden>Stop the music</button>
+      </section>
+
       <section>
         <h2>Return to Idle</h2>
         <button id="idle" class="idle-btn wide">Return to Idle</button>

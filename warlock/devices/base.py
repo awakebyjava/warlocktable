@@ -116,6 +116,20 @@ class AudioDevice(ABC):
         """track=None means stop with a fade-out. Looping bed, channel 1."""
 
     @abstractmethod
+    def play_cue(self, track: Optional[str], crossfade_s: float) -> None:
+        """The music layer. track=None means stop with a fade-out.
+
+        A CUE is music for what is HAPPENING -- travel, ambush, arcane --
+        while the soundscape is WHERE THE PARTY IS. They are independent on
+        purpose, so a cue can be raised over any scene, and they get separate
+        channel pairs so either can crossfade without touching the other.
+
+        Never ducked by an effect. A sting is a moment, the music is the
+        room; dropping the score on every card tap is the artefact this
+        layer exists to avoid.
+        """
+
+    @abstractmethod
     def play_effect(self, track: str, duck: bool,
                     max_duration: Optional[float] = None) -> float:
         """One-shot, layered over the soundscape. Returns how long it will
@@ -135,6 +149,15 @@ class AudioDevice(ABC):
         input wins). Without this the lights change instantly while the sting
         plays on to its own schedule, so the table's response looks split in
         two: picture first, sound catching up afterwards.
+        """
+
+    @abstractmethod
+    def available_cues(self) -> List[str]:
+        """The music cues this device can play, by name.
+
+        Separate from available_tracks() because cues live in their own
+        search path and must not appear in the effect picker or the scene
+        editor -- a cue is a layer the GM raises, not a sound a card fires.
         """
 
     @abstractmethod

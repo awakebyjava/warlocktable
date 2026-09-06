@@ -266,6 +266,16 @@ class Config:
     # resolve a name to a file. Config-driven per plan doc 3.3 — V1 hardcoded
     # /home/pi/Documents/MagicTarot/... in every single card branch.
     audio_paths: List[str] = field(default_factory=list)
+    # Music cues live in their own search path, NOT in audio_paths. The same
+    # reasoning the entity spec gives for keeping 91 voice lines out of the
+    # library: anything in audio_paths shows up in available_tracks(), so the
+    # panel's effect picker and the scene editor would fill with cue names.
+    # A cue is a layer, not a track you can attach to a card.
+    cue_paths: List[str] = field(default_factory=list)
+    # How long a cue takes to fade in, out, or across to another. Longer than
+    # a scene crossfade on purpose: music arriving abruptly announces itself
+    # as a table effect, which is the opposite of what an underscore is for.
+    cue_crossfade_s: float = 3.0
 
     # Govee accent strips (plan doc 3.13). Device IDS, not IPs: those are
     # DHCP and move. An empty list disables the whole thing, which is the
@@ -440,6 +450,8 @@ def load_config(path: str) -> Config:
         govee_brightness=int(raw.get("settings", {}).get("govee_brightness", 100)),
         govee_static_ips=list(raw.get("settings", {}).get("govee_static_ips", [])),
         audio_paths=list(raw.get("settings", {}).get("audio_paths", [])),
+        cue_paths=list(raw.get("settings", {}).get("cue_paths", [])),
+        cue_crossfade_s=float(raw.get("settings", {}).get("cue_crossfade_s", 3.0)),
         background_paths=list(raw.get("settings", {}).get("background_paths", [])),
         custom_background_path=raw.get("settings", {}).get("custom_background_path"),
         map_data_path=raw.get("settings", {}).get("map_data_path"),
@@ -480,6 +492,8 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "govee_brightness": config.govee_brightness,
         "govee_static_ips": list(config.govee_static_ips),
         "audio_paths": list(config.audio_paths),
+        "cue_paths": list(config.cue_paths),
+        "cue_crossfade_s": config.cue_crossfade_s,
         "background_paths": list(config.background_paths),
         "custom_background_path": config.custom_background_path,
         "map_data_path": config.map_data_path,

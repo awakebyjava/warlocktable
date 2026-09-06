@@ -51,22 +51,30 @@ AUDIO_EXTENSIONS = (".ogg", ".wav", ".mp3", ".flac")
 
 class PygameAudio(AudioDevice):
     BED_CHANNELS = 2
-    TOTAL_CHANNELS = 8
+    # Music cues get their own reserved pair, for the same reason the bed has
+    # two: a cue change is a true crossfade. Separate from the bed because the
+    # two layers change independently -- the GM raises an ambush cue without
+    # touching the forest underneath it.
+    CUE_CHANNELS = 2
+    TOTAL_CHANNELS = 10
     # Bounded so a long session can't slowly consume all RAM. Small because
     # each entry may be tens of megabytes decoded.
     CACHE_LIMIT = 6
 
     def __init__(self, log, search_paths: List[str],
+                 cue_paths: Optional[List[str]] = None,
                  device: Optional[str] = None,
                  duck_level: float = 0.3, duck_ramp_s: float = 0.25):
         self.log = log
         self.search_paths = [os.path.expanduser(p) for p in search_paths]
+        self.cue_paths = [os.path.expanduser(p) for p in (cue_paths or [])]
         self.device = device
         self.duck_level = max(0.0, min(1.0, duck_level))
         self.duck_ramp_s = duck_ramp_s
 
         self._mixer = None
         self._library: Dict[str, str] = {}      # track name -> file path
+        self._cues: Dict[str, str] = {}         # cue name  -> file path
         self._cache: Dict[str, object] = {}     # path -> Sound
         self._cache_order: List[str] = []
 
@@ -74,6 +82,12 @@ class PygameAudio(AudioDevice):
         self._bed_channels: List[object] = []
         self._bed_active = 0
         self._bed_volume = 1.0
+        self._cue_channels: List[object] = []
+        self._cue_active = 0
+        # Cues are already levelled quieter than the beds when they are
+        # rendered (-32 vs -30 dBFS). This is the live trim on top of that,
+        # so the GM can push the music back without re-rendering anything.
+        self._cue_volume = 1.0
         # Master level, applied on top of the bed/duck levels. Software
         # rather than the system mixer on purpose: ALSA's volume is shared
         # with the whole machine, and a table that quietly reconfigures the
@@ -85,6 +99,7 @@ class PygameAudio(AudioDevice):
         self.healthy = False
         self.last_error: Optional[str] = None
         self.soundscape: Optional[str] = None
+        self.cue: Optional[str] = None
 
     # ------------------------------------------------------------- lifecycle
 
@@ -155,14 +170,28 @@ class PygameAudio(AudioDevice):
         pygame.mixer.init()
         self._finish_mixer_setup(pygame)
 
+    @property
+    def RESERVED(self) -> int:
+        """Bed pair then cue pair, both ahead of the effects group.
+
+        set_reserved() reserves the FIRST n channels, so the two reserved
+        pairs have to be contiguous and at the bottom -- which is why the
+        effects group is defined as "everything from RESERVED up" rather than
+        by a count of its own. Widening either pair moves the effects group
+        automatically instead of silently overlapping it.
+        """
+        return self.BED_CHANNELS + self.CUE_CHANNELS
+
     def _finish_mixer_setup(self, pygame) -> None:
         pygame.mixer.set_num_channels(self.TOTAL_CHANNELS)
-        # Reserve the bed channels so effects can never steal them.
-        pygame.mixer.set_reserved(self.BED_CHANNELS)
+        # Reserve the bed AND cue channels so effects can never steal them.
+        pygame.mixer.set_reserved(self.RESERVED)
 
         self._mixer = pygame.mixer
         self._bed_channels = [pygame.mixer.Channel(i)
                               for i in range(self.BED_CHANNELS)]
+        self._cue_channels = [pygame.mixer.Channel(self.BED_CHANNELS + i)
+                              for i in range(self.CUE_CHANNELS)]
         self.actual_device = os.environ.get("AUDIODEV") or "(sdl default)"
 
     def _scan_library(self) -> None:
@@ -187,6 +216,31 @@ class PygameAudio(AudioDevice):
                         continue
                     found[stem] = os.path.join(root, fn)
         self._library = found
+        self._cues = self._scan_dirs(self.cue_paths)
+
+    def _scan_dirs(self, paths: List[str]) -> Dict[str, str]:
+        """Filename stem -> path, first match winning, ogg preferred.
+
+        Its own map rather than part of _library on purpose: a cue must not
+        appear in available_tracks(), or the effect picker and the scene
+        editor fill up with music. Same rule the Entity's 91 lines follow.
+        """
+        found: Dict[str, str] = {}
+        for base in paths:
+            if not os.path.isdir(base):
+                self.log.record("audio.cue_path_missing", path=base)
+                continue
+            for root, _dirs, files in os.walk(base):
+                for fn in sorted(files):
+                    stem, ext = os.path.splitext(fn)
+                    if ext.lower() not in AUDIO_EXTENSIONS or stem.startswith("_"):
+                        continue
+                    if stem in found:
+                        if ext.lower() == ".ogg" and not found[stem].endswith(".ogg"):
+                            found[stem] = os.path.join(root, fn)
+                        continue
+                    found[stem] = os.path.join(root, fn)
+        return found
 
     def close(self) -> None:
         with self._lock:
@@ -210,7 +264,9 @@ class PygameAudio(AudioDevice):
             "device_requested": self.device,
             "volume": self._master,
             "tracks": len(self._library),
+            "cues": len(self._cues),
             "soundscape": self.soundscape,
+            "cue": self.cue,
             "error": self.last_error,
         }
 
@@ -276,6 +332,50 @@ class PygameAudio(AudioDevice):
             was, self.soundscape = self.soundscape, track
             self.log.record("audio.soundscape", track=track,
                             crossfade_s=crossfade_s, from_=was, real=True)
+
+    def play_cue(self, track: Optional[str], crossfade_s: float) -> None:
+        """Raise, change or drop the music cue. See AudioDevice.play_cue.
+
+        Deliberately a near-copy of play_soundscape rather than a shared
+        helper: the two layers look identical today, but the cue is the one
+        that will grow -- ducking under the bed, its own trim, an auto-fade
+        on scene change. Merging them now would mean unpicking them later.
+
+        NEVER ducks, and is never ducked BY an effect. A sting is a moment;
+        the music is the room. Dropping the score every time a card is tapped
+        is the artefact this layer exists to avoid.
+        """
+        self._require()
+        ms = max(0, int(crossfade_s * 1000))
+
+        with self._lock:
+            current = self._cue_channels[self._cue_active]
+
+            if track is None:
+                current.fadeout(ms)
+                was, self.cue = self.cue, None
+                self.log.record("audio.cue_stop", was=was,
+                                fade_s=crossfade_s, real=True)
+                return
+
+            path = self._cues.get(track)
+            if path is None:
+                raise UnknownAssetError("no music cue called %r" % (track,))
+            try:
+                sound = self._sound(path)
+            except Exception as exc:   # noqa: BLE001
+                raise DeviceError("could not load %s: %s" % (path, exc))
+
+            nxt = 1 - self._cue_active
+            incoming = self._cue_channels[nxt]
+            incoming.set_volume(self._cue_volume * self._master)
+            incoming.play(sound, loops=-1, fade_ms=ms)
+            current.fadeout(ms)
+
+            self._cue_active = nxt
+            was, self.cue = self.cue, track
+            self.log.record("audio.cue", track=track, crossfade_s=crossfade_s,
+                            from_=was, real=True)
 
     def play_effect(self, track: str, duck: bool,
                     max_duration: Optional[float] = None) -> float:
@@ -365,6 +465,13 @@ class PygameAudio(AudioDevice):
                         channel.set_volume(current * level)
                     except Exception:   # noqa: BLE001
                         pass
+                # The cue pair follows the master as well. It is NOT ducked,
+                # so there is no duck factor to preserve here.
+                for channel in self._cue_channels:
+                    try:
+                        channel.set_volume(self._cue_volume * level)
+                    except Exception:   # noqa: BLE001
+                        pass
         self.log.record("audio.set_volume", level=level)
 
     def set_output(self, device: str) -> None:
@@ -409,6 +516,8 @@ class PygameAudio(AudioDevice):
             self._bed_active = 0
             self._bed_volume = 1.0
             self.soundscape = None
+            self._cue_active = 0
+            self.cue = None
 
             self.device = device
             try:
@@ -496,7 +605,7 @@ class PygameAudio(AudioDevice):
                 self._unduck_timer = None
 
             stopped = 0
-            for i in range(self.BED_CHANNELS, self.TOTAL_CHANNELS):
+            for i in range(self.RESERVED, self.TOTAL_CHANNELS):
                 ch = self._mixer.Channel(i)
                 if ch.get_busy():
                     ch.fadeout(fade_ms)   # brief fade, not a click
@@ -516,3 +625,6 @@ class PygameAudio(AudioDevice):
 
     def available_tracks(self) -> List[str]:
         return sorted(self._library.keys(), key=str.lower)
+
+    def available_cues(self) -> List[str]:
+        return sorted(self._cues.keys(), key=str.lower)

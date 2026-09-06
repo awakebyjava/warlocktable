@@ -29,6 +29,26 @@ FAKE_PATTERNS = [
 # name -> fake duration in seconds. Real files will report real duration;
 # for now these are just plausible numbers so reverts have something to
 # time against.
+# The music cues, so the fake table offers the same choices as the real
+# one. Names only -- the fake device never opens a file.
+FAKE_CUES = (
+    'travel',
+    'long_road',
+    'arrival',
+    'ambush',
+    'combat',
+    'stalking',
+    'the_big_one',
+    'arcane',
+    'dread',
+    'revelation',
+    'rest',
+    'haven',
+    'intrigue',
+    'grief',
+    'triumph',
+)
+
 FAKE_TRACKS = {
     "forest": 0, "plains": 0, "swamp": 0, "island": 0, "mountain": 0,  # loops
     "outre": 3.0, "cigarette": 3.0, "crowley2": 4.0, "peromyscus": 4.0,
@@ -95,6 +115,7 @@ class FakeAudioDevice(AudioDevice):
         self.volume = 1.0
         self.output = "(fake)"
         self.soundscape: Optional[str] = None
+        self.cue: Optional[str] = None
 
     def play_soundscape(self, track: Optional[str], crossfade_s: float) -> None:
         if track is None:
@@ -104,6 +125,37 @@ class FakeAudioDevice(AudioDevice):
             self.log.record("audio.soundscape", track=track,
                              crossfade_s=crossfade_s, from_=self.soundscape)
         self.soundscape = track
+
+    def status(self) -> dict:
+        """Same shape the real device reports.
+
+        Without this the panel got no audio block at all on a fake table, so
+        the volume slider and the music label had nothing to render from --
+        and a UI bug there could not be reproduced away from the hardware,
+        which defeats the point of having a fake device.
+        """
+        return {
+            "healthy": True,
+            "device": self.output,
+            "device_requested": None,
+            "volume": self.volume,
+            "tracks": len(FAKE_TRACKS),
+            "cues": len(FAKE_CUES),
+            "soundscape": self.soundscape,
+            "cue": self.cue,
+            "error": None,
+        }
+
+    def available_cues(self) -> List[str]:
+        return sorted(FAKE_CUES)
+
+    def play_cue(self, track: Optional[str], crossfade_s: float) -> None:
+        if track is None:
+            self.log.record("audio.cue_stop", fade_s=crossfade_s, was=self.cue)
+        else:
+            self.log.record("audio.cue", track=track,
+                             crossfade_s=crossfade_s, from_=self.cue)
+        self.cue = track
 
     def play_effect(self, track: str, duck: bool,
                      max_duration: Optional[float] = None) -> float:

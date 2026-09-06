@@ -705,6 +705,8 @@ class _Handler(BaseHTTPRequestHandler):
             "random_tables": sorted(cfg.random_tables),
             "idle_scene": cfg.idle_scene_name,
             "backgrounds": self.controller.background_choices(),
+            "cue_groups": _group_cues(self.controller.audio.available_cues()),
+            "cue_now": getattr(self.controller.audio, "cue", None),
         }
 
 # The order the panel shows the groups in: the tarot first, because those are
@@ -769,6 +771,44 @@ def _group_interruptions(config):
 
     return [{"name": _GROUP_LABELS.get(k, k), "items": groups[k]}
             for k in _GROUP_ORDER if groups.get(k)]
+
+
+# Which block each music cue is shown in, and the order the blocks appear.
+#
+# The NAMES come from the device -- available_cues() reads a directory -- so
+# dropping a new .ogg into the cue path makes it appear without touching this
+# file. Only the grouping is here, and anything unrecognised falls into
+# "Other" rather than vanishing, which is the failure that would otherwise be
+# silent: a cue that exists on disk, plays fine from the API, and is simply
+# not drawn.
+_CUE_ORDER = ('Journey', 'Threat', 'Uncanny', 'Between', 'Aftermath')
+_CUE_GROUPS = {
+    'travel':       'Journey',
+    'long_road':    'Journey',
+    'arrival':      'Journey',
+    'ambush':       'Threat',
+    'combat':       'Threat',
+    'stalking':     'Threat',
+    'the_big_one':  'Threat',
+    'arcane':       'Uncanny',
+    'dread':        'Uncanny',
+    'revelation':   'Uncanny',
+    'rest':         'Between',
+    'haven':        'Between',
+    'intrigue':     'Between',
+    'grief':        'Aftermath',
+    'triumph':      'Aftermath',
+}
+
+
+def _group_cues(names):
+    """Sort the available cues into named blocks for the Run panel."""
+    groups = {}
+    for name in names:
+        groups.setdefault(_CUE_GROUPS.get(name, "Other"), []).append(name)
+    ordered = [g for g in _CUE_ORDER if groups.get(g)]
+    ordered += [g for g in sorted(groups) if g not in _CUE_ORDER]
+    return [{"name": g, "items": sorted(groups[g])} for g in ordered]
 
 
 def _read_version() -> Optional[str]:
