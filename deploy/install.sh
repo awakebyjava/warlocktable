@@ -71,6 +71,12 @@ install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps/originals"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps/recipes"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/maps/work"
+# The Entity voice (entity-voice-specification.md). The WAVs are media and
+# arrive by rsync like the rest of the audio -- *.wav is gitignored, so a
+# clone has the line database and the tools but none of the sound.
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/voices"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/voices/audio"
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/voices/audio/entity"
 
 if [[ -f "$DATA_DIR/config.json" ]]; then
     echo "  config.json exists - LEFT ALONE (this is your live data)"

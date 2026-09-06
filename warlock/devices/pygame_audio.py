@@ -279,8 +279,21 @@ class PygameAudio(AudioDevice):
 
     def play_effect(self, track: str, duck: bool,
                     max_duration: Optional[float] = None) -> float:
+        return self._play_path(self._resolve(track), duck, max_duration,
+                               label=track)
+
+    def play_file(self, path: str, duck: bool,
+                  max_duration: Optional[float] = None) -> float:
+        """By path rather than by library name. See AudioDevice.play_file."""
+        if not os.path.isfile(path):
+            raise UnknownAssetError("no audio file at %r" % (path,))
+        return self._play_path(path, duck, max_duration,
+                               label=os.path.basename(path))
+
+    def _play_path(self, path: str, duck: bool,
+                   max_duration: Optional[float] = None,
+                   label: str = "") -> float:
         mixer = self._require()
-        path = self._resolve(track)
         try:
             sound = self._sound(path)
         except Exception as exc:   # noqa: BLE001
@@ -329,7 +342,7 @@ class PygameAudio(AudioDevice):
         if duck:
             self._duck(duration)
 
-        self.log.record("audio.effect", track=track, duck=duck,
+        self.log.record("audio.effect", track=label, duck=duck,
                         duration_s=round(duration, 2),
                         full_length_s=(round(full, 2) if duration != full else None),
                         ducking=self.soundscape if duck else None, real=True)

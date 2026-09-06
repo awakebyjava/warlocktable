@@ -143,6 +143,54 @@ class Player:
 
 
 @dataclass
+class EntityVoice:
+    """The table's voice. Flavour audio, and every number here is tunable.
+
+    All of it lives in config rather than code because the rates get tuned by
+    ear at a table, and that must never require an edit-and-restart.
+    """
+
+    enabled: bool = False
+    lines_json: Optional[str] = None
+    audio_dir: Optional[str] = None
+
+    # Measured from when a line FINISHES, not when it starts. Lines run to
+    # 7.9 seconds, so the difference is audible.
+    global_cooldown_s: float = 180.0
+    default_probability: float = 0.12
+
+    # ONE SLIDER, TWO GATES. 0 silent, 0.5 exactly the rates below, 1.0 every
+    # eligible trigger with no cooldown. It has to move the cooldown as well
+    # as the probability -- see picker.scaled_probability for why a
+    # probability-only version looks broken at the top end.
+    chattiness: float = 0.5
+
+    no_repeat_window: int = 8
+
+    # How long after an input its cascading actions still count as the same
+    # gesture. One tap of the Wheel produces a roll, an aura, lights, audio
+    # and a background; they get one decision between them.
+    gesture_settle_s: float = 1.0
+
+    mood: Optional[str] = None
+
+    # trigger id -> {"probability": float, "delay_s": float}
+    triggers: Dict[str, Dict[str, float]] = field(default_factory=dict)
+
+    def probability_for(self, trigger: str) -> float:
+        entry = self.triggers.get(trigger)
+        if entry is None:
+            return self.default_probability
+        return float(entry.get("probability", self.default_probability))
+
+    def delay_for(self, trigger: str) -> float:
+        """A beat after the visual, so a line does not fight a comet sweep for
+        the same instant."""
+        entry = self.triggers.get(trigger) or {}
+        return float(entry.get("delay_s", 0.0))
+
+
+@dataclass
 class Config:
     scenes: Dict[str, Scene]
     interruptions: Dict[str, Interruption]
@@ -209,6 +257,11 @@ class Config:
     # subdirectory of a scanned path is not itself scanned. Listing it in both
     # places is what makes an uploaded map show up in the picker.
     custom_background_path: Optional[str] = None
+
+    # The Entity voice (entity-voice-specification.md). Off by default: a
+    # table that starts talking without being asked is a surprise, and the
+    # assets live outside the repo so a fresh clone has nothing to play.
+    entity_voice: "EntityVoice" = field(default_factory=lambda: EntityVoice())
 
     # Parent for map import's non-render state: originals/, recipes/, work/.
     # Deliberately outside the backgrounds directory so the display's scanner
@@ -355,6 +408,7 @@ def load_config(path: str) -> Config:
         background_paths=list(raw.get("settings", {}).get("background_paths", [])),
         custom_background_path=raw.get("settings", {}).get("custom_background_path"),
         map_data_path=raw.get("settings", {}).get("map_data_path"),
+        entity_voice=_load_voice(raw.get("settings", {}).get("entity_voice")),
         audio_device=raw.get("settings", {}).get("audio_device"),
         duck_level=float(raw.get("settings", {}).get("duck_level", 0.3)),
         duck_ramp_s=float(raw.get("settings", {}).get("duck_ramp_s", 0.25)),
@@ -393,6 +447,7 @@ def to_dict(config: Config) -> Dict[str, Any]:
         "background_paths": list(config.background_paths),
         "custom_background_path": config.custom_background_path,
         "map_data_path": config.map_data_path,
+        "entity_voice": _dump_voice(config.entity_voice),
         "audio_device": config.audio_device,
         "duck_level": config.duck_level,
         "duck_ramp_s": config.duck_ramp_s,
@@ -568,3 +623,50 @@ def save_config(config: Config, path: str, backup_dir: Optional[str] = None) -> 
         except OSError:
             pass
         raise
+
+
+# --- the Entity voice block -------------------------------------------------
+#
+# Read defensively and clamped on the way in. This block is hand-edited at a
+# table more than most, and a typo in it must leave the table working with the
+# Entity quiet rather than refusing to start.
+
+def _load_voice(raw) -> EntityVoice:
+    if not isinstance(raw, dict):
+        return EntityVoice()
+
+    triggers = {}
+    for name, entry in (raw.get("triggers") or {}).items():
+        if isinstance(entry, dict):
+            triggers[str(name)] = {
+                "probability": max(0.0, min(1.0, float(entry.get("probability", 0.0)))),
+                "delay_s": max(0.0, float(entry.get("delay_s", 0.0))),
+            }
+
+    return EntityVoice(
+        enabled=bool(raw.get("enabled", False)),
+        lines_json=raw.get("lines_json"),
+        audio_dir=raw.get("audio_dir"),
+        global_cooldown_s=max(0.0, float(raw.get("global_cooldown_s", 180.0))),
+        default_probability=max(0.0, min(1.0, float(raw.get("default_probability", 0.12)))),
+        chattiness=max(0.0, min(1.0, float(raw.get("chattiness", 0.5)))),
+        no_repeat_window=max(1, int(raw.get("no_repeat_window", 8))),
+        gesture_settle_s=max(0.0, float(raw.get("gesture_settle_s", 1.0))),
+        mood=raw.get("mood") or None,
+        triggers=triggers,
+    )
+
+
+def _dump_voice(voice: EntityVoice) -> dict:
+    return {
+        "enabled": voice.enabled,
+        "lines_json": voice.lines_json,
+        "audio_dir": voice.audio_dir,
+        "global_cooldown_s": voice.global_cooldown_s,
+        "default_probability": voice.default_probability,
+        "chattiness": voice.chattiness,
+        "no_repeat_window": voice.no_repeat_window,
+        "gesture_settle_s": voice.gesture_settle_s,
+        "mood": voice.mood,
+        "triggers": {k: dict(v) for k, v in voice.triggers.items()},
+    }

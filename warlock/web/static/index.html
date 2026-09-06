@@ -257,6 +257,22 @@
         <button id="open-cards" class="wide">Card Management</button>
       </section>
 
+      <!-- The Entity. Two controls only: whether it speaks at all, and how
+           often. Rates per trigger stay in config; this scales them together
+           so a tuning session does not need a text editor. -->
+      <section id="voice-section">
+        <h2>The Table&rsquo;s Voice <span class="muted" id="voice-state"></span></h2>
+        <div class="check-row">
+          <label><input type="checkbox" id="voice-enabled"> Let the table speak</label>
+        </div>
+        <div class="slider-row">
+          <label>How often</label>
+          <input type="range" id="voice-chattiness" min="0" max="100" step="5" value="50">
+          <output id="voice-chattiness-out"></output>
+        </div>
+        <p class="note" id="voice-note"></p>
+      </section>
+
       <section>
         <h2>Maps</h2>
         <p class="note">Upload a battle map and scale it to the table's grid.

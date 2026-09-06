@@ -45,6 +45,7 @@ class _Handler(BaseHTTPRequestHandler):
     controller = None
     runtime = None
     maps = None                 # web.maps.MapsPanel, or None if not wired
+    voice = None                # web.voice.VoicePanel, or None if not wired
     server_version = "WarlockTable"
     sys_version = ""
 
@@ -149,6 +150,13 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         return self.maps.route(self, method, path)
 
+    def _voice_api(self, method: str, path: str) -> bool:
+        """Hand /api/voice/* to the voice panel. Pure delegation, same as
+        _maps -- see web/voice.py."""
+        if self.voice is None or not path.startswith("/api/voice"):
+            return False
+        return self.voice.route(self, method, path)
+
     def do_PUT(self):
         # PUT exists solely for map upload: the body IS the file, which avoids
         # multipart parsing in a stdlib server. See web/maps.py.
@@ -160,6 +168,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         if self._maps("GET", path):
+            return
+        if self._voice_api("GET", path):
             return
 
         # Three front doors. The QR code on the table points at "/", which
@@ -309,6 +319,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?", 1)[0]
         if self._maps("POST", path):
+            return
+        if self._voice_api("POST", path):
             return
 
         # --- Management surface: changes what things DO (plan doc 4.5) ---
@@ -549,6 +561,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "missing 'action'"}, 400)
             return
 
+        # A panel press is a fresh gesture. Everything it cascades into gets
+        # one voice decision between it -- see warlock/entity/picker.py.
+        self.controller.begin_gesture()
+
         fn = getattr(self.controller, name, None)
         # Only expose methods the registry knows about. Without this check,
         # any controller attribute could be invoked by name from the LAN.
@@ -663,10 +679,12 @@ class WebPanel:
         # sessions, so a slider move and the publish that follows have to
         # reach the same object.
         from .maps import MapsPanel
+        from .voice import VoicePanel
         handler = type("_BoundHandler", (_Handler,), {
             "controller": self.controller,
             "runtime": self.runtime,
             "maps": MapsPanel(self.runtime, self.controller, self.log),
+            "voice": VoicePanel(self.runtime, self.controller, self.log),
         })
         try:
             self._server = ThreadingHTTPServer((self.host, self.port), handler)

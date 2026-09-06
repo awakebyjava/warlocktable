@@ -26,6 +26,7 @@ from .eventlog import EventLog
 from . import zones as zonemap
 from .initiative import Initiative
 from .registry import ParamSpec, action
+from .entity import triggers as entity_triggers
 
 
 class Controller:
@@ -38,6 +39,13 @@ class Controller:
         self.log = log
 
         self.current_scene: Optional[Scene] = None
+
+        # The Entity voice (entity-voice-specification.md). Optional and
+        # injected from outside -- the controller calls into it and never
+        # reads anything back, so a table with no voice is simply a table.
+        # None until runtime.build attaches one.
+        self.voice = None
+
         self._revert_timer: Optional[threading.Timer] = None
         self._lock = threading.Lock()
 
@@ -340,6 +348,7 @@ class Controller:
             if len(log) > self.ROLL_HISTORY:
                 del log[:len(log) - self.ROLL_HISTORY]
         self.log.record("dice.roll", colour=colour, roll=entry["label"])
+        self._voice("dice_roll")
         self._session_log("roll", colour=colour, name=name,
                           roll=entry["label"], dice=dice)
         return entry
@@ -475,6 +484,40 @@ class Controller:
 
     # ---- internal: precedence ------------------------------------------
 
+    def _voice(self, trigger: str) -> None:
+        """Offer the Entity a chance to say something. Never blocks, never
+        raises, never affects anything.
+
+        Called AFTER the action has already happened, deliberately: by the
+        time this runs, the lights have changed and the sound is playing. If
+        every line of this were deleted the table would behave identically,
+        which is the property the whole subsystem is built to preserve.
+        """
+        voice = self.voice
+        if voice is None:
+            return
+        try:
+            voice.on_trigger(trigger)
+        except Exception:      # noqa: BLE001
+            # Already guarded inside EntityVoice; belt and braces, because the
+            # one thing that must never happen is a card tap failing because
+            # the table had nothing witty to say.
+            pass
+
+    def begin_gesture(self) -> None:
+        """A fresh input arrived -- a card tap, a panel press.
+
+        Everything that cascades from it is one gesture and gets one voice
+        decision between them. Called by the inputs, not by the actions,
+        because only the input knows a new one started.
+        """
+        voice = self.voice
+        if voice is not None:
+            try:
+                voice.begin_gesture()
+            except Exception:  # noqa: BLE001
+                pass
+
     def _supersede(self, stop_effects: bool = False) -> None:
         """Cancel anything that was scheduled to happen later. Called at
         the top of every public action — see the module docstring.
@@ -503,6 +546,7 @@ class Controller:
         scene = self.config.scenes[scene_name]
         self.current_scene = scene
         self.log.record("scene.apply", name=scene_name)
+        self._voice(entity_triggers.for_scene(scene_name))
         self._session_log("scene", name=scene_name)
         # Each subsystem is attempted independently and CONCURRENTLY: a dead
         # Pixelblaze must not stop the soundscape (plan doc 5.2), and the
@@ -526,6 +570,7 @@ class Controller:
         once the audio finishes (plan doc 4.3)."""
         self._supersede(stop_effects=True)
         interruption = self.config.interruptions[interruption_name]
+        self._voice(entity_triggers.for_interruption(interruption_name))
         self.log.record("interruption.start", name=interruption_name,
                          reverts_to=self.current_scene.name if self.current_scene else None)
         self._session_log("card", name=interruption_name,
@@ -585,6 +630,7 @@ class Controller:
         scene_to_restore = self.current_scene
 
         def revert():
+            self._voice(entity_triggers.for_expiry())
             self.log.record("interruption.revert", name=interruption_name,
                              to=scene_to_restore.name if scene_to_restore else "idle")
             if scene_to_restore:
@@ -618,6 +664,7 @@ class Controller:
         choice: Target = random.choice(table.entries)
         self.log.record("table.roll", table=table_name,
                          result_kind=choice.kind, result_name=choice.name)
+        self._voice(entity_triggers.for_table(table_name))
         self._dispatch(choice)
 
     def _dispatch(self, target: Target) -> None:
@@ -637,6 +684,8 @@ class Controller:
         the real input layer would surface that in the panel as
         'unassigned, ready to register' (plan doc 4.5) rather than just
         printing into a terminal nobody reads, as V1 did."""
+        # A tap is a fresh gesture, whatever it turns out to point at.
+        self.begin_gesture()
         card = self.config.find_card(uid_or_label)
         if card is None:
             self.log.record("card.unregistered", scanned=uid_or_label)
@@ -671,6 +720,7 @@ class Controller:
             self.show_status_screen()
             return
         self._try("display", self.display.set_background, name)
+        self._voice("panel_map_change")
 
     def background_choices(self) -> List[str]:
         """What the panel may pick. Never raises: an empty picker is a
@@ -774,6 +824,7 @@ class Controller:
     def handoff_display(self, target: str) -> None:
         self._supersede()
         self._try("display", self.display.handoff, target)
+        self._voice("panel_appletv_handoff")
 
     @action()
     def show_status_screen(self) -> None:
@@ -851,6 +902,7 @@ class Controller:
         self._supersede(stop_effects=True)
         self.log.record("go_idle")
 
+        self._voice("system_idle")
         idle = self.config.scenes.get(self.config.idle_scene_name)
         if idle is None:
             # Never leave the table in an undefined state: fall back to
@@ -1046,6 +1098,7 @@ class Controller:
         if self.initiative.run() is None:
             self.log.record("initiative.no_order")
             return
+        self._voice("panel_combat_on")
         self._ensure_zones_pattern()
         self.log.record("initiative.run",
                         seat=self.initiative.active_zone())
@@ -1070,6 +1123,7 @@ class Controller:
         """Stop pointing at anyone. The order is kept for next time."""
         self.initiative.stop()
         self.log.record("initiative.stopped")
+        self._voice("panel_combat_off")
         self._push_active_zone()
 
     def clear_initiative(self) -> dict:

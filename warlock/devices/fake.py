@@ -115,6 +115,15 @@ class FakeAudioDevice(AudioDevice):
                          ducking=self.soundscape if duck else None)
         return duration
 
+    def play_file(self, path: str, duck: bool,
+                  max_duration: Optional[float] = None) -> float:
+        import os
+        duration = 3.0 if max_duration is None else min(3.0, max_duration)
+        self.log.record("audio.file", file=os.path.basename(path), duck=duck,
+                        duration_s=duration,
+                        ducking=self.soundscape if duck else None)
+        return duration
+
     def stop_effects(self, fade_ms: int = 200) -> None:
         self.log.record("audio.effects_stopped", fade_ms=fade_ms)
 

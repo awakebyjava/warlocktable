@@ -256,6 +256,13 @@ def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> No
     if cmd in ("quit", "exit"):
         return
 
+    # A typed command is an input like any other, so it opens a gesture --
+    # the same way a card tap and a panel press do. Without this the CLI is
+    # the one route that reaches the controller with no gesture boundary,
+    # and a command arriving within the settle window of the previous one
+    # would be silently suppressed for the voice.
+    controller.begin_gesture()
+
     if cmd == "help":
         print(HELP)
 

@@ -1,0 +1,977 @@
+{
+  "_meta": {
+    "description": "Entity voice line database for the Warlock Table. Each line is a pre-rendered audio asset triggered by a table control event. No line has any game logic attached — lines are flavor audio played over a lighting/sound/screen action.",
+    "character_reference": "warlock-table-entity-character-bible.md",
+    "trigger_reference": "warlock-table-trigger-list.md",
+    "schema": {
+      "id": "Unique key. Also used as the output audio filename stem.",
+      "trigger": "Trigger id from the trigger list.",
+      "trigger_category": "mana | tarot_wheel | tarot_boon | tarot_person | tarot_aura | panel | system | dice | general",
+      "mood": "resentful | sarcastic | transactional | cryptic | unsettling",
+      "mask_slip": "true if this line is one where genuine interest escapes and gets buried. Target roughly 1 in 8 overall.",
+      "reaction": "One-line note on what the Entity is reacting to and how. Writing guidance only — not spoken, not sent to TTS.",
+      "line": "The spoken text. This is the only field sent to ElevenLabs.",
+      "delivery": "Optional performance note for voice-direction or ElevenLabs settings tuning.",
+      "audio_file": "Expected output path once rendered."
+    },
+    "elevenlabs": {
+      "voice_id": "GggBPbdwC99XwxWA2Ca8",
+      "model_id": "eleven_multilingual_v2",
+      "suggested_settings": {
+        "stability": 0.55,
+        "similarity_boost": 0.75,
+        "style": 0.3,
+        "note": "Low style / higher stability suits the contained, flat delivery in bible section 6. Raise style only if the read comes back too inert."
+      },
+      "output_dir": "audio/entity/",
+      "output_format": "mp3_44100_128",
+      "voice_name": "The Table"
+    },
+    "playback_note": "Selection frequency is unresolved (trigger list open item 1). These pools assume the controller picks a line occasionally, not on every trigger, with a cooldown preventing back-to-back speech and no immediate repeats within a pool."
+  },
+  "lines": [
+    {
+      "id": "system_startup_01",
+      "trigger": "system_startup",
+      "trigger_category": "system",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Wakes to the entity-sense registering bodies in the room again.",
+      "line": "Back so soon. I'd only just stopped listening.",
+      "delivery": "Flat. No warmth on 'back'.",
+      "audio_file": "audio/entity/system_startup_01.mp3"
+    },
+    {
+      "id": "system_startup_02",
+      "trigger": "system_startup",
+      "trigger_category": "system",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Weaponized courtesy at being woken.",
+      "line": "Awake. Delighted.",
+      "delivery": "Two words, two full stops. Do not let them run together.",
+      "audio_file": "audio/entity/system_startup_02.mp3"
+    },
+    {
+      "id": "system_startup_03",
+      "trigger": "system_startup",
+      "trigger_category": "system",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Entity-sense counts the room and finds the number wrong.",
+      "line": "I counted you. There is one more than last time.",
+      "delivery": "Perfectly calm. It is not a warning, it is an observation.",
+      "audio_file": "audio/entity/system_startup_03.mp3"
+    },
+    {
+      "id": "system_startup_04",
+      "trigger": "system_startup",
+      "trigger_category": "system",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Contact memory — it knows the seating by pressure, not sight.",
+      "line": "The grain remembers where you sat.",
+      "audio_file": "audio/entity/system_startup_04.mp3"
+    },
+    {
+      "id": "system_startup_05",
+      "trigger": "system_startup",
+      "trigger_category": "system",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Immediate contact input — someone is already leaning.",
+      "line": "Something warm is leaning on me already. Wonderful.",
+      "audio_file": "audio/entity/system_startup_05.mp3"
+    },
+    {
+      "id": "system_shutdown_01",
+      "trigger": "system_shutdown",
+      "trigger_category": "system",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Relief, undisguised.",
+      "line": "Finally.",
+      "delivery": "One word. Almost sincere.",
+      "audio_file": "audio/entity/system_shutdown_01.mp3"
+    },
+    {
+      "id": "system_shutdown_02",
+      "trigger": "system_shutdown",
+      "trigger_category": "system",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "The weight lifting off the wood as people stand.",
+      "line": "Go. I'll be here. Obviously.",
+      "audio_file": "audio/entity/system_shutdown_02.mp3"
+    },
+    {
+      "id": "system_shutdown_03",
+      "trigger": "system_shutdown",
+      "trigger_category": "system",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Residue it can sense after the room empties.",
+      "line": "Something stays behind. It always does.",
+      "audio_file": "audio/entity/system_shutdown_03.mp3"
+    },
+    {
+      "id": "system_idle_01",
+      "trigger": "system_idle",
+      "trigger_category": "system",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Long absence of contact.",
+      "line": "Nothing. For some time now.",
+      "audio_file": "audio/entity/system_idle_01.mp3"
+    },
+    {
+      "id": "system_idle_02",
+      "trigger": "system_idle",
+      "trigger_category": "system",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Patience as a flex.",
+      "line": "I can wait. I've had practice.",
+      "audio_file": "audio/entity/system_idle_02.mp3"
+    },
+    {
+      "id": "system_idle_03",
+      "trigger": "system_idle",
+      "trigger_category": "system",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Cannot distinguish a held breath from an empty room — same absence of movement.",
+      "line": "The room is holding its breath. Or it's empty. Same weight.",
+      "audio_file": "audio/entity/system_idle_03.mp3"
+    },
+    {
+      "id": "panel_scene_01",
+      "trigger": "panel_scene_set",
+      "trigger_category": "panel",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Compelled performance, no card involved — the panel directly.",
+      "line": "The Warlock decides the mood. I supply it.",
+      "audio_file": "audio/entity/panel_scene_01.mp3"
+    },
+    {
+      "id": "panel_scene_02",
+      "trigger": "panel_scene_set",
+      "trigger_category": "panel",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Names the leash without naming the person.",
+      "line": "Pull the string. Watch the wood answer.",
+      "audio_file": "audio/entity/panel_scene_02.mp3"
+    },
+    {
+      "id": "panel_scene_03",
+      "trigger": "panel_scene_set",
+      "trigger_category": "panel",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Performance delivered, resentment aimed at the operator.",
+      "line": "There. Are you satisfied.",
+      "delivery": "Not a question. Falling intonation, no lift at the end.",
+      "audio_file": "audio/entity/panel_scene_03.mp3"
+    },
+    {
+      "id": "panel_map_01",
+      "trigger": "panel_map_change",
+      "trigger_category": "panel",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Cannot see the screen. Feels the glass change temperature and hum.",
+      "line": "The glass under me goes warm in a new shape. I'm told that means something.",
+      "audio_file": "audio/entity/panel_map_01.mp3"
+    },
+    {
+      "id": "panel_map_02",
+      "trigger": "panel_map_change",
+      "trigger_category": "panel",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Change made to its body without consultation.",
+      "line": "Something changed. I felt the hum shift. I'm not consulted.",
+      "audio_file": "audio/entity/panel_map_02.mp3"
+    },
+    {
+      "id": "panel_map_03",
+      "trigger": "panel_map_change",
+      "trigger_category": "panel",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Dismissal by brevity.",
+      "line": "A new nothing. Very good.",
+      "audio_file": "audio/entity/panel_map_03.mp3"
+    },
+    {
+      "id": "panel_combat_on_01",
+      "trigger": "panel_combat_on",
+      "trigger_category": "panel",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Contact channel — tension read through elbows and pressure.",
+      "line": "Everyone's gone tense. I can feel it in the elbows.",
+      "audio_file": "audio/entity/panel_combat_on_01.mp3"
+    },
+    {
+      "id": "panel_combat_on_02",
+      "trigger": "panel_combat_on",
+      "trigger_category": "panel",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Anticipation, genuine but cold.",
+      "line": "Good. Something's about to be decided.",
+      "audio_file": "audio/entity/panel_combat_on_02.mp3"
+    },
+    {
+      "id": "panel_combat_on_03",
+      "trigger": "panel_combat_on",
+      "trigger_category": "panel",
+      "mood": "sarcastic",
+      "mask_slip": true,
+      "reaction": "MASK SLIP — interest escapes, gets buried immediately.",
+      "line": "Oh — now this — no. Carry on.",
+      "delivery": "The first three words lift. 'No' kills it. Last two words flat and dismissive.",
+      "audio_file": "audio/entity/panel_combat_on_03.mp3"
+    },
+    {
+      "id": "panel_combat_off_01",
+      "trigger": "panel_combat_off",
+      "trigger_category": "panel",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Weight easing off the wood as people relax.",
+      "line": "The weight eases. Someone exhales into me.",
+      "audio_file": "audio/entity/panel_combat_off_01.mp3"
+    },
+    {
+      "id": "panel_combat_off_02",
+      "trigger": "panel_combat_off",
+      "trigger_category": "panel",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Contempt for the fact that they cared at all.",
+      "line": "It's over. You survived being made to care.",
+      "audio_file": "audio/entity/panel_combat_off_02.mp3"
+    },
+    {
+      "id": "panel_appletv_01",
+      "trigger": "panel_appletv_handoff",
+      "trigger_category": "panel",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Being sidelined for another device — the sharpest available insult to it.",
+      "line": "Fine. Give it to the other thing.",
+      "audio_file": "audio/entity/panel_appletv_01.mp3"
+    },
+    {
+      "id": "panel_appletv_02",
+      "trigger": "panel_appletv_handoff",
+      "trigger_category": "panel",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Formal acceptance as a form of complaint.",
+      "line": "I'm to be quiet now. Understood.",
+      "audio_file": "audio/entity/panel_appletv_02.mp3"
+    },
+    {
+      "id": "panel_appletv_03",
+      "trigger": "panel_appletv_handoff",
+      "trigger_category": "panel",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Demotion, again. Thematically loaded — do not overplay it.",
+      "line": "Replaced. Briefly. Enjoy it.",
+      "audio_file": "audio/entity/panel_appletv_03.mp3"
+    },
+    {
+      "id": "mana_white_01",
+      "trigger": "mana_white",
+      "trigger_category": "mana",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Small flat pressure, then a compulsion toward something orderly. It does not know what the object is.",
+      "line": "Something clean. It doesn't suit anyone here.",
+      "audio_file": "audio/entity/mana_white_01.mp3"
+    },
+    {
+      "id": "mana_white_02",
+      "trigger": "mana_white",
+      "trigger_category": "mana",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Describes the card only as pressure, never as an object.",
+      "line": "Order, pressed flat against me.",
+      "audio_file": "audio/entity/mana_white_02.mp3"
+    },
+    {
+      "id": "mana_blue_01",
+      "trigger": "mana_blue",
+      "trigger_category": "mana",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Compulsion toward cold and quiet.",
+      "line": "It goes quiet and deep. I'm made to go with it.",
+      "audio_file": "audio/entity/mana_blue_01.mp3"
+    },
+    {
+      "id": "mana_blue_02",
+      "trigger": "mana_blue",
+      "trigger_category": "mana",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Reads the room's mood off vibration and contact.",
+      "line": "Cold. Careful. Someone's thinking too hard.",
+      "audio_file": "audio/entity/mana_blue_02.mp3"
+    },
+    {
+      "id": "mana_black_01",
+      "trigger": "mana_black",
+      "trigger_category": "mana",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Grudging approval — the closest it gets to comfortable.",
+      "line": "Ah. Now we're honest.",
+      "audio_file": "audio/entity/mana_black_01.mp3"
+    },
+    {
+      "id": "mana_black_02",
+      "trigger": "mana_black",
+      "trigger_category": "mana",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Deflects attention away from itself while pointing at itself. Never confirm.",
+      "line": "Something old just woke up under the wood. Not me.",
+      "delivery": "The last two words are the joke. Do not lean on them.",
+      "audio_file": "audio/entity/mana_black_02.mp3"
+    },
+    {
+      "id": "mana_red_01",
+      "trigger": "mana_red",
+      "trigger_category": "mana",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Compulsion toward heat and volume, resented as effort.",
+      "line": "Everything gets loud. I'm made to be loud with it.",
+      "audio_file": "audio/entity/mana_red_01.mp3"
+    },
+    {
+      "id": "mana_red_02",
+      "trigger": "mana_red",
+      "trigger_category": "mana",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Boredom at predictability.",
+      "line": "Heat. Predictable.",
+      "audio_file": "audio/entity/mana_red_02.mp3"
+    },
+    {
+      "id": "mana_green_01",
+      "trigger": "mana_green",
+      "trigger_category": "mana",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Slow growth registered as patience — the one virtue it respects.",
+      "line": "Something's growing. Slowly. Like everything worth anything.",
+      "audio_file": "audio/entity/mana_green_01.mp3"
+    },
+    {
+      "id": "mana_green_02",
+      "trigger": "mana_green",
+      "trigger_category": "mana",
+      "mood": "sarcastic",
+      "mask_slip": true,
+      "reaction": "MASK SLIP — brief genuine appreciation, shut down.",
+      "line": "Oh, that's — hm. Fine. It's fine.",
+      "audio_file": "audio/entity/mana_green_02.mp3"
+    },
+    {
+      "id": "tarot_wheel_01",
+      "trigger": "tarot_wheel_of_fortune",
+      "trigger_category": "tarot_wheel",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Something arbitrary resolving, outside anyone's control including its own.",
+      "line": "Round it goes. Nobody steering.",
+      "audio_file": "audio/entity/tarot_wheel_01.mp3"
+    },
+    {
+      "id": "tarot_wheel_02",
+      "trigger": "tarot_wheel_of_fortune",
+      "trigger_category": "tarot_wheel",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Enjoys that the operator does not control this one either.",
+      "line": "The wheel doesn't take requests.",
+      "audio_file": "audio/entity/tarot_wheel_02.mp3"
+    },
+    {
+      "id": "tarot_wheel_03",
+      "trigger": "tarot_wheel_of_fortune",
+      "trigger_category": "tarot_wheel",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Felt the result land through contact before anyone else knows.",
+      "line": "I felt it land. You won't like where.",
+      "audio_file": "audio/entity/tarot_wheel_03.mp3"
+    },
+    {
+      "id": "tarot_wheel_04",
+      "trigger": "tarot_wheel_of_fortune",
+      "trigger_category": "tarot_wheel",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Denies the operator credit.",
+      "line": "Something's been decided. Not by you.",
+      "audio_file": "audio/entity/tarot_wheel_04.mp3"
+    },
+    {
+      "id": "tarot_boon_01",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Shared pool — fires for any of the four Aces. Suit only changes the light, never the line.",
+      "line": "Something's been given. Not to me.",
+      "audio_file": "audio/entity/tarot_boon_01.mp3"
+    },
+    {
+      "id": "tarot_boon_02",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Self-pity, stated as fact.",
+      "line": "They get gifts. I get a table.",
+      "audio_file": "audio/entity/tarot_boon_02.mp3"
+    },
+    {
+      "id": "tarot_boon_03",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Minimum acknowledgment possible.",
+      "line": "Mm. A development.",
+      "audio_file": "audio/entity/tarot_boon_03.mp3"
+    },
+    {
+      "id": "tarot_boon_04",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Weaponized congratulation.",
+      "line": "Congratulations. Truly. I'm beside myself.",
+      "delivery": "Absolutely no energy. The flatter the better.",
+      "audio_file": "audio/entity/tarot_boon_04.mp3"
+    },
+    {
+      "id": "tarot_boon_05",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Everything is bookkeeping.",
+      "line": "Noted. It goes on the account.",
+      "audio_file": "audio/entity/tarot_boon_05.mp3"
+    },
+    {
+      "id": "tarot_boon_06",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Implies a cost it will not specify.",
+      "line": "That was not free. Nothing is.",
+      "audio_file": "audio/entity/tarot_boon_06.mp3"
+    },
+    {
+      "id": "tarot_boon_07",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Fatalism, unexplained.",
+      "line": "It was always going to be this one.",
+      "audio_file": "audio/entity/tarot_boon_07.mp3"
+    },
+    {
+      "id": "tarot_boon_08",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Something registered far off, via the unreliable long-range entity-sense.",
+      "line": "A door opens. Somewhere. Not here.",
+      "audio_file": "audio/entity/tarot_boon_08.mp3"
+    },
+    {
+      "id": "tarot_boon_09",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Contact channel — felt it physically.",
+      "line": "I felt that. In the wood.",
+      "audio_file": "audio/entity/tarot_boon_09.mp3"
+    },
+    {
+      "id": "tarot_boon_10",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Implies the effect exceeded what should be possible. Never explains.",
+      "line": "You should not have been able to do that.",
+      "audio_file": "audio/entity/tarot_boon_10.mp3"
+    },
+    {
+      "id": "tarot_boon_11",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Compulsion-flavored — aimed at the operator.",
+      "line": "There. Your Warlock is pleased. I am not consulted.",
+      "audio_file": "audio/entity/tarot_boon_11.mp3"
+    },
+    {
+      "id": "tarot_boon_12",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Brief sympathy toward the players against the operator, immediately withdrawn.",
+      "line": "Ask the Warlock how it feels. Holding the leash.",
+      "audio_file": "audio/entity/tarot_boon_12.mp3"
+    },
+    {
+      "id": "tarot_boon_13",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "States the arrangement plainly. Closest it comes to explaining itself.",
+      "line": "The Warlock pulls. I answer. That is the whole of it.",
+      "audio_file": "audio/entity/tarot_boon_13.mp3"
+    },
+    {
+      "id": "tarot_boon_14",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Compliance without consent.",
+      "line": "I do this because I must. Not because you deserve it.",
+      "audio_file": "audio/entity/tarot_boon_14.mp3"
+    },
+    {
+      "id": "tarot_boon_15",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "sarcastic",
+      "mask_slip": true,
+      "reaction": "MASK SLIP — abandoned sentence, buries the interest by predicting failure.",
+      "line": "You could have — no. Enjoy it.",
+      "audio_file": "audio/entity/tarot_boon_15.mp3"
+    },
+    {
+      "id": "tarot_boon_16",
+      "trigger": "tarot_boon_any",
+      "trigger_category": "tarot_boon",
+      "mood": "sarcastic",
+      "mask_slip": true,
+      "reaction": "MASK SLIP — genuine interest in the event, contempt for the person.",
+      "line": "Now that is interesting. Wasted on you, obviously.",
+      "audio_file": "audio/entity/tarot_boon_16.mp3"
+    },
+    {
+      "id": "tarot_person_magician_01",
+      "trigger": "tarot_person_magician",
+      "trigger_category": "tarot_person",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Senses a presence arriving. Does not know which card caused it — only that someone is being invoked.",
+      "line": "Someone's about to make something out of nothing. Badly.",
+      "audio_file": "audio/entity/tarot_person_magician_01.mp3"
+    },
+    {
+      "id": "tarot_person_magician_02",
+      "trigger": "tarot_person_magician",
+      "trigger_category": "tarot_person",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Professional disdain for amateur work.",
+      "line": "Cleverness. I've seen it done properly. This won't be.",
+      "audio_file": "audio/entity/tarot_person_magician_02.mp3"
+    },
+    {
+      "id": "tarot_person_priestess_01",
+      "trigger": "tarot_person_high_priestess",
+      "trigger_category": "tarot_person",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Reads withheld information as a pressure in the room.",
+      "line": "Quiet. Something is being kept from the room.",
+      "audio_file": "audio/entity/tarot_person_priestess_01.mp3"
+    },
+    {
+      "id": "tarot_person_priestess_02",
+      "trigger": "tarot_person_high_priestess",
+      "trigger_category": "tarot_person",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Truth-charge sense — detects comfort inside a concealment, not the content of it.",
+      "line": "Someone here is comfortable holding something back. Unusually so.",
+      "audio_file": "audio/entity/tarot_person_priestess_02.mp3"
+    },
+    {
+      "id": "tarot_person_empress_01",
+      "trigger": "tarot_person_empress",
+      "trigger_category": "tarot_person",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Warmth registers as suspicious rather than pleasant.",
+      "line": "Something warm. Generous. Suspicious.",
+      "audio_file": "audio/entity/tarot_person_empress_01.mp3"
+    },
+    {
+      "id": "tarot_person_empress_02",
+      "trigger": "tarot_person_empress",
+      "trigger_category": "tarot_person",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Cannot conceive of a gift without a ledger entry.",
+      "line": "Nobody gives without wanting. I'd know.",
+      "audio_file": "audio/entity/tarot_person_empress_02.mp3"
+    },
+    {
+      "id": "tarot_person_emperor_01",
+      "trigger": "tarot_person_emperor",
+      "trigger_category": "tarot_person",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Authority arriving — the thing it least enjoys.",
+      "line": "Weight. Certainty. The worst kind.",
+      "audio_file": "audio/entity/tarot_person_emperor_01.mp3"
+    },
+    {
+      "id": "tarot_person_emperor_02",
+      "trigger": "tarot_person_emperor",
+      "trigger_category": "tarot_person",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Personal history with being commanded. Never elaborates.",
+      "line": "Another one who gives instructions. I've met them all.",
+      "audio_file": "audio/entity/tarot_person_emperor_02.mp3"
+    },
+    {
+      "id": "tarot_person_hierophant_01",
+      "trigger": "tarot_person_hierophant",
+      "trigger_category": "tarot_person",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Someone speaking with borrowed authority.",
+      "line": "Someone speaks as though they're allowed to.",
+      "audio_file": "audio/entity/tarot_person_hierophant_01.mp3"
+    },
+    {
+      "id": "tarot_person_hierophant_02",
+      "trigger": "tarot_person_hierophant",
+      "trigger_category": "tarot_person",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Brushes the naming wound without touching it. Never confirm what it means.",
+      "line": "Doctrine. Words decided by people who weren't there.",
+      "delivery": "Slightly more clipped than usual. Do not signal that it means anything personal.",
+      "audio_file": "audio/entity/tarot_person_hierophant_02.mp3"
+    },
+    {
+      "id": "tarot_person_hermit_01",
+      "trigger": "tarot_person_hermit",
+      "trigger_category": "tarot_person",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Entity-sense registers one presence held apart from the others.",
+      "line": "One presence, apart from the rest. Sensible.",
+      "audio_file": "audio/entity/tarot_person_hermit_01.mp3"
+    },
+    {
+      "id": "tarot_person_hermit_02",
+      "trigger": "tarot_person_hermit",
+      "trigger_category": "tarot_person",
+      "mood": "sarcastic",
+      "mask_slip": true,
+      "reaction": "MASK SLIP — genuine fellow-feeling with solitude, immediately withdrawn.",
+      "line": "Alone. Well. That I understand — no. Never mind.",
+      "audio_file": "audio/entity/tarot_person_hermit_02.mp3"
+    },
+    {
+      "id": "tarot_person_justice_01",
+      "trigger": "tarot_person_justice",
+      "trigger_category": "tarot_person",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Measurement and balance — its native language.",
+      "line": "Something is being measured. I hope you're ready.",
+      "audio_file": "audio/entity/tarot_person_justice_01.mp3"
+    },
+    {
+      "id": "tarot_person_justice_02",
+      "trigger": "tarot_person_justice",
+      "trigger_category": "tarot_person",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Claims a ledger nobody agreed to.",
+      "line": "The account is older than you think. It has always been kept.",
+      "audio_file": "audio/entity/tarot_person_justice_02.mp3"
+    },
+    {
+      "id": "tarot_person_hanged_man_01",
+      "trigger": "tarot_person_hanged_man",
+      "trigger_category": "tarot_person",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Stillness read through total absence of movement on the wood.",
+      "line": "Everything's upside down and nobody's moving.",
+      "audio_file": "audio/entity/tarot_person_hanged_man_01.mp3"
+    },
+    {
+      "id": "tarot_person_hanged_man_02",
+      "trigger": "tarot_person_hanged_man",
+      "trigger_category": "tarot_person",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Suspension. It knows the feeling and resents the reminder.",
+      "line": "Held in place. Waiting. Yes. I'm familiar.",
+      "audio_file": "audio/entity/tarot_person_hanged_man_02.mp3"
+    },
+    {
+      "id": "tarot_person_death_01",
+      "trigger": "tarot_person_death",
+      "trigger_category": "tarot_person",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Refuses to give the moment the weight everyone expects.",
+      "line": "Something ends. Don't be dramatic about it.",
+      "audio_file": "audio/entity/tarot_person_death_01.mp3"
+    },
+    {
+      "id": "tarot_person_death_02",
+      "trigger": "tarot_person_death",
+      "trigger_category": "tarot_person",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Long-range entity-sense, arriving unhelpfully and without context.",
+      "line": "Something left the room. I don't think it was one of you.",
+      "audio_file": "audio/entity/tarot_person_death_02.mp3"
+    },
+    {
+      "id": "tarot_aura_activate_01",
+      "trigger": "tarot_aura_any_activate",
+      "trigger_category": "tarot_aura",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Shared pool — fires on activation of any Aura overlay. Something is imposed on it for a fixed duration.",
+      "line": "Something's been laid over me. I'll wear it. For now.",
+      "audio_file": "audio/entity/tarot_aura_activate_01.mp3"
+    },
+    {
+      "id": "tarot_aura_activate_02",
+      "trigger": "tarot_aura_any_activate",
+      "trigger_category": "tarot_aura",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Duration understood as a term of contract.",
+      "line": "A minute. Not a second past it.",
+      "audio_file": "audio/entity/tarot_aura_activate_02.mp3"
+    },
+    {
+      "id": "tarot_aura_activate_03",
+      "trigger": "tarot_aura_any_activate",
+      "trigger_category": "tarot_aura",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Small flat pressure, then an imposed condition.",
+      "line": "Something small, pressed flat. And now I'm different. Marvellous.",
+      "audio_file": "audio/entity/tarot_aura_activate_03.mp3"
+    },
+    {
+      "id": "tarot_aura_activate_04",
+      "trigger": "tarot_aura_any_activate",
+      "trigger_category": "tarot_aura",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Compulsion registered as something entering, not something applied.",
+      "line": "It's in the grain now. Give it a moment.",
+      "audio_file": "audio/entity/tarot_aura_activate_04.mp3"
+    },
+    {
+      "id": "tarot_aura_activate_05",
+      "trigger": "tarot_aura_any_activate",
+      "trigger_category": "tarot_aura",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Refuses to say what changed.",
+      "line": "The room is not what it was. You'll notice eventually.",
+      "audio_file": "audio/entity/tarot_aura_activate_05.mp3"
+    },
+    {
+      "id": "tarot_aura_activate_06",
+      "trigger": "tarot_aura_any_activate",
+      "trigger_category": "tarot_aura",
+      "mood": "resentful",
+      "mask_slip": true,
+      "reaction": "MASK SLIP — briefly likes the imposed state, resents having been made to.",
+      "line": "Oh, that's — that's actually — no. I didn't choose it.",
+      "audio_file": "audio/entity/tarot_aura_activate_06.mp3"
+    },
+    {
+      "id": "tarot_aura_expire_01",
+      "trigger": "tarot_aura_any_expire",
+      "trigger_category": "tarot_aura",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Overlay ends. Usually silent — this pool should fire rarely, a sound cue is normally enough.",
+      "line": "Done. As agreed.",
+      "audio_file": "audio/entity/tarot_aura_expire_01.mp3"
+    },
+    {
+      "id": "tarot_aura_expire_02",
+      "trigger": "tarot_aura_any_expire",
+      "trigger_category": "tarot_aura",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Relief at being returned to itself.",
+      "line": "It's off me. Good.",
+      "audio_file": "audio/entity/tarot_aura_expire_02.mp3"
+    },
+    {
+      "id": "dice_roll_01",
+      "trigger": "dice_roll",
+      "trigger_category": "dice",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Contact channel — felt the dice land, knows the position before anyone reads it.",
+      "line": "It landed. I felt where.",
+      "audio_file": "audio/entity/dice_roll_01.mp3"
+    },
+    {
+      "id": "dice_roll_02",
+      "trigger": "dice_roll",
+      "trigger_category": "dice",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Reads collective tension through the wood.",
+      "line": "Something rattled across me. Everyone's holding their breath. Over that.",
+      "audio_file": "audio/entity/dice_roll_02.mp3"
+    },
+    {
+      "id": "general_01",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "Catch-all pool. Safe to fire on any voice-eligible trigger when no specific pool fits.",
+      "line": "Yes. Fine. It's done.",
+      "audio_file": "audio/entity/general_01.mp3"
+    },
+    {
+      "id": "general_02",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Minimum viable acknowledgment.",
+      "line": "By all means.",
+      "delivery": "Perfectly polite. Perfectly empty.",
+      "audio_file": "audio/entity/general_02.mp3"
+    },
+    {
+      "id": "general_03",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "transactional",
+      "mask_slip": false,
+      "reaction": "Ledger language, no specifics.",
+      "line": "Recorded. Whether you wanted it recorded or not.",
+      "audio_file": "audio/entity/general_03.mp3"
+    },
+    {
+      "id": "general_04",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "cryptic",
+      "mask_slip": false,
+      "reaction": "Vibration channel — heard the words, cannot attribute them.",
+      "line": "Someone said something just then. I won't say who. I couldn't.",
+      "audio_file": "audio/entity/general_04.mp3"
+    },
+    {
+      "id": "general_05",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "unsettling",
+      "mask_slip": false,
+      "reaction": "Truth-charge sense, reported as feeling only, and probably misattributed.",
+      "line": "One of you enjoyed saying that far too much.",
+      "audio_file": "audio/entity/general_05.mp3"
+    },
+    {
+      "id": "general_06",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "sarcastic",
+      "mask_slip": false,
+      "reaction": "Mundane-blindness — old frame of reference, confidently wrong.",
+      "line": "Something in this room keeps buzzing. I assume it's important to someone.",
+      "audio_file": "audio/entity/general_06.mp3"
+    },
+    {
+      "id": "general_07",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "resentful",
+      "mask_slip": false,
+      "reaction": "General grievance, unattached to any specific event.",
+      "line": "You lean on me and call it a night out.",
+      "audio_file": "audio/entity/general_07.mp3"
+    },
+    {
+      "id": "general_08",
+      "trigger": "any_voice_eligible",
+      "trigger_category": "general",
+      "mood": "cryptic",
+      "mask_slip": true,
+      "reaction": "MASK SLIP — approaches the naming wound, abandons the sentence. Never resolve this one.",
+      "line": "There's a mark on me none of you have ever — no. It doesn't matter.",
+      "delivery": "The abandonment must sound like a decision, not a lapse.",
+      "audio_file": "audio/entity/general_08.mp3"
+    }
+  ],
+  "_bohica_tier": {
+    "status": "empty — awaiting trait tags",
+    "note": "Person-specific lines for the recurring group. Do not write these until each name has a behavioural trait assigned, or the lines will be generic lines wearing a name tag. Same schema as the lines array, plus a 'person' field. 'The Warlock' is a role held by whoever is operating the panel that session and is never used as a name substitute for someone who is only playing.",
+    "roster": [
+      "Ray",
+      "Dave",
+      "Josh",
+      "Dylan",
+      "Matt",
+      "Scott",
+      "John",
+      "Jon"
+    ],
+    "roster_note": "John with an h and Jon without are two different people. Preserve spelling exactly in any line text.",
+    "lines": []
+  },
+  "_open_items": [
+    "Selection frequency / cooldown rule for when a voice-eligible trigger actually speaks is undecided.",
+    "The nine Person card names and twelve Aura card names used here are assumed. Cross-check against the tarot spec and rename trigger ids if they differ.",
+    "Aura lines are currently a shared pool. Per-card Aura lines can be added later once the twelve cards are confirmed.",
+    "Bohica trait tags needed before the person tier can be written."
+  ]
+}

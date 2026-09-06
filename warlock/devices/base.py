@@ -141,6 +141,20 @@ class AudioDevice(ABC):
     def available_tracks(self) -> List[str]:
         ...
 
+    def play_file(self, path: str, duck: bool,
+                  max_duration: Optional[float] = None) -> float:
+        """Play a file BY PATH, layered and ducked exactly like an effect.
+
+        Exists for the Entity voice, which owns 91 WAVs that must NOT join
+        the track library: available_tracks() is what fills the panel's
+        effect picker and the scene editor, and ninety-one lines of the table
+        muttering would bury the six sounds anyone actually wants to choose.
+
+        Optional, like set_volume below -- a device with no concept of files
+        returns 0.0 and nothing breaks.
+        """
+        return 0.0
+
     # ---- optional capability, same shape as set_overlay below ------------
 
     def set_volume(self, level: float) -> None:

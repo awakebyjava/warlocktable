@@ -22,7 +22,64 @@
     "duck_ramp_s": 0.25,
     "idle_scene": "idle",
     "player_count": 4,
-    "fallback_interruption_s": 5.0
+    "fallback_interruption_s": 5.0,
+    "entity_voice": {
+      "enabled": false,
+      "lines_json": "/var/lib/warlocktable/voices/entity-lines.json",
+      "audio_dir": "/var/lib/warlocktable/voices/audio/entity",
+      "global_cooldown_s": 180.0,
+      "default_probability": 0.12,
+      "chattiness": 0.5,
+      "no_repeat_window": 8,
+      "gesture_settle_s": 1.0,
+      "mood": null,
+      "triggers": {
+        "system_startup": {
+          "probability": 1.0,
+          "delay_s": 1.5
+        },
+        "system_shutdown": {
+          "probability": 1.0,
+          "delay_s": 0.0
+        },
+        "system_idle": {
+          "probability": 0.1,
+          "delay_s": 0.8
+        },
+        "tarot_wheel_of_fortune": {
+          "probability": 0.35,
+          "delay_s": 0.8
+        },
+        "tarot_aura_any_expire": {
+          "probability": 0.08,
+          "delay_s": 0.0
+        },
+        "panel_appletv_handoff": {
+          "probability": 0.25,
+          "delay_s": 0.0
+        },
+        "panel_combat_on": {
+          "probability": 0.2,
+          "delay_s": 0.6
+        },
+        "panel_combat_off": {
+          "probability": 0.2,
+          "delay_s": 0.6
+        },
+        "panel_map_change": {
+          "probability": 0.1,
+          "delay_s": 0.5
+        },
+        "dice_roll": {
+          "probability": 0.04,
+          "delay_s": 0.4
+        },
+        "panel_soundscape": {
+          "probability": 0.0,
+          "delay_s": 0.0
+        }
+      }
+    }
   },
   "zones": [
     {

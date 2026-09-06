@@ -137,6 +137,38 @@ class ConfigStore:
             return {"volume": self.config.volume,
                     "device": self.config.audio_device}
 
+    def set_voice(self, enabled=None, chattiness=None, mood=None):
+        """Persist the Entity voice controls.
+
+        Same shape and the same rollback reasoning as set_audio: these are
+        fields _with_rollback would not restore, and silently keeping a
+        change in memory after a refused write is exactly what that
+        machinery exists to prevent.
+        """
+        with self._lock:
+            voice = self.config.entity_voice
+            before = (voice.enabled, voice.chattiness, voice.mood)
+
+            if enabled is not None:
+                voice.enabled = bool(enabled)
+            if chattiness is not None:
+                voice.chattiness = max(0.0, min(1.0, float(chattiness)))
+            if mood is not None:
+                # "" clears the filter rather than setting a mood named "".
+                voice.mood = str(mood) or None
+
+            try:
+                self._commit("voice", enabled=voice.enabled,
+                             chattiness=voice.chattiness, mood=voice.mood)
+            except Exception as exc:
+                voice.enabled, voice.chattiness, voice.mood = before
+                self.log.record("config.save_failed", change="voice",
+                                error=str(exc))
+                raise
+            return {"enabled": voice.enabled,
+                    "chattiness": voice.chattiness,
+                    "mood": voice.mood}
+
     # ---------------------------------------------------------------- cards
 
     def list_cards(self) -> List[dict]:

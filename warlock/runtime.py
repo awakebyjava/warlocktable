@@ -184,6 +184,10 @@ class Runtime:
         self.store = store
         self.unassigned = unassigned
 
+    # How long shutdown will wait for a farewell line. Deliberately short:
+    # lines run to 7.9s and systemd's stop timeout is not negotiable.
+    shutdown_voice_s = 2.5
+
     def shutdown(self) -> None:
         """Release hardware. Safe to call more than once.
 
@@ -211,6 +215,21 @@ class Runtime:
         # still claims the placeholder length.
         if self.mic is not None and getattr(self.mic, "recording", False):
             _timed("recording", self.mic.close)
+
+        # A parting line, while the audio device is still up. Bounded by the
+        # same deadline as everything else here -- the Entity gets to speak on
+        # the way out, but it does not get to hold the shutdown open. If the
+        # line is longer than the time available it is simply cut off, which
+        # is the right trade: systemd's stop timeout is not negotiable and a
+        # SIGKILLed process leaves the GPIO pins claimed.
+        voice = getattr(self.controller, "voice", None)
+        if voice is not None:
+            def _farewell():
+                self.controller.begin_gesture()
+                voice.on_trigger("system_shutdown")
+                _time.sleep(min(2.5, self.shutdown_voice_s))
+            _timed("voice", _farewell)
+            _timed("voice.close", voice.close)
 
         if self.web is not None:
             web = self.web
@@ -311,6 +330,23 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     # with four devices, and the accent lights are genuinely optional in a
     # way lights, audio and display are not.
     controller.govee = govee
+
+    # The Entity voice (entity-voice-specification.md). Attached the same way
+    # and for the same reason as govee: genuinely optional, in a way lights,
+    # audio and display are not. If it will not start, the table is a table
+    # that does not talk -- which is the only failure mode it is allowed.
+    if config.entity_voice.enabled:
+        from .entity import EntityVoice
+        voice = EntityVoice(config.entity_voice, audio, log)
+        if voice.start():
+            controller.voice = voice
+            # A line at startup establishes the character once, at the one
+            # moment with no repetition risk. Fired on its own gesture so it
+            # cannot be swallowed by whatever the boot sequence does next.
+            controller.begin_gesture()
+            voice.on_trigger("system_startup")
+    else:
+        log.record("voice.disabled")
 
     store = ConfigStore(config, os.path.abspath(args.config), log,
                         backup_dir=os.path.join(

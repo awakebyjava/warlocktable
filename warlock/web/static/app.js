@@ -1250,3 +1250,81 @@ new ResizeObserver(() => {
   chromePending = true;
   requestAnimationFrame(() => { chromePending = false; measureChrome(); });
 }).observe(document.querySelector("header"));
+
+/* ---------------------------------------------------------------- the voice
+ *
+ * Two controls, and they are deliberately not the same control. Chattiness 0
+ * is a rate someone will nudge back up by accident; the toggle is a decision.
+ * A table that has started talking during a serious scene needs one switch,
+ * reachable immediately.
+ */
+(function () {
+  const enabled = $("#voice-enabled");
+  const slider = $("#voice-chattiness");
+  const out = $("#voice-chattiness-out");
+  const note = $("#voice-note");
+  const state = $("#voice-state");
+  if (!enabled || !slider) return;
+
+  // What the number means, in words. A bare percentage says nothing about
+  // whether 40 is chatty; these are the actual behaviours.
+  function describe(v) {
+    if (v <= 0) return "silent";
+    if (v < 25) return "rare";
+    if (v < 45) return "occasional";
+    if (v <= 55) return "as configured";
+    if (v < 80) return "talkative";
+    if (v < 100) return "very talkative";
+    return "every time — for testing";
+  }
+
+  function render(s) {
+    enabled.checked = !!s.enabled;
+    const v = Math.round((s.chattiness == null ? 0.5 : s.chattiness) * 100);
+    if (document.activeElement !== slider) slider.value = v;
+    out.textContent = describe(v);
+
+    if (!s.enabled) {
+      state.textContent = "off";
+    } else if (!s.running || !s.healthy) {
+      state.textContent = "not running";
+    } else if (s.speaking) {
+      state.textContent = "speaking";
+    } else {
+      state.textContent = s.lines ? s.lines + " lines" : "";
+    }
+
+    // Errors here are actionable — a missing line database or audio
+    // directory — so say them rather than leaving the toggle looking broken.
+    let msg = s.error || "";
+    if (!msg && s.enabled && s.healthy && s.cooldown_s != null) {
+      msg = "At least " + Math.round(s.cooldown_s) + "s between lines"
+          + (s.missing ? "  ·  " + s.missing + " lines have no audio yet" : "");
+    }
+    note.textContent = msg;
+    note.classList.toggle("warn-text", !!s.error);
+  }
+
+  function post(path, body) {
+    return api("/api/voice/" + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(render).catch(e => showError(e.message));
+  }
+
+  enabled.addEventListener("change", () => post("enabled", { enabled: enabled.checked }));
+
+  // Label follows the thumb; the server only hears about it on release, so a
+  // drag is one config write rather than twenty.
+  slider.addEventListener("input", () => { out.textContent = describe(+slider.value); });
+  slider.addEventListener("change", () =>
+    post("chattiness", { chattiness: +slider.value / 100 }));
+
+  api("/api/voice").then(render).catch(() => {
+    // No voice endpoint at all (older build): leave the section quiet rather
+    // than showing a broken control.
+    const section = document.getElementById("voice-section");
+    if (section) section.hidden = true;
+  });
+})();

@@ -27,6 +27,7 @@ driven from an iPad web panel or from the cards themselves.
 | Design the tarot card behaviours | [`warlock-table-interruption-cards.md`](warlock-table-interruption-cards.md) — all 26 built and enrolled |
 | Generate artwork for the TV | [`display-image-specifications.md`](display-image-specifications.md) |
 | Upload and scale a battle map | [`map-import-specification.md`](map-import-specification.md) |
+| Make the table talk | [`entity-voice-specification.md`](entity-voice-specification.md) |
 | Deploy to, or debug, the Pi | [`deploy/README.md`](deploy/README.md) |
 | Build any UI | [`warlock-table-style-guide.html`](warlock-table-style-guide.html) |
 
@@ -54,6 +55,9 @@ Panel: `http://raspberrypi.local:8080`
 ```
 warlock/
   controller.py    every action; precedence; per-subsystem fault isolation
+  entity/          the table's voice: whether to speak, which line, and
+                   playing it. Flavour only -- delete it and the table is
+                   unchanged, which is the constraint that shapes it.
   mapimport/       uploaded images -> table-correct backgrounds. Knows
                    nothing about the controller; writes files and asks the
                    display to rescan, which is the whole integration.
