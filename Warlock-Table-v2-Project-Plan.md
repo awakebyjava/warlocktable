@@ -1393,7 +1393,7 @@ Required capabilities:
 - **Action API** — "do this now." Fires scenes, plays sounds. Instant, stateless.
 - **Management API** — "change what things do." CRUD, validated, persisted.
 
-**Access.** The operator panel is unrestricted. Player pages are a **separate, restricted surface** — name entry, seat claim, dice, break requests, receiving whispers — not the operator panel with buttons hidden, since hiding a control in a web page does not actually prevent anything. Players cannot fire scenes. Possibly later: letting players trigger sound effects and dice rolls.
+**Access.** *(Superseded by §4.8, specced 2026-09-11: the operator panel becomes gated behind a `gm`/`admin` login; the rest of this paragraph still holds.)* The operator panel is unrestricted. Player pages are a **separate, restricted surface** — name entry, seat claim, dice, break requests, receiving whispers — not the operator panel with buttons hidden, since hiding a control in a web page does not actually prevent anything. Players cannot fire scenes. Possibly later: letting players trigger sound effects and dice rolls.
 
 **Seat claiming.** Players enter a name on the web page and pick **the colour of the lights they are sitting at**, which maps name → zone. This uses the table itself as the seat-identification mechanism and is self-calibrating. It implies a **seat-claim display mode** where the six zones show distinct colours — also useful for debugging zone layout.
 
@@ -1835,6 +1835,544 @@ the previous pattern afterwards, the way Table Check does.
 - **Seat claiming from a phone** still needs the player-facing surface
   (§3.7). The table side of it is done.
 
+### 4.8 Accounts, Profiles & Ownership *(specced 2026-09-11, NOT BUILT)*
+
+Today the table has one configuration and no idea who is holding the
+iPad. Every scene, interruption, card binding and map belongs to "the
+table". This section makes them belong to **people**: each GM keeps their
+own campaigns, the table owner keeps a shared library everyone can draw
+on, and none of it collides.
+
+#### The decision, and its boundary
+
+**Decided 2026-09-11: one table, on its own LAN, no cloud.** Accounts live
+on the Pi. A person logs in *at the table* (from the iPad or their phone on
+the same Wi-Fi) and their library is on the Pi's disk. Nothing leaves the
+house.
+
+A multi-table version — one identity carried between tables in different
+places, libraries synced through a hosted service — was worked through and
+**rejected as the direction**, not deferred. It would need a cloud source
+of truth, a device-code login flow, device-independent scene definitions
+and content sync, and each of those is a project. The single-table design
+below does not preclude it later: profiles-as-folders become the cache a
+sync layer would fill. But nothing here is built *for* that, and nothing
+should be.
+
+**What this is not.** It is not security against an adversary. The threat
+model is *"don't mix Jon's campaign up with Sarah's"* and *"a player must
+not be able to fire scenes"*. Anyone on the Wi-Fi can already reach the
+Pi; the LAN is the perimeter, exactly as it is today for the operator
+panel. That is why the answer is **PINs, not passwords** — the same model
+as a streaming service's profile picker — and why there is no HTTPS, no
+email verification, no password-reset flow, and no third-party auth. Each
+of those would be built to defend against something this table is not
+exposed to.
+
+#### Concepts
+
+Four nouns. The whole design is which of them owns what.
+
+| | What it is | Lives |
+|---|---|---|
+| **Table** | The physical thing: LEDs, zones, patterns on the Pixelblaze, audio outputs, the physical deck (tag UID → card name → what it does) | `table.json` — one per Pi |
+| **User** | A person with a name, an email, a role and a PIN | `users.json` |
+| **Shared library** | The admin's library — *the default library*. Every user can search it and use anything in it. Seeded on install with the stock scenes and the 26 tarot cards; everything the admin authors from then on goes here | `profiles/shared/` |
+| **Private library** | One per `user`: their own scenes, interruptions, random tables, cards, maps, sounds. Visible to nobody else. **The admin account has none** | `profiles/<user-id>/` |
+
+**"GM" is not a role. It is a state.** Whoever has their profile *open*
+on the table is the GM for that session. Any account can do it; a guest
+cannot. So there are only two roles:
+
+- `admin` — the table's owner, the *default GM*. Edits the shared library
+  and the deck, manages users, can open any profile. **Has no private
+  library** *(decided 2026-09-11)*: everything the admin authors is
+  shared, by definition. If the person who owns the table wants a
+  private campaign library, they **create a second, ordinary `user`
+  account with a different email** and use that — the admin account is
+  a job, not a person.
+- `user` — everyone else. Edits their own private library, can open it and
+  run the table from it.
+
+The first user created is the admin. There is one.
+
+**The shared library is meant to be big.** *(design intent, 2026-09-11)*
+Most GMs will not author content — they will pick from what is there. So
+the shared library is the primary source, not a starter kit: the admin's
+job is to keep it stocked, and the `/library` page's job is to make a
+large shared collection **searchable and browsable** — by name, by kind,
+by tag — rather than a list to scroll. A private library is the
+exception a GM reaches for when the shared one does not have the thing,
+or when the thing is a secret.
+
+**Guests keep working exactly as today** *(decided 2026-09-11)*. Someone
+who scans the QR code (§3.7) types a name, picks a seat, rolls dice and
+gets whispers, with no account. A guest has no library and **cannot be
+the GM** — running the table requires an account. Requiring one to *sit
+down* would be the wrong trade; the join page's job is to get someone
+seated in ten seconds.
+
+**Players do not touch cards.** *(decided 2026-09-11)* Not use, not bind,
+not see. Cards are the sole purview of whoever is being the GM. A player
+account's library holds scenes, maps and sounds for the campaigns *they*
+run; while they are sitting as a player it does nothing at all.
+
+#### Ownership: who owns what
+
+This is the part to get right before writing code, because the wrong split
+means building it twice.
+
+**Table-owned** (admin edits; every GM gets it as-is):
+- Settings: volume, audio output, brightness ceiling, Govee devices, paths
+- Zones and the pixel map
+- Patterns on the Pixelblaze. The 30-pattern flash ceiling (§3.8) makes
+  this non-negotiable: a scene *chooses* a pattern from what the table
+  has, it does not carry one
+- **The deck** — the established physical cards, each with its tag UID, its
+  name and *what it does*. "*The Tower* does *this*." **No GM other than
+  the admin can change any of it** *(decided 2026-09-11)*. A GM running
+  their campaign gets the deck exactly as the table owner set it
+
+**Shared-library-owned** (admin edits; every GM can use):
+- Scenes, interruptions, random tables, maps, sounds the admin has put
+  there. This is the seeded default set, grown over time into the
+  table's main collection. **All of it is searchable by every user**; a
+  GM building a campaign picks from it as freely as from their own.
+  There is no "publish" step: the admin has nowhere else to put things
+
+**Private-library-owned** (that user edits; nobody else sees):
+- Their scenes, interruptions, random tables, maps, sounds
+- **Their own cards**: a GM may register *new* tags — the panel already
+  does this by tapping an unknown card (§4.5) — and bind them to anything
+  in their private or the shared library. These are the only cards a
+  non-admin GM ever edits. Blank NFC tags cost pennies, so a GM with a
+  campaign's worth of custom cards is the intended case
+- Private libraries are **not searchable by other users**, not even
+  read-only *(decided 2026-09-11)*. Moving content between them is
+  export → import, nothing more
+
+**Session-owned** (transient, belongs to nobody, dies with the service):
+- Seat claims, signals, dice log, whisper threads, initiative order. These
+  are `players` in today's config and the in-memory state behind §3.7.
+  They stay exactly as they are, except a seat may now carry a user id as
+  well as a name
+
+#### Resolution: what happens on a card tap
+
+```
+tap  →  uid
+        ├─ in the deck (table.json)          →  the deck's binding
+        ├─ in the open profile's cards       →  that profile's binding
+        └─ unknown                           →  surfaced as unassigned (as today)
+        → target (scene / interruption / random table)  →  Controller
+```
+
+That is the whole rule, and it is deliberately dull:
+
+- **A table card always does what the admin set.** Whoever is GM.
+- **A GM's own cards work only while their profile is open.** Another
+  GM's custom tag, tapped during your campaign, is *unknown* — it shows up
+  as unassigned, which is the right answer: it is not your card.
+- **Nothing shadows anything.** There is no override, no per-session
+  toggle, no "let this GM re-bind *The Tower* for tonight". The deck is
+  the deck. That was the choice on 2026-09-11 and it removes an entire
+  class of "why did the card do *that*" — the answer is always "because
+  the table owner set it that way".
+
+**Names are unique across shared + private.** A scene, interruption,
+table, map or sound name may exist in the shared library *or* in a given
+private library, not both. The editor refuses a private name that is
+already shared, with a note saying so. This is what lets every reference
+be a plain name, as it is today, with no "whose forest?" qualifier — and
+it means there is no shadowing mechanism to build, explain, or debug.
+
+**Referential integrity, one direction.** A private library may reference
+the shared library (a private interruption can override the lights of a
+shared scene; a private card can fire a shared scene). The shared library
+may **never** reference a private one. The block-with-a-list rule (§4.5)
+therefore has one new case: the admin deleting a shared scene that three
+private libraries use is refused, naming the users and the entries. The
+admin owns the table, so being told "Sarah and Dave depend on this" is
+the right friction. In the other direction, deleting a user is always
+safe — nothing outside their folder can point into it.
+
+#### On disk
+
+```
+/var/lib/warlocktable/
+    table.json               table-owned: settings, zones, deck (uid → name → target)
+    users.json               id, name, email, role, pin (scrypt), created, lockout state
+    sessions.json            token hash → user id, issued, last seen
+    profiles/
+        shared/              the admin's library; seeded by install, admin edits after
+            library.json     scenes, interruptions, random_tables
+            maps/
+            sounds/
+        <user-id>/           a private library
+            library.json     scenes, interruptions, random_tables, cards
+            maps/
+            sounds/
+    device-state.json        unchanged
+    backups/                 unchanged; now per-file
+```
+
+`<user-id>` is a short random slug, not the name — names change, and a
+folder rename with a running service is a bad time. Every JSON file is
+written the way `config.json` is today: atomic rename, validated first,
+previous version kept (§4.4, `configstore.py`). Nothing here earns SQLite;
+a handful of small files with one writer each is what JSON is for.
+
+The install rule holds (§5.5): **install never touches any of this**,
+except to seed `profiles/shared/` on a fresh install and to run the
+migration below once.
+
+#### Identity: users, PINs, sessions
+
+**A user record:**
+
+```
+id          8-char random slug        "u_k3x9pq2m"
+name        display name              "Jon"
+email       unique, lower-cased       "jon@example.com"
+role        admin | user
+pin_hash    scrypt, per-user salt     hashlib.scrypt — stdlib, no dependency
+created     ISO timestamp
+failed      wrong-PIN count           reset on success
+locked_until  timestamp or null       5 failures → 30 s
+```
+
+**Email is required and unique** *(decided 2026-09-11)*, and it is an
+*attribute*, not a login credential — nobody types an email at the table.
+Its jobs: the stable identity behind a display name (two Jons at one table
+is a realistic evening), the address a **session recap (§3.10)** or a
+profile export gets sent to when either of those learns to send, and the
+thing the admin sees in the user list. **The table does not send email**
+in this design and does not verify addresses. If §3.10 ever grows a
+recap-by-email feature, the address is already there waiting; that is the
+whole reason to collect it now rather than retrofit it.
+
+PINs are **4–6 digits**. Verifying one takes a deliberate ~1 s (scrypt's
+cost parameter does this for free), and five wrong attempts lock the user
+for thirty seconds. On a LAN behind a home router that is the whole
+brute-force story. There is no "forgot my PIN": the admin resets it from
+the panel, and the user picks a new one at next login.
+
+**A session** is a 32-byte random token (`secrets.token_urlsafe`) handed
+to the browser as a cookie:
+
+```
+Set-Cookie: wt_session=<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000
+```
+
+`HttpOnly` keeps page scripts away from it; `SameSite=Lax` means a link
+from elsewhere cannot carry it; no `Secure` flag because the panel is plain
+HTTP on the LAN and the flag would make the cookie vanish. Thirty days,
+sliding — every request extends it — so the iPad stays signed in across a
+month of sessions and a phone that has not been back in a while asks again.
+`sessions.json` stores the **hash** of the token, not the token: a copied
+file then gives nobody a login. Sessions survive a service restart; that
+matters because §5.3's auto-recovery must not sign the GM out mid-game.
+
+**Logging out** deletes the session; **resetting a PIN** deletes every
+session that user has. **Deleting a user** removes their sessions, their
+profile folder, and **their custom cards from the table's knowledge
+entirely** *(decided 2026-09-11)* — those tags become unknown again and
+must be re-registered by whoever holds them next. Nothing is quietly
+handed to the deck.
+
+#### Request handling and access
+
+`server.py` gains one thing every handler calls first: *resolve the
+cookie to a user, or to nobody*. Every route then declares what it needs:
+
+| Surface | Requires | Notes |
+|---|---|---|
+| `/` | nothing | the profile picker — replaces "player or GM?" |
+| `/login`, `/api/login`, `/api/logout` | nothing | name + PIN → cookie |
+| `/player`, `/api/player/*` | nothing | guests keep the ten-second join. A signed-in user's seat carries their user id |
+| `/gm`, `/api/actions`, `/api/check`, `/api/audio`, `/api/initiative`… | signed in, **and** the open profile is yours (or you are `admin`) | **the operator panel is no longer unrestricted.** §4.5's "hiding a control is not access control" now has teeth: the server refuses, not the page |
+| `/api/config/*` — the deck, settings | `admin` | table-owned data |
+| `/library`, `/api/library/*` | any signed-in user | your private library; the shared library read-only alongside it |
+| `/api/library/shared/*` | `admin` | writes to the shared library |
+| `/api/campaign/open` | signed in (own profile) or `admin` (any, or none — the shared library alone) | switches the running profile — *becoming* the GM |
+| `/admin`, `/api/users/*` | `admin` | users, roles, PIN resets, delete |
+
+Unauthorised API calls get **401** with a JSON body, never a redirect —
+the panel's JS decides what to do, and a fetch that follows a redirect to
+an HTML login page is the classic "why is my JSON a `<!DOCTYPE`" bug.
+
+The **Action API / Management API split** (§4.5) is unchanged, and is
+what makes this cheap: "fire a scene" was always separate from "edit a
+scene", so gating them differently is a table of routes, not a rewrite.
+
+#### What the Controller sees
+
+**Nothing changes below the config.** The Controller still receives one
+`Config` — scenes, interruptions, cards, zones, settings — and still knows
+nothing about users. What changes is *who assembles that `Config`*.
+
+Today: `load_config(path)` → `Config` → `Controller`, with `ConfigStore`
+editing it in place under a lock.
+
+After: a **`ProfileStore`** owns `table.json`, the shared library and the
+open private library, and **composes** them into the `Config` the
+Controller runs — the deck plus the open profile's cards as `cards`; the
+union of shared and private scenes as `scenes`; likewise interruptions,
+tables, and the media path lists. Edits go through it the way they go
+through `ConfigStore` today, and it routes each write to the right file —
+a scene edit to whichever `library.json` owns that name, a volume change
+to `table.json`, a new tag to the open profile. The in-memory `Config`
+and the files move together or not at all, the rollback-on-refused-write
+rule intact (`configstore.py`).
+
+**Opening a profile** while the table is running:
+
+1. Compose the new `Config` and validate it *before* touching anything.
+2. Return the table to `idle` (shared, always present) so no scene from
+   the old profile is left playing with its definition gone.
+3. Swap the `Config` under the same lock the NFC thread already respects.
+4. Seats, initiative, rolls and whispers **persist** across the swap — they
+   are session-owned. Switching GM does not evict the players.
+
+Card taps and panel actions during the swap see either the old `Config` or
+the new one, never a half-built one, which is the property the lock has
+provided since the panel first shipped.
+
+**The shared library alone must compose to a valid `Config`.** It always
+supplies `idle`, the zones pattern and the full deck, so a brand-new user
+with an empty private library opens their profile and gets a working
+table, not a broken one. **With no profile open** — service just started,
+nobody signed in — the table runs the shared library by itself, which is
+exactly today's behaviour: cards work, idle breathes, the status screen
+shows the QR codes. Login is needed to *change* things, never to have
+the table be a table.
+
+#### Migration from today's `config.json`
+
+One-shot, run by `install.sh` when it finds `config.json` and no
+`profiles/`:
+
+1. Back up `config.json` as it is (`backups/config-pre-profiles-*.json`).
+2. **Split it.** `settings` and `zones` → `table.json`. Every card —
+   `uid`, `label`, `target` — → the deck in `table.json`, because
+   everything registered so far was registered by the table owner.
+   `scenes`, `interruptions`, `random_tables` → `profiles/shared/
+   library.json`. `players` is dropped — it is transient state.
+3. The **admin user** is created without a PIN or email, and the panel's
+   first request after migration is a **set-up page**: name, email, PIN.
+   Until that is done, nothing else is reachable.
+4. Existing maps and uploaded sounds are **copied**, not moved, into
+   `profiles/shared/`. Stock backgrounds stay where they are; they are
+   table-owned paths.
+
+**The migration is additive and leaves `config.json` untouched.**
+*(decided 2026-09-11)* It writes the new files *beside* the old one and
+never edits or removes it. The new code ignores `config.json` once
+`profiles/` exists; the old code never heard of `profiles/`. So **rolling
+back is just deploying the previous tag** — the old build finds its file
+exactly where it left it, and the only thing lost is whatever was edited
+through the new panel in the meantime. That is the right trade: data that
+git does not protect must be recoverable by a mechanism that does not
+depend on the new code being correct. Migration is also **idempotent by
+refusal** — if `profiles/` exists it does nothing and says so — so
+running `install.sh` twice cannot double-migrate, and a rolled-back
+install followed by a roll-forward picks up where it left off rather
+than starting over.
+
+Card labels become significant: the deck is the only place a table card
+lives, and the editor refers to cards by label, so **labels must be
+unique across the deck**. Today they are merely display strings. Migration
+must refuse to run — with a list — if two tags share a label, and the deck
+editor enforces uniqueness from then on.
+
+`data/config.example.json` continues to exist for `run_table.py` on a
+laptop with no hardware, composed exactly as it is on the Pi, with a
+built-in `dev` admin whose PIN is `0000` so the fakes-only loop is not
+slowed down by a login. That user is never seeded on a real install.
+
+#### Panel and pages
+
+- **`/` becomes the profile picker.** Names as tiles, a *Guest* tile, and a
+  PIN pad. Same look as the status screen's brand (§3.6). The QR codes on
+  the TV already point here. Guest goes straight to `/player`, as the
+  "player" answer does today.
+- **`/gm`** gains a header line — *Running: Jon's campaign* (or *Running:
+  shared* when nobody has opened one) — and an **Open** control. A `user`
+  sees *Open my campaign*; the `admin` sees every profile. **Card
+  management** on this page shows the deck read-only to a `user` and
+  editable to the `admin`; a `user`'s *own* cards are edited on
+  `/library`.
+- **`/library`** is the existing scene / interruption / card editors,
+  reused, with two sources: *Shared* (searchable; read-only for a
+  `user`, editable for the `admin`) and *Mine* (a `user`'s private
+  library; the admin has no such tab). Because the shared side is
+  expected to hold a lot, it gets a **search box and kind/tag filters**
+  first, and a list second. Creating anything offers the shared
+  library's scenes, sounds and maps alongside your own. *My cards* —
+  register a tag by tapping it, bind it — lives here for a `user`; the
+  admin's cards are simply the deck, edited on `/gm`.
+- **`/admin`** — the user list with emails. Add, change role, reset PIN,
+  delete (with the list of what goes with them, including the tags that
+  will become unknown), and **Export profile** — a zip of one user's
+  folder, which is the §4.4 backup requirement made per-person. Export
+  and import of the shared library lives here too.
+- **Player pages** are unchanged except that a signed-in user's seat pill
+  shows their account name and their claim survives a reload without
+  re-typing. A player, signed in or guest, sees nothing about cards.
+
+Nothing new is invented visually. The style guide and the four-tab panel
+layout (§3.7) already cover every element these pages need.
+
+#### Failure modes to design against
+
+| | |
+|---|---|
+| **GM signed out mid-session** | Sessions persist to disk and slide; the only causes are an explicit logout, a PIN reset, or 30 days idle. The service restarting (§5.3) must never do it |
+| **A player tries to run the table** | A guest has no session and gets 401. A signed-in `user` whose profile is *not* open gets 401 from every action route; only opening their profile — which is a deliberate act on `/gm` — makes them the GM |
+| **Two GMs both want the table** | Opening a profile is last-write-wins and announced on the status strip: *Sarah opened her campaign.* Two people fighting over it is a social problem; the software just makes it visible |
+| **Open profile references a missing scene** | Cannot happen through the editor (integrity rule); if a file is edited by hand, compose fails validation and the *previous* profile stays running, with the error on the status strip |
+| **Two labels, one name** | Refused at deck edit and at migration, with the list |
+| **`users.json` lost or corrupt** | Refuse to start users, fall back to a single implicit admin with no PIN, show the set-up page. The table itself keeps running — a login file is not a hardware fault, and §5.2's principles say the lights do not care |
+| **Locked out of the admin account** | A CLI escape hatch: `run_service.py --reset-admin-pin` over SSH. This is the one recovery path and it requires being at the Pi |
+| **Guest and a signed-in user claim the same seat** | Already handled — seat claims are exclusive (§4.7); identity does not change it |
+
+#### Build order — small, tested increments
+
+Each step leaves the table working exactly as before for anyone who does
+not use the new thing. Do not start the next until the previous is
+verified on hardware.
+
+1. **Split `table.json` out of `config.json`.** No users, no profiles,
+   one file becomes two — settings, zones and the deck on one side,
+   scenes / interruptions / tables on the other. `ProfileStore` exists
+   and composes exactly one library. *Verify:* every card, scene and
+   panel control behaves identically.
+2. **Shared + private composition.** `profiles/shared/` is the library
+   from step 1; a second, empty private library composes on top of it;
+   name uniqueness across the two is enforced. *Verify:* a scene added
+   to the private library fires from the panel; a duplicate name is
+   refused.
+3. **Users, PINs, sessions, login page.** `/gm` and the action routes
+   gated. Migration creates the admin; the set-up page collects name,
+   email and PIN. *Verify:* a phone without the cookie gets 401 from
+   `/api/actions`; the iPad stays signed in across a service restart;
+   a guest can still join and roll dice.
+4. **Profiles per user, `/library`, Open.** Editors pointed at the
+   signed-in user's folder with the shared library alongside. Opening a
+   profile does the idle-swap. *Verify:* switching GM mid-session keeps
+   the seats.
+5. **A GM's own cards.** *My cards* on `/library`; the resolution rule.
+   *Verify:* a `user`'s tag fires their interruption while their profile
+   is open and shows as *unassigned* while the admin's is.
+6. **Maps and sounds per library.** `MapLibrary` and the sound uploader
+   take a library directory; the audio/background path lists compose
+   shared + open private.
+7. **`/admin`, export, delete.** Delete drops the user's tags; and the
+   CLI PIN reset.
+
+Step 1 is the one that touches everything and adds no feature. That is
+deliberate: it is the change most likely to break the table, and it
+should break it while nothing else is new.
+
+#### How it gets built — branch, tests, staging, deploy
+
+The Pi's `deploy/update.sh` pulls `main` with `--ff-only` (§5.5). That
+makes the rule simple: **`main` is the table.** Nothing in this section
+lands there until it is ready to run on the table that evening.
+
+**Before the first line of code:**
+
+- **Tag `main` as `v0.4.0`.** The table is running 83 commits past
+  `v0.3.1`, so there is currently no clean anchor to roll back *to*.
+  Every rollback for the life of this work is `git checkout v0.4.0 &&
+  sudo deploy/install.sh`.
+- **Branch `accounts` off `main`.** All seven build-order steps happen
+  there, one commit per step at minimum, step number in the message. The
+  Pi cannot see it.
+- **`scp` the Pi's `/var/lib/warlocktable` to the laptop once**, and
+  also `tar` it on the Pi. Every development run uses a **fresh copy** of
+  that snapshot — `--config` already takes any path — so the migration
+  is exercised against the real 32 cards and real scenes, over and over,
+  and a run that corrupts the copy costs nothing.
+
+**Tests, for the first time.** The repo has none; features have been
+verified by running them, and for features that is fine. Step 1 rewires
+how every `Config` is loaded and adds nothing to look at, which is the
+one kind of change that cannot be eyeballed. So step 1 starts with a
+`tests/` folder, stdlib `unittest` (no dependency, in keeping with the
+rest of the identity layer), and one exact assertion:
+
+> *composing from the split files produces a `Config` equal to loading
+> the old `config.json`*
+
+run against the real-data snapshot. When it passes, step 1 is done.
+Later steps add tests of the same shape: the resolution rule, name
+uniqueness across shared + private, PIN verification and lockout,
+session expiry, and migration-refuses-on-duplicate-labels. All pure
+Python, no hardware — the layer this section adds is precisely the layer
+a test suite is good at, and it is the first part of the project that
+has one.
+
+**Staging on the Pi, without touching the table.** A second checkout at
+`~/warlocktable-staging` on the `accounts` branch, run by hand over SSH
+against a *copy* of the data directory, fakes for every device, and
+`--web-port 8081`. It cannot own the hardware — one process holds the
+PN532 and the Pixelblaze — so this is not a hardware test. It is for the
+two things the laptop cannot check: **Bullseye's Python 3.9.2**
+(`deploy/README.md`; the laptop is newer, and syntax that is fine there
+can fail here) and **the real iPad against the real login pages**. The
+live service on `:8080` keeps running throughout.
+
+**Merge at the first usable point, not per step.** Steps 1–2 are
+invisible; step 3 is where the panel gains a login and a guest can be
+told "it's different now." So the first merge to `main` is after step 3
+passes on staging — then **tag `v0.5.0`**, `update.sh`, and play a
+session. Steps 4–7 follow the same rhythm: branch stays open, merge when
+a step is usable, tag every deploy. Every tag is a rollback target, and
+the additive migration above is what makes rolling back safe.
+
+**One hardware rehearsal before the first deploy.** Stop the service,
+run the staging checkout with `--real-lights --real-audio --nfc
+--real-display --web` for twenty minutes, tap every card, open and close
+a profile, restart the service. That is the only window in which the
+table is at risk, and it closes with `systemctl start warlocktable`.
+
+#### Explicitly deferred or ruled out
+
+- **Passwords, HTTPS, email verification, sending email, OAuth** — none of
+  it defends against anything this table is exposed to. If the panel is
+  ever reachable from outside the LAN (§3.12), revisit every line of the
+  identity section first. The email *field* is collected now so §3.10 has
+  it later; sending is that feature's job.
+- **Sharing between private libraries** ("use Dave's map in my campaign")
+  — export and import. The shared library is the place for things more
+  than one GM wants; that is what the admin is for.
+- **Browsing another GM's library**, even read-only — **ruled out
+  2026-09-11.** Private means private.
+- **Any GM re-binding table cards**, per session or otherwise — **ruled
+  out 2026-09-11.** The deck is the admin's.
+- **Players holding, using, binding or seeing cards** — **ruled out
+  2026-09-11.**
+- **Multiple tables** — rejected direction, see the top of this section.
+
+#### Resolved 2026-09-11
+
+The open questions from the first draft, and the answers:
+
+- *Can a GM browse another GM's library?* **No.** Export/import only.
+- *What happens to a deleted user's tags?* **Dropped entirely.** They
+  become unknown and must be re-registered.
+- *Does a regular guest need an account?* **No** — they keep joining by
+  name. They need one only to GM.
+- *Can a GM bind a player's card?* **Moot** — players have no cards.
+
+- *Does the admin have a private library too?* **No.** The admin's
+  library *is* the shared, default library — open to all and meant to
+  be large. The table owner who wants a private campaign library makes
+  a second `user` account with a different email.
+
+Nothing is open at the moment.
+
 ---
 
 ## 5. Reliability & Startup Behavior
@@ -2231,6 +2769,7 @@ Stand up the core software on the Pi once hardware is trusted.
 - [x] Tagged releases — `v0.1.0` cut and deployed; `VERSION` and the panel both report the build.
 
 ### Phase 3+ — Feature Build-Out
+- [ ] **Accounts, profiles and ownership** — specced 2026-09-11, §4.8. Local PIN logins on the Pi, a library per user, a shared library the admin curates plus a private one per user; cards are GM-only and the deck is the admin's alone. Seven-step build order in the section; step 1 (split `table.json` out of `config.json`) is the risky one and adds no feature on purpose.
 - [x] Operator web panel — done. iPad PWA, status strip, scene/interruption/table buttons built from the controller's vocabulary, brightness, grid toggle, card editing. *Apple TV hand-off is stubbed — it logs intent, HDMI-CEC not implemented.*
 - [x] **Generate all patterns from one vocabulary** — built 2026-08-22
   (§3.8). 70 patterns, 60% smaller, with the anti-machine-made techniques
