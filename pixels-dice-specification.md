@@ -12,8 +12,9 @@ hardware (§8). Steps 2 and 3 built 2026-09-16: the input module, the
 config section, controller dispatch, roll log, status strip, Table
 Check, `/api/dice`, `--dice` flag and the service unit change. **Deployed
 as v0.5.0 on 2026-09-16 and verified on the table: a natural 20 fired
-*The Sun*. Next: step 4, the panel editor — known dice, seat binding,
-triggers.**
+*The Sun*. Step 4 built 2026-09-16: the panel's Dice Management page — heard
+dice, register with a seat, the ordered trigger table. Verified on the
+laptop; awaiting the Pi.**
 
 ---
 
@@ -258,9 +259,19 @@ packet after the first session. `warlocktable.service` grants
 `CAP_NET_RAW CAP_NET_ADMIN`; `install.sh` adds `--dice` to a fresh
 defaults file (an existing one must be edited by hand).
 
-**Step 4 — panel.** Known dice with names and battery; the trigger editor
-(§4.5 pattern: self-describing, live lists). Not before Jon has seen the
-config shape work by hand.
+**Step 4 — panel** *(built 2026-09-16)*. Settings → **Dice
+Management**: a *Heard* list of dice the scanner sees (register one by
+tapping it, like an unregistered card), *Known Dice* with name, type and
+**seat** (a dropdown of the table's zone colours, so a die's rolls land
+on that player's phone), and the ordered *Triggers* table with ▲▼ to
+reorder, since first match wins. Faces are typed as `20` or `18, 19, 20`;
+the server refuses anything else. Every dropdown is built from what the
+table has (§4.5). `ConfigStore` gained `list_dice`, `set_known_die`,
+`delete_known_die` (blocked while a trigger names the die),
+`set_dice_triggers` (whole ordered list) and `set_dice_enabled`; the
+routes are `POST /api/dice/{enabled,known,triggers}` and
+`DELETE /api/dice/known/<key>`. A **dice** lamp joined the status strip.
+`tests/test_dice_store.py` covers the writes and the refusals.
 
 Each step verified on hardware before the next.
 
