@@ -8,9 +8,11 @@ from source: the published `@systemic-games/pixels-core-connect` 1.3.0 and
 PyPI/Debian metadata. Nothing below is inferred from a packet capture.*
 
 **Status: research complete, decisions taken (§7), scanning verified on
-hardware (§8). Step 2 built 2026-09-16: `warlock/inputs/dice.py` with
-`tests/test_dice.py` — the repo's first unit tests. Next: step 3,
-controller integration.**
+hardware (§8). Steps 2 and 3 built 2026-09-16: the input module, the
+config section, controller dispatch, roll log, status strip, Table
+Check, `/api/dice`, `--dice` flag and the service unit change. Verified
+on the laptop with fakes; awaiting the Pi. Next: deploy, then step 4, the
+panel editor.**
 
 ---
 
@@ -239,12 +241,21 @@ decoder and tracker against the bytes captured at the table — the first
 unit tests in the repo. `tools/dice_probe.py` is now a thin diagnostic
 over the same code, so what decodes in the probe decodes in the service.
 
-**Step 3 — controller integration.** `Controller.dice_roll(event)` next
-to `card_tap`: looks the roll up in config (§6), fires the target through
-the same dispatch as a card, records the roll in the existing **roll log
-(§3.11)** so it appears on the panel and player phones like a phone roll
-does. A `--dice` flag on `run_service.py`, a **Dice** row on the status
-strip and Table Check (scanner alive, N dice seen in the last minute).
+**Step 3 — controller integration** *(built 2026-09-16)*.
+`Controller.handle_roll(event)` next to `handle_card`: logs every roll to
+the **roll log (§3.11)** — under the bound player's seat, else under
+`table` with the die's own name — then looks it up in the trigger table
+(§6) and, on a match, fires the target through the same dispatch as a
+card. No match: logged, nothing else. `Config` gained `dice_known`,
+`dice_triggers` and `match_roll()`, with the threshold shapes refused by
+name at load. `--dice` on `run_service.py`/`run_table.py` (the fake is
+always built, so `dice d20 20` works at the laptop prompt); `dice=`
+on the service status line; a **Dice** row in Table Check; `dice` in
+`/api/status` and a read-only `/api/dice`. `dice-state.json` beside the
+config remembers address → id so a die is identified from its first
+packet after the first session. `warlocktable.service` grants
+`CAP_NET_RAW CAP_NET_ADMIN`; `install.sh` adds `--dice` to a fresh
+defaults file (an existing one must be edited by hand).
 
 **Step 4 — panel.** Known dice with names and battery; the trigger editor
 (§4.5 pattern: self-describing, live lists). Not before Jon has seen the

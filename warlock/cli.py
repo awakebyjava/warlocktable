@@ -49,6 +49,8 @@ Card taps below will change the physical table. 'help' for commands.
 
 HELP = """\
   card <uid-or-label>   simulate an NFC tap (try: thedevil, forest, wheel)
+  dice <type> <face>    simulate a Pixels die landing (e.g.  dice d20 20)
+  dice                  what the dice scanner knows
   cards                 list every registered card
   scenes                list scenes
   interruptions         list interruptions
@@ -99,6 +101,12 @@ def main() -> None:
         action="store_true",
         help="read real cards from the PN532 instead of only simulated taps. "
              "Pi only — needs SPI and RPi.GPIO. The 'card' command still works.",
+    )
+    parser.add_argument(
+        "--dice",
+        action="store_true",
+        help="listen for Pixels dice over Bluetooth. Pi only — needs root or "
+             "CAP_NET_RAW. The 'dice' command still works without it.",
     )
     parser.add_argument(
         "--real-audio",
@@ -171,7 +179,8 @@ def main() -> None:
 
     real = [n for n, on in (("lights", args.real_lights),
                              ("audio", args.real_audio),
-                             ("NFC input", args.nfc)) if on]
+                             ("NFC input", args.nfc),
+                             ("dice", args.dice)) if on]
     if real:
         print("Warlock Table v2 — REAL: %s" % ", ".join(real))
         fake = [n for n in ("lights", "audio", "display") if n not in real]
@@ -219,6 +228,14 @@ def main() -> None:
             print("NFC: still connecting%s" % ((" — last error: %s" % err) if err else "..."))
             print("     the prompt is usable now; taps will start working when")
             print("     the reader comes up. Check with 'status'.")
+
+    from .runtime import build_dice
+    dice = build_dice(args, controller, log)
+    if args.dice:
+        info = dice.status()
+        print("DICE: %s" % ("scanning — roll a Pixels die any time."
+                            if info.get("healthy")
+                            else "not scanning (%s)" % info.get("error")))
 
     controller.go_idle()
 
@@ -270,6 +287,36 @@ def _dispatch_command(cmd: str, rest: str, controller: Controller, config) -> No
         if not controller.handle_card(rest):
             print("  '%s' is not a registered card. (In the real panel, this "
                   "would appear as 'unassigned — tap to name it'.)" % rest)
+
+    elif cmd == "dice":
+        scanner = getattr(controller, "_dice", None)
+        parts = rest.split()
+        if len(parts) == 2 and hasattr(scanner, "roll"):
+            try:
+                ev = scanner.roll(parts[0], int(parts[1]))
+            except ValueError:
+                print("  usage: dice d20 20")
+            else:
+                trig = config.match_roll([ev.die_key], ev.die_type, ev.face)
+                print("  %s=%d -> %s" % (ev.die_type, ev.face,
+                      ("%s:%s" % (trig.target.kind, trig.target.name))
+                      if trig else "logged only (no trigger matched)"))
+        elif len(parts) == 2:
+            print("  the real scanner is running; roll a physical die instead")
+        else:
+            info = scanner.status() if scanner else {}
+            print("  healthy: %s%s" % (info.get("healthy"),
+                  ("  (%s)" % info["error"]) if info.get("error") else ""))
+            print("  rolls this session: %s" % info.get("rolls", 0))
+            for d in info.get("dice", []):
+                print("  %(die)s  %(name)-14s %(type)-5s batt %(battery)3d%%  "
+                      "rolls %(rolls)d  rssi %(rssi)d" % d)
+            print("  triggers:")
+            for i, t in enumerate(config.dice_triggers):
+                print("    %d. die=%s type=%s face=%s -> %s:%s" % (
+                    i + 1, t.die, t.die_type or "any",
+                    t.faces if t.faces is not None else "any",
+                    t.target.kind, t.target.name))
 
     elif cmd == "cards":
         for card in config.cards.values():

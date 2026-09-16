@@ -202,7 +202,7 @@ if [[ ! -f "$DEFAULTS" ]]; then
 # Arguments for the Warlock Table controller.
 # Edit here rather than the unit file - install.sh overwrites the unit,
 # but leaves this alone.
-WARLOCK_ARGS=--config $DATA_DIR/config.json --real-lights --real-audio --nfc --status-interval 300
+WARLOCK_ARGS=--config $DATA_DIR/config.json --real-lights --real-audio --nfc --dice --status-interval 300
 EOF
     echo "  wrote $DEFAULTS"
 else

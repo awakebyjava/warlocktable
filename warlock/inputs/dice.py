@@ -47,6 +47,7 @@ socket in them and are what tests/test_dice.py exercises.
 
 from __future__ import annotations
 
+import json
 import os
 import select
 import socket
@@ -268,9 +269,15 @@ class RollTracker:
     # a repeat of (id, face) inside this window as the same roll.
     SAME_ROLL_WINDOW_S = 1.5
 
-    def __init__(self):
+    def __init__(self, address_ids: Optional[Dict[str, int]] = None,
+                 on_identified: Optional[Callable[[str, int], None]] = None):
         self.dice: Dict[str, KnownDie] = {}
         self._last_roll: Dict[int, Tuple[float, int]] = {}   # pixel_id -> (t, face)
+        # Address -> pixel id remembered from earlier runs, so a die is
+        # identified from its first packet instead of waiting for the
+        # scan response (which took 15-20 s at the table).
+        self.address_ids: Dict[str, int] = dict(address_ids or {})
+        self.on_identified = on_identified
 
     def feed(self, address: str, data: bytes, rssi: int,
              now: Optional[float] = None) -> Optional[RollEvent]:
@@ -297,13 +304,20 @@ class RollTracker:
 
         if die is None:
             die = self.dice[address] = KnownDie(address=address, fields=fields)
+            if address in self.address_ids:
+                die.pixel_id = self.address_ids[address]
         die.name = adv.name or die.name
         die.die_type = adv.die_type
         die.battery, die.charging = adv.battery, adv.charging
         die.old_layout = adv.old_layout
         die.last_seen, die.rssi = now, rssi
         if adv.pixel_id is not None:
+            newly = self.address_ids.get(address) != adv.pixel_id
             die.pixel_id, die.firmware = adv.pixel_id, adv.firmware
+            if newly:
+                self.address_ids[address] = adv.pixel_id
+                if self.on_identified is not None:
+                    self.on_identified(address, adv.pixel_id)
 
         event = None
         if adv.roll_state == ROLLED and die.last_state != ROLLED and not adv.old_layout:
@@ -450,14 +464,18 @@ class HciScanner:
 class DiceScanner:
     """The dice input. Owns the radio on its own thread; calls on_roll."""
 
+    real = True
     RECONNECT_INTERVAL_S = 15.0
     START_WAIT_S = 2.0
 
-    def __init__(self, log, on_roll: Callable[[RollEvent], None], dev_id: int = 0):
+    def __init__(self, log, on_roll: Callable[[RollEvent], None], dev_id: int = 0,
+                 state_path: Optional[str] = None):
         self.log = log
         self.on_roll = on_roll
         self.dev_id = dev_id
-        self.tracker = RollTracker()
+        self.state_path = state_path
+        self.tracker = RollTracker(address_ids=self._load_state(),
+                                   on_identified=self._save_state)
 
         self._hci: Optional[HciScanner] = None
         self._thread: Optional[threading.Thread] = None
@@ -501,6 +519,33 @@ class DiceScanner:
         }
 
     # ------------------------------------------------------------- internals
+
+    def _load_state(self) -> Dict[str, int]:
+        if not self.state_path:
+            return {}
+        try:
+            with open(self.state_path, "r", encoding="utf-8") as fh:
+                raw = json.load(fh)
+            return {str(a).upper(): int(i, 16) if isinstance(i, str) else int(i)
+                    for a, i in (raw.get("addresses") or {}).items()}
+        except (OSError, ValueError, AttributeError):
+            return {}
+
+    def _save_state(self, address: str, pixel_id: int) -> None:
+        """Remember address -> id. Best effort: losing it costs 20 s of
+        'unidentified' next run, not a roll."""
+        self.log.record("dice.identified", address=address, die="%08x" % pixel_id)
+        if not self.state_path:
+            return
+        try:
+            data = {"addresses": {a: "%08x" % i
+                                  for a, i in self.tracker.address_ids.items()}}
+            tmp = self.state_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=2, sort_keys=True)
+            os.replace(tmp, self.state_path)
+        except OSError as exc:
+            self.log.record("dice.state_save_failed", error=str(exc))
 
     def _open(self) -> bool:
         try:
@@ -590,6 +635,8 @@ def _has_net_raw() -> bool:
 class FakeDiceScanner:
     """No radio: rolls are injected by the CLI (`dice d20 20`)."""
 
+    real = False
+
     def __init__(self, log, on_roll: Callable[[RollEvent], None]):
         self.log = log
         self.on_roll = on_roll
@@ -606,7 +653,7 @@ class FakeDiceScanner:
         pass
 
     def roll(self, die_type: str, face: int, name: str = "fake",
-             die_key: str = "fake0001") -> RollEvent:
+             die_key: str = "fa4e0001") -> RollEvent:
         idx = {"d10": face, "d00": face // 10}.get(die_type, face - 1)
         try:
             pixel_id: Optional[int] = int(die_key, 16)

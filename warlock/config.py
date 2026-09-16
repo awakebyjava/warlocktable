@@ -142,6 +142,44 @@ class Player:
     zone_id: Optional[int] = None
 
 
+# Pixels dice (pixels-dice-specification.md section 6). A roll is an input
+# that resolves to a Target, exactly as a card tap does.
+
+DIE_TYPES = ("d4", "d6", "d8", "d10", "d00", "d12", "d20", "d6pipped", "d6fudge")
+
+
+@dataclass
+class KnownDie:
+    """A die the table has been told about. `key` is the pixel id (8 hex
+    digits) or, until one has been heard, a Bluetooth address."""
+    key: str
+    name: str
+    die_type: Optional[str] = None
+    seat: Optional[str] = None       # zone colour: this die's rolls are that player's
+
+
+@dataclass
+class DieTrigger:
+    """One row of the roll -> target table. Every field but `target`
+    narrows the match; absent means any. `faces` is a list of exact
+    values -- never a range or a threshold, because "18 or better" is a
+    target number and a target number is a game rule. The list is the
+    line, and it is drawn there on purpose."""
+    target: Target
+    die: str = "any"                  # a KnownDie key, or "any"
+    die_type: Optional[str] = None
+    faces: Optional[List[int]] = None
+
+    def matches(self, die_keys, die_type: str, face: int) -> bool:
+        if self.die != "any" and self.die not in die_keys:
+            return False
+        if self.die_type is not None and self.die_type != die_type:
+            return False
+        if self.faces is not None and face not in self.faces:
+            return False
+        return True
+
+
 @dataclass
 class EntityVoice:
     """The table's voice. Flavour audio, and every number here is tunable.
@@ -235,6 +273,11 @@ class Config:
     cards: Dict[str, Card]          # keyed by uid
     zones: List[Zone]
     players: List[Player] = field(default_factory=list)
+    # Pixels dice: known dice by key, and the ordered trigger table.
+    # First match wins, so a specific die's row sits above a general one.
+    dice_enabled: bool = True
+    dice_known: Dict[str, KnownDie] = field(default_factory=dict)
+    dice_triggers: List[DieTrigger] = field(default_factory=list)
     # Which scene is the resting state (plan doc 4.3). Configurable rather
     # than hardcoded in the controller, so the management UI can change what
     # the table falls back to.
@@ -377,6 +420,21 @@ class Config:
                 return card
         return None
 
+    def find_die(self, *keys: str) -> Optional[KnownDie]:
+        """The KnownDie for any of `keys` (pixel id, address)."""
+        for k in keys:
+            if k and k in self.dice_known:
+                return self.dice_known[k]
+        return None
+
+    def match_roll(self, die_keys, die_type: str, face: int) -> Optional[DieTrigger]:
+        """The first trigger a roll satisfies, or None. Order is the rule."""
+        keys = set(k for k in die_keys if k)
+        for trig in self.dice_triggers:
+            if trig.matches(keys, die_type, face):
+                return trig
+        return None
+
     def resolve(self, target: Target):
         """Turns a Target reference into the actual Scene/Interruption/
         RandomTable object it points at. Raises ConfigError if it points
@@ -453,9 +511,21 @@ def load_config(path: str) -> Config:
         for p in raw.get("players", [])
     ]
 
+    dice_raw = raw.get("dice", {}) or {}
+    dice_known = {}
+    for key, d in (dice_raw.get("known") or {}).items():
+        key = _die_key(key)
+        dice_known[key] = KnownDie(
+            key=key, name=d.get("name", key), die_type=d.get("type"),
+            seat=(d.get("seat") or None))
+    dice_triggers = [_trigger_from_dict(i, t)
+                     for i, t in enumerate(dice_raw.get("triggers") or [])]
+
     config = Config(
         scenes=scenes, interruptions=interruptions, random_tables=random_tables,
         cards=cards, zones=zones, players=players,
+        dice_enabled=bool(dice_raw.get("enabled", True)),
+        dice_known=dice_known, dice_triggers=dice_triggers,
         idle_scene_name=raw.get("settings", {}).get("idle_scene", "idle"),
         player_count=int(raw.get("settings", {}).get("player_count", 4)),
         volume=float(raw.get("settings", {}).get("volume", 0.8)),
@@ -490,6 +560,48 @@ def load_config(path: str) -> Config:
     return config
 
 
+def _die_key(key: Any) -> str:
+    """Canonical die key: a pixel id is 8 lowercase hex digits, a Bluetooth
+    address is uppercase with colons. Either is accepted wherever a die
+    is named, so a trigger written before the id was heard keeps working."""
+    k = str(key).strip()
+    if len(k) == 8 and all(c in "0123456789abcdefABCDEF" for c in k):
+        return k.lower()
+    return k.upper()
+
+
+def _trigger_from_dict(index: int, t: Dict[str, Any]) -> DieTrigger:
+    where = "dice.triggers[%d]" % index
+    if "target" not in t:
+        raise ConfigError("%s has no target" % where)
+    # Refuse the shapes that would be rules, by name, so the error says why.
+    for banned in ("min", "max", "at_least", "at_most", "range", "modifier", "dc"):
+        if banned in t:
+            raise ConfigError(
+                "%s: %r is not allowed. A trigger matches exact faces only "
+                "(\"face\": 20 or \"face\": [18, 19, 20]); a threshold is a "
+                "game rule, and the table does not know what game you are "
+                "playing." % (where, banned))
+    die_type = t.get("type")
+    if die_type is not None and die_type not in DIE_TYPES:
+        raise ConfigError("%s: unknown die type %r (one of %s)"
+                          % (where, die_type, ", ".join(DIE_TYPES)))
+    faces = t.get("face")
+    if faces is None or faces == "any":
+        faces_list = None
+    elif isinstance(faces, (int, float)) and not isinstance(faces, bool):
+        faces_list = [int(faces)]
+    elif isinstance(faces, list) and faces and all(
+            isinstance(f, (int, float)) and not isinstance(f, bool) for f in faces):
+        faces_list = [int(f) for f in faces]
+    else:
+        raise ConfigError("%s: \"face\" must be a number or a list of numbers" % where)
+    die = t.get("die", "any")
+    die = "any" if die in (None, "", "any") else _die_key(die)
+    return DieTrigger(target=_target_from_dict(t["target"]), die=die,
+                      die_type=die_type, faces=faces_list)
+
+
 def _validate(config: Config) -> None:
     """Referential integrity, checked eagerly at load time rather than
     discovered mid-session (plan doc 4.5)."""
@@ -498,6 +610,13 @@ def _validate(config: Config) -> None:
     for table in config.random_tables.values():
         for entry in table.entries:
             config.resolve(entry)
+    for trig in config.dice_triggers:
+        config.resolve(trig.target)
+    colours = {z.colour for z in config.zones}
+    for die in config.dice_known.values():
+        if die.seat is not None and colours and die.seat not in colours:
+            raise ConfigError("dice.known[%r]: seat %r is not a zone colour"
+                              % (die.key, die.seat))
 
 
 # ---------------------------------------------------------------- writing
@@ -576,6 +695,27 @@ def to_dict(config: Config) -> Dict[str, Any]:
 
     out["players"] = [{"name": p.name, "zone_id": p.zone_id}
                        for p in config.players]
+
+    known: Dict[str, Any] = {}
+    for key, d in config.dice_known.items():
+        entry = {"name": d.name}
+        if d.die_type is not None:
+            entry["type"] = d.die_type
+        if d.seat is not None:
+            entry["seat"] = d.seat
+        known[key] = entry
+    triggers = []
+    for t in config.dice_triggers:
+        entry = {"target": {"type": t.target.kind, "name": t.target.name}}
+        if t.die != "any":
+            entry["die"] = t.die
+        if t.die_type is not None:
+            entry["type"] = t.die_type
+        if t.faces is not None:
+            entry["face"] = t.faces[0] if len(t.faces) == 1 else list(t.faces)
+        triggers.append(entry)
+    out["dice"] = {"enabled": config.dice_enabled, "known": known,
+                   "triggers": triggers}
     return out
 
 

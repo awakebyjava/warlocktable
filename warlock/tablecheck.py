@@ -84,6 +84,7 @@ def run_check(rt, physical: bool = False) -> Dict[str, Any]:
     results.append(_check_lights_device(rt))
     results.append(_check_audio_device(rt))
     results.append(_check_nfc(rt))
+    results.append(_check_dice(rt))
     results.append(_check_display(rt))
     results.append(_check_video_output(rt))
     results.append(_check_disk())
@@ -336,6 +337,18 @@ def _check_audio_device(rt) -> Dict[str, Any]:
     if not tracks:
         return _r("Audio", FAIL, "mixer is up but the library is empty")
     return _r("Audio", PASS, "%d tracks, device %s" % (tracks, info.get("device")))
+
+
+def _check_dice(rt) -> Dict[str, Any]:
+    scanner = getattr(rt, "dice", None)
+    if scanner is None or not getattr(scanner, "real", False):
+        return _r("Dice", WARN, "not enabled — Pixels dice will not be heard")
+    info = scanner.status()
+    if not info.get("healthy"):
+        return _r("Dice", FAIL, info.get("error") or "scanner is down")
+    heard = info.get("dice", [])
+    return _r("Dice", PASS, "scanning; %d dice heard recently, %d rolls this session"
+              % (len(heard), info.get("rolls", 0)))
 
 
 def _check_nfc(rt) -> Dict[str, Any]:

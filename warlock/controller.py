@@ -390,10 +390,60 @@ class Controller:
             for colour, entries in self._rolls.items():
                 for e in entries:
                     rows.append({"colour": colour,
-                                 "name": seated.get(colour, ""),
-                                 "label": e["label"], "at": e["at"]})
+                                 # A physical die not bound to a seat is
+                                 # logged under its own name.
+                                 "name": seated.get(colour) or e.get("die", ""),
+                                 "label": e["label"], "at": e["at"],
+                                 "physical": bool(e.get("die"))})
         rows.sort(key=lambda r: r["at"], reverse=True)
         return {"rolls": rows[:max(1, int(limit))]}
+
+    # ---- physical dice (pixels-dice-specification.md) --------------------
+
+    # Rolls from a die no player has claimed land here. Not the GM's key:
+    # a GM's own phone rolls stay private (roll_history), and a physical
+    # die on the table is the opposite of private.
+    TABLE_KEY = "table"
+
+    def handle_roll(self, event) -> bool:
+        """A physical die landed. Log it; fire its trigger if it has one.
+
+        `event` is a warlock.inputs.dice.RollEvent. The value is carried
+        and shown; nothing here adds, compares or judges it. A roll that
+        matches no trigger is logged and that is all -- no sting, no line
+        -- because a reaction to every roll would mean nothing (decided
+        2026-09-15). Returns True if a trigger fired.
+        """
+        if not self.config.dice_enabled:
+            return False
+        keys = [k for k in (event.die_key, event.address) if k]
+        known = self.config.find_die(*keys)
+        name = known.name if known else (event.name or event.die_key)
+        colour = (known.seat if known and known.seat else self.TABLE_KEY)
+
+        entry = {"n": 1, "sides": event.die_type, "dice": [event.face],
+                 "total": event.face, "at": event.timestamp,
+                 "die": name, "key": event.die_key,
+                 "label": "%s=%d" % (event.die_type, event.face)}
+        with self._rolls_lock:
+            log = self._rolls.setdefault(colour, [])
+            log.append(entry)
+            if len(log) > self.ROLL_HISTORY:
+                del log[:len(log) - self.ROLL_HISTORY]
+        self.log.record("dice.physical", die=event.die_key, name=name,
+                        type=event.die_type, face=event.face, colour=colour)
+        self._session_log("roll", colour=colour, name=name,
+                          roll=entry["label"], dice=[event.face], physical=True)
+
+        trig = self.config.match_roll(keys, event.die_type, event.face)
+        if trig is None:
+            return False
+        # From here on it is exactly a card tap: a fresh gesture, one target.
+        self.begin_gesture()
+        self.log.record("dice.trigger", die=event.die_key, face=event.face,
+                        target="%s:%s" % (trig.target.kind, trig.target.name))
+        self._dispatch(trig.target)
+        return True
 
     @action()
     def clear_rolls(self) -> None:
