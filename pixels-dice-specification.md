@@ -10,9 +10,10 @@ PyPI/Debian metadata. Nothing below is inferred from a packet capture.*
 **Status: research complete, decisions taken (§7), scanning verified on
 hardware (§8). Steps 2 and 3 built 2026-09-16: the input module, the
 config section, controller dispatch, roll log, status strip, Table
-Check, `/api/dice`, `--dice` flag and the service unit change. Verified
-on the laptop with fakes; awaiting the Pi. Next: deploy, then step 4, the
-panel editor.**
+Check, `/api/dice`, `--dice` flag and the service unit change. **Deployed
+as v0.5.0 on 2026-09-16 and verified on the table: a natural 20 fired
+*The Sun*. Next: step 4, the panel editor — known dice, seat binding,
+triggers.**
 
 ---
 

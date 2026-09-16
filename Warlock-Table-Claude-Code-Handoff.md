@@ -49,7 +49,7 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 
 *(Updated 2026-08-24. `Warlock-Table-v2-Project-Plan.md` is the detailed source of truth — this is the summary. If they disagree, the plan doc wins.)*
 
-**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.3.1-83-gcaadada** (v0.4.0 is unreleased — see the README's Versions section for what has landed since the tag).
+**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.5.0** (2026-09-16). `v0.4.0` is the rollback anchor from before the dice work.
 
 **All four subsystems are real** — nothing is a fake any more:
 
@@ -91,6 +91,18 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Seats can be vacated** from either side, **initiative counts rounds and turns**, **rolls show the individual dice**, and there are **preset roll bars** for d20 / WoD / BRP.
 - **Latency** measured and cut from ~2s to under 600ms. §5.7.
 - **All 32 physical cards enrolled.**
+
+**Built 2026-09-15/16, deployed as v0.5.0 (`pixels-dice` branch, merged):**
+- **Pixels Bluetooth dice as an input.** The Pi scans advertisements
+  over a raw HCI socket — no connection, no pairing, no dependency —
+  and every landing goes into the roll log; a config trigger table
+  (`dice.triggers`, first match wins, exact faces only) fires a target
+  through the same dispatch as a card. Verified on the table: a natural
+  20 fires *The Sun*. Read `pixels-dice-specification.md` first; §8 has
+  the measurements and the two traps (bleak is useless on BlueZ 5.55;
+  the pixel id rides only in the scan response). **Step 4, the panel
+  editor — known dice, seat binding, triggers — is not built.** The
+  repo now has `tests/` (`python -m unittest discover -s tests`).
 
 **Not built yet:**
 - **Audio for the 26 tarot cards.** The cards fire silently; `Interruption.audio` is optional so they work before the clips exist. `tools/audio_worksheet.py` lists what is missing.
