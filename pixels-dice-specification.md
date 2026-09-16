@@ -7,7 +7,8 @@ from source: the published `@systemic-games/pixels-core-connect` 1.3.0 and
 `.github/doc/CommunicationsProtocol.md`, the `nat20` 0.1.0 source, and
 PyPI/Debian metadata. Nothing below is inferred from a packet capture.*
 
-**Status: research complete, decisions taken (§7), probe being built.**
+**Status: research complete, decisions taken (§7), scanning VERIFIED on
+hardware 2026-09-16 (§8). Next: `warlock/inputs/dice.py`.**
 
 ---
 
@@ -321,6 +322,41 @@ is carried, shown, and forgotten. Nothing is summed or compared.
    is a value or a list and nothing else, `seat` binds a die to a player.
 4. **An unmatched roll is logged only.** No generic reaction. A roll that
    the table reacts to means something because most rolls do not.
+
+## 8. Measured at the table — 2026-09-16
+
+One d20 (`Pixel03ef405d`, firmware 2024-11-07), the Pi inside the table
+housing, service running, `tools/dice_probe.py` over raw HCI:
+
+| | |
+|---|---|
+| Adverts heard | **107 in 35 s** — a packet every ~200 ms while the die is awake (`0.194 s` median gap) |
+| Rolls | 5 of 5 detected, each as a clean `rolling → rolled` sequence |
+| Latency | `rolled` arrives 0.2–0.6 s after the last `rolling` packet; the die's own settle time dominates, not the radio |
+| Repeat face | Rolls #3 and #4 both landed 15 and were counted separately — the intermediate states were heard. **The repeat-face miss (§3) did not occur** |
+| RSSI | −31 to −63 dBm at one seat, through the housing. Comfortable |
+| Pixel id | Rides only in the scan response; arrived once, unprompted, 22 s in. State tracking does not wait for it (§2.1 note below) |
+| Two addresses | `…:74` (`Pixel…`) carried everything in this run. `…:75` (`PXL…`) was seen earlier in `hcitool` during a burst; the module folds addresses by id when it can |
+
+**Found and fixed on the way** — both now in the probe and in §2/§3:
+
+1. bleak via BlueZ 5.55 delivers one update per device per minute. Raw
+   HCI from the stdlib delivers the stream. No dependency.
+2. **The advert does not carry the pixel id or the Pixels service UUID.**
+   It carries flags, the `180a` UUID, the 5-byte manufacturer data and
+   the name. The id, firmware and Pixels UUID ride in the *scan
+   response*, which the chip requests only occasionally. So the module
+   tracks state per Bluetooth address, recognises a die by the `180a`
+   listing or the `Pixel`/`PXL` name plus the 5-byte layout, and fills
+   in the id when heard. §2.1's "confirmed against the SDK" was right
+   about the bytes and silent about which packet they are in.
+
+**Still to measure, none blocking the module:**
+
+- Wake-from-sleep latency — the die never slept during the runs.
+- RSSI from each seat, and with the TV between die and Pi.
+- Wi-Fi coexistence: the iPad panel with the scan running.
+- Several dice at once — Jon has one; test when there are more.
 
 ## Sources
 
