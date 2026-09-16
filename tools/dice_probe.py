@@ -398,6 +398,10 @@ def run(args) -> Dict[int, DieStats]:
         while args.seconds is None or time.time() - started < args.seconds:
             for evt_type, addr, data, rssi in scanner.reports(timeout=1.0):
                 now = time.time()
+                if args.raw and addr.startswith(args.raw):
+                    t = datetime.fromtimestamp(now).strftime("%H:%M:%S.%f")[:-3]
+                    print("%s  RAW %s type=%d rssi=%d  %s" % (
+                        t, addr, evt_type, rssi, data.hex()))
                 # Merge the advert and its scan response: the name often
                 # rides in the response, the data in the advert.
                 fields = by_addr.get(addr)
@@ -481,6 +485,9 @@ def main() -> None:
                    help="print every advert, not just changes")
     p.add_argument("--seconds", type=float, default=None,
                    help="stop after this long (default: until Ctrl-C)")
+    p.add_argument("--raw", metavar="ADDR_PREFIX", default=None,
+                   help="also hex-dump every report from addresses starting "
+                        "with this, e.g. --raw CA:D8:66")
     args = p.parse_args()
     if not hasattr(socket, "AF_BLUETOOTH"):
         sys.exit("This needs Linux with Bluetooth sockets -- run it on the Pi.")
