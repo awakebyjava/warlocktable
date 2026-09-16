@@ -165,11 +165,18 @@ def decode_advert(name: Optional[str],
     uuids = {u.lower() for u in (service_uuids or [])}
     is_current = SERVICE_CURRENT in uuids
     is_legacy = SERVICE_LEGACY in uuids
-    if uuids and not (is_current or is_legacy):
+    # Seen at the table: the advert lists ONLY 180a, not the Pixels
+    # service; that one rides in the scan response. So a die is
+    # recognised by the Pixels UUID if we have it, else by the 180a
+    # listing or the name, plus the 5-byte manufacturer layout below.
+    looks_pixel = (is_current or is_legacy
+                   or "0000180a-0000-1000-8000-00805f9b34fb" in uuids
+                   or (name or "").lower().startswith(("pixel", "pxl")))
+    if not looks_pixel:
         return None
 
     mdata = manufacturer_data.get(COMPANY_ID)
-    if mdata is None and manufacturer_data:
+    if mdata is None and manufacturer_data and (is_current or is_legacy):
         mdata = next(iter(manufacturer_data.values()))
     sdata = service_data.get(SERVICE_INFO)
 
@@ -207,7 +214,7 @@ def decode_advert(name: Optional[str],
         battery=batt & 0x7F,
         charging=bool(batt & 0x80),
         firmware=firmware,
-        uuid_family="a6b9" if is_current else "6e40",
+        uuid_family="a6b9" if is_current else "6e40" if is_legacy else "?",
         old_layout=old_layout,
         has_id=has_id,
     )
