@@ -49,9 +49,12 @@ a second. `--all` prints every advert instead, which is how to see the
 advert interval itself. `ROLL` in the margin marks a transition INTO the
 `rolled` state, which is the one event the table will ever act on.
 
-A die uses two Bluetooth addresses: one for a slow tick at rest (name
-"Pixel..."), one for a fast burst while handled (name "PXL..."). Both
-carry the same pixel id, which is what everything here is keyed on.
+Every advert carries the state, name and battery; the pixel id and
+firmware date ride only in the SCAN RESPONSE, which the chip requests
+now and then. So the probe tracks by Bluetooth address and fills in the
+id when it hears it (`--------` until then). A die has been seen using
+two addresses ("Pixel..." and "PXL..."); the real module will fold them
+together by id.
 
 DECODER
 
@@ -136,6 +139,7 @@ class DieAdvert:
     firmware: Optional[datetime]
     uuid_family: str        # "6e40" or "a6b9"
     old_layout: bool        # 7-byte advert, no service data: update the die
+    has_id: bool            # False until a scan response has been heard
 
     @property
     def state_name(self) -> str:
@@ -169,10 +173,17 @@ def decode_advert(name: Optional[str],
         mdata = next(iter(manufacturer_data.values()))
     sdata = service_data.get(SERVICE_INFO)
 
-    if mdata is not None and sdata is not None and len(sdata) >= 8 and len(mdata) >= 5:
+    if mdata is not None and len(mdata) == 5:
+        # The advert. The id and firmware ride in the SCAN RESPONSE, which
+        # the chip requests only now and then, so they are usually absent
+        # here; the caller keeps the last one seen per address.
         led_count, design, state, face, batt = struct.unpack_from("<BBBBB", mdata)
-        pixel_id, build = struct.unpack_from("<II", sdata)
-        firmware = datetime.fromtimestamp(build, tz=timezone.utc)
+        if sdata is not None and len(sdata) >= 8:
+            pixel_id, build = struct.unpack_from("<II", sdata)
+            firmware = datetime.fromtimestamp(build, tz=timezone.utc)
+            has_id = True
+        else:
+            pixel_id, firmware, has_id = 0, None, False
         old_layout = False
     elif mdata is not None and len(mdata) == 7 and sdata is None and (is_current or is_legacy):
         # Pre-service-data firmware. Not worth decoding properly: the
@@ -181,6 +192,7 @@ def decode_advert(name: Optional[str],
         led_count = design = state = face = batt = 0
         firmware = None
         old_layout = True
+        has_id = True
     else:
         return None
 
@@ -197,6 +209,7 @@ def decode_advert(name: Optional[str],
         firmware=firmware,
         uuid_family="a6b9" if is_current else "6e40",
         old_layout=old_layout,
+        has_id=has_id,
     )
 
 
@@ -379,8 +392,9 @@ class DieStats:
 def fmt_line(ts: float, adv: DieAdvert, rssi: int, mark: str = "") -> str:
     t = datetime.fromtimestamp(ts).strftime("%H:%M:%S.%f")[:-3]
     chg = " charging" if adv.charging else ""
-    return "%s  %-14s %08x  %-8s %-9s %3d  batt %3d%%%s  rssi %4d  %s" % (
-        t, adv.name[:14], adv.pixel_id, adv.die_type, adv.state_name,
+    pid = "%08x" % adv.pixel_id if adv.has_id else "--------"
+    return "%s  %-14s %s  %-8s %-9s %3d  batt %3d%%%s  rssi %4d  %s" % (
+        t, adv.name[:14], pid, adv.die_type, adv.state_name,
         adv.face, adv.battery, chg, rssi, mark)
 
 
@@ -402,26 +416,30 @@ def run(args) -> Dict[int, DieStats]:
                     t = datetime.fromtimestamp(now).strftime("%H:%M:%S.%f")[:-3]
                     print("%s  RAW %s type=%d rssi=%d  %s" % (
                         t, addr, evt_type, rssi, data.hex()))
-                # Merge the advert and its scan response: the name often
-                # rides in the response, the data in the advert.
+                # Merge the advert and its scan response. Every advert
+                # carries the state; only the occasional scan response
+                # carries the id, so that is kept per address until the
+                # next one arrives.
                 fields = by_addr.get(addr)
-                if fields is None or evt_type != 0x04:
-                    fields = parse_ad(data, AdFields(name=fields.name if fields else None))
-                    by_addr[addr] = fields
-                else:
-                    parse_ad(data, fields)
+                if fields is None:
+                    fields = by_addr[addr] = AdFields()
+                fields.manufacturer = {}
+                parse_ad(data, fields)
                 adv = decode_advert(fields.name, fields.manufacturer,
                                     fields.service_data, fields.uuids)
                 if adv is None:
                     continue
 
-                st = dice.get(adv.pixel_id)
+                st = dice.get(addr)
                 if st is None:
-                    st = dice[adv.pixel_id] = DieStats(adv)
+                    st = dice[addr] = DieStats(adv)
+                    print("\n== new die at %s: %r  %s  %d LEDs  uuid %s\n" % (
+                        addr, adv.name, adv.die_type, adv.led_count, adv.uuid_family))
+                if adv.has_id and not st.first.has_id:
+                    st.first = adv
                     fw = adv.firmware.strftime("%Y-%m-%d") if adv.firmware else "?"
-                    print("\n== new die: %r  id %08x  %s  %d LEDs  firmware %s  uuid %s%s\n" % (
-                        adv.name, adv.pixel_id, adv.die_type, adv.led_count, fw,
-                        adv.uuid_family,
+                    print("\n== %s is pixel id %08x, firmware %s%s\n" % (
+                        addr, adv.pixel_id, fw,
                         "  OLD ADVERT LAYOUT - update this die in the Pixels app"
                         if adv.old_layout else ""))
                 st.addresses.add(addr)
@@ -470,8 +488,9 @@ def summary(dice: Dict[int, DieStats]) -> None:
         gaps = sorted(st.gaps)
         med = gaps[len(gaps) // 2] if gaps else 0.0
         wake = ("%.1fs max" % max(st.wake_gaps)) if st.wake_gaps else "-"
-        print("%-14s %08x %-8s %7d %6d %8.3fs med %5d..%-5d  %s" % (
-            a.name[:14], a.pixel_id, a.die_type, st.adverts, st.rolls,
+        print("%-14s %s %-8s %7d %6d %8.3fs med %5d..%-5d  %s" % (
+            a.name[:14], "%08x" % a.pixel_id if a.has_id else "--------",
+            a.die_type, st.adverts, st.rolls,
             med, st.rssi_min, st.rssi_max, wake))
         print("%-14s addresses: %s" % ("", ", ".join(sorted(st.addresses))))
     print("\nadvert gap = median seconds between adverts from that die;\n"
