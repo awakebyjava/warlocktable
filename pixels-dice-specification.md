@@ -169,13 +169,23 @@ should be rare; §5 measures it. If it is not rare, the fallback is a
 short "quiet period" heuristic or connecting to that die — decided on
 data, not now.
 
-**Active scanning, not passive.** BlueZ passive scanning needs 5.56+;
-Bullseye ships **5.55-3.1**. Active is the `bleak` default and works.
+**Raw HCI, not bleak — found at the table 2026-09-16.** The first probe
+used `bleak`, which goes through bluetoothd's discovery API. On Bullseye
+(BlueZ 5.55) that API delivered **one update per device per minute**
+from a die being rolled continuously — 10 adverts in 406 s on a 57–64 s
+clock, with none of the `handling`/`rolling` states in between — and the
+`DuplicateData` filter changed nothing. `hcitool lescan --duplicates`,
+which bypasses bluetoothd and drives the chip over a raw HCI socket,
+streamed the same die many times a second. So the scanner does what
+`hcitool` does, from Python's standard library: open the raw socket, set
+scan parameters with duplicate filtering off, read LE Advertising Report
+events. **No dependency at all.** The cost is `CAP_NET_RAW`: the probe
+runs under `sudo`, and the service unit gets
+`AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN`.
 
-**Dependency.** `bleak>=1.0,<2` — 1.1.1 (2025-09) is the last line
-supporting Python 3.9; 2.0 (2025-11) requires 3.10. Pure Python plus
-`dbus-fast`, which has ARM wheels — none of the V8-style trouble of
-`pixelblaze-client`. Goes in `requirements.txt` with the same Pi note.
+Observed at the same time: a die uses **two Bluetooth addresses** — a
+slow tick at rest (name `Pixel…`) and a fast burst while handled (name
+`PXL…`). Same pixel id in both; everything is keyed on the id.
 
 ---
 
@@ -184,7 +194,7 @@ supporting Python 3.9; 2.0 (2025-11) requires 3.10. Pure Python plus
 | Concern | Status |
 |---|---|
 | BlueZ on Bullseye | 5.55. Fine for active scan; **no passive scan** (needs 5.56). |
-| `bleak` on Pi 4 / 3.9 | Pin `<2`. Known Pi quirks are all about *connections* (timeouts, stale caches); scanning is the boring path. **Verify on hardware** with the probe. |
+| `bleak` on Pi 4 / 3.9 | **Dropped.** Installs fine (1.1.1 from piwheels) but BlueZ 5.55's discovery API throttles adverts to one a minute — see §3. Raw HCI from the stdlib instead. |
 | Onboard Bluetooth vs. anything running | Nothing on the Pi uses Bluetooth today (audio is 3.5 mm / HDMI; Govee is LAN; Pixelblaze is Wi-Fi). **But** the Pi 4's Wi-Fi and BT share one radio (CYW43455) with time-sliced coexistence. A permanent BLE scan can shave Wi-Fi throughput. **[Jon]**: is the Pi on Ethernet or Wi-Fi? On Ethernet this is a non-issue. On Wi-Fi the probe should be run alongside a panel session to see whether the iPad notices. |
 | Range through the table housing | BLE at 0 dBm through wood and a few feet of air is normally fine; a metal enclosure or the TV chassis between the Pi and the dice would not be. **Measure RSSI** with the probe from each seat — it is in the advert for free, and the probe prints it. |
 | Multiple dice | Scanning has no limit. The probe will be run with every die Jon owns at once. |
