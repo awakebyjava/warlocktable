@@ -7,8 +7,10 @@ from source: the published `@systemic-games/pixels-core-connect` 1.3.0 and
 `.github/doc/CommunicationsProtocol.md`, the `nat20` 0.1.0 source, and
 PyPI/Debian metadata. Nothing below is inferred from a packet capture.*
 
-**Status: research complete, decisions taken (§7), scanning VERIFIED on
-hardware 2026-09-16 (§8). Next: `warlock/inputs/dice.py`.**
+**Status: research complete, decisions taken (§7), scanning verified on
+hardware (§8). Step 2 built 2026-09-16: `warlock/inputs/dice.py` with
+`tests/test_dice.py` — the repo's first unit tests. Next: step 3,
+controller integration.**
 
 ---
 
@@ -224,14 +226,18 @@ so a repeat-face miss (§3) shows up as a count that fails to increment.
 seat, with every die, with the Pixels app open on a phone at the same
 time.
 
-**Step 2 — `warlock/inputs/dice.py`.** The real module, shaped exactly
-like `warlock/inputs/nfc.py`: a thread that owns the scanner (bleak is
-asyncio; the thread runs its own loop, the way the NFC thread owns SPI),
-decodes adverts, dedupes to roll events, and hands each one to a
-callback — the same shape as a card tap arriving. Faked when `--dice` is
-not passed, so the controller integration can be built on the laptop.
-Includes the `unittest` cases for the advert decoder and the transition
-logic — pure functions, no radio.
+**Step 2 — `warlock/inputs/dice.py`** *(built 2026-09-16)*. The real
+module, shaped exactly like `warlock/inputs/nfc.py`: a thread that owns
+the raw HCI scanner, a pure `RollTracker` that turns reports into roll
+events (tracks per address, fills in the id from the scan response, fires
+on the transition into `rolled`, folds a die's two addresses, ignores
+`onFace`), and a callback per roll — the same shape as a card tap
+arriving. `FakeDiceScanner` for the laptop. `python -m
+warlock.inputs.dice` runs it standalone. `tests/test_dice.py` (16 cases,
+stdlib `unittest`, `python -m unittest discover -s tests`) exercises the
+decoder and tracker against the bytes captured at the table — the first
+unit tests in the repo. `tools/dice_probe.py` is now a thin diagnostic
+over the same code, so what decodes in the probe decodes in the service.
 
 **Step 3 — controller integration.** `Controller.dice_roll(event)` next
 to `card_tap`: looks the roll up in config (§6), fires the target through
