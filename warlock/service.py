@@ -159,6 +159,12 @@ def _report_status(rt: runtime.Runtime) -> None:
         parts.append("nfc=%s" % ("ok" if info.get("healthy") else "down"))
         parts.append("taps=%s" % info.get("taps", 0))
 
+    dice = getattr(rt.controller, "_dice_status", None)
+    if callable(dice) and getattr(rt.dice, "real", False):
+        info = dice()
+        parts.append("dice=%s" % ("ok" if info.get("healthy") else "down"))
+        parts.append("rolls=%s" % info.get("rolls", 0))
+
     lights_status = getattr(rt.lights, "status", None)
     if callable(lights_status):
         info = lights_status()

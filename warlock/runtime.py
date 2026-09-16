@@ -93,6 +93,10 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         help="read real cards from the PN532 (Pi only — needs SPI and RPi.GPIO)",
     )
     parser.add_argument(
+        "--dice", action="store_true",
+        help="listen for Pixels dice over Bluetooth (Pi only — needs CAP_NET_RAW)",
+    )
+    parser.add_argument(
         "--real-audio", action="store_true",
         help="play actual sound instead of logging what would play",
     )
@@ -167,14 +171,36 @@ def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
 
 # ---------------------------------------------------------------- devices
 
+def build_dice(args, controller, log):
+    """The dice input: real when --dice, otherwise a fake the CLI can drive.
+
+    The fake is always built, because `dice d20 20` at the laptop prompt
+    is how the trigger table gets tested without a radio -- the same way
+    `card thedevil` stands in for a tap.
+    """
+    from .inputs.dice import DiceScanner, FakeDiceScanner
+
+    if getattr(args, "dice", False):
+        state = os.path.join(os.path.dirname(os.path.abspath(args.config)),
+                             "dice-state.json")
+        scanner = DiceScanner(log, controller.handle_roll, state_path=state)
+        scanner.start()
+    else:
+        scanner = FakeDiceScanner(log, controller.handle_roll)
+    controller._dice_status = scanner.status
+    controller._dice = scanner
+    return scanner
+
+
 class Runtime:
     """Everything built and running, with one place to shut it all down."""
 
     def __init__(self, controller: Controller, log: EventLog,
                  audio, lights, reader=None, config_source: str = "",
-                 web=None, store=None, unassigned=None, mic=None):
+                 web=None, store=None, unassigned=None, mic=None, dice=None):
         self.controller = controller
         self.mic = mic
+        self.dice = dice
         self.log = log
         self.audio = audio
         self.lights = lights
@@ -240,6 +266,11 @@ class Runtime:
             reader = self.reader
             self.reader = None
             _timed("nfc reader", reader.stop)
+
+        if self.dice is not None:
+            dice = self.dice
+            self.dice = None
+            _timed("dice scanner", dice.stop)
 
         closer = getattr(self.controller.display, "close", None)
         if callable(closer):
@@ -410,8 +441,10 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
         reader.start()
         controller._nfc_status = reader.status
 
+    dice = build_dice(args, controller, log)
+
     rt = Runtime(controller, log, audio, lights, reader, source,
-                 store=store, unassigned=unassigned, mic=mic)
+                 store=store, unassigned=unassigned, mic=mic, dice=dice)
     # Back-reference so show_status_screen() can read live device status.
     controller._runtime = rt
     # The hero the status screen draws. Pointed at the wordmark rather than

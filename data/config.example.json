@@ -433,5 +433,32 @@
       }
     }
   },
-  "players": []
+  "players": [],
+  "dice": {
+    "enabled": true,
+    "known": {
+      "03ef405d": {
+        "name": "Jon's d20",
+        "type": "d20"
+      }
+    },
+    "triggers": [
+      {
+        "type": "d20",
+        "face": 20,
+        "target": {
+          "type": "interruption",
+          "name": "the_sun"
+        }
+      },
+      {
+        "type": "d20",
+        "face": 1,
+        "target": {
+          "type": "interruption",
+          "name": "the_tower"
+        }
+      }
+    ]
+  }
 }

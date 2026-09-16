@@ -227,6 +227,8 @@ class _Handler(BaseHTTPRequestHandler):
             query = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             self._send_json(self.controller.whisper_thread(
                 (query.get("colour") or [""])[0]))
+        elif path == "/api/dice":
+            self._send_json(self._dice())
         elif path == "/api/status":
             self._send_json(self._status())
         elif path == "/api/vocabulary":
@@ -752,8 +754,26 @@ class _Handler(BaseHTTPRequestHandler):
         nfc = getattr(self.controller, "_nfc_status", None)
         if callable(nfc):
             out["nfc"] = nfc()
+        dice = getattr(self.controller, "_dice_status", None)
+        if callable(dice):
+            out["dice"] = dice()
         out["version"] = _read_version()
         return out
+
+    def _dice(self) -> dict:
+        """What the scanner hears and what the config says to do about it.
+        Read-only for now; the editor is the next step."""
+        cfg = self.controller.config
+        status = getattr(self.controller, "_dice_status", None)
+        return {
+            "enabled": cfg.dice_enabled,
+            "scanner": status() if callable(status) else None,
+            "known": [{"die": d.key, "name": d.name, "type": d.die_type,
+                       "seat": d.seat} for d in cfg.dice_known.values()],
+            "triggers": [{"die": t.die, "type": t.die_type, "face": t.faces,
+                          "target": {"type": t.target.kind, "name": t.target.name}}
+                         for t in cfg.dice_triggers],
+        }
 
     def _vocabulary(self) -> dict:
         cfg = self.controller.config

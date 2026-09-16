@@ -220,3 +220,11 @@ cat /etc/default/warlocktable           # the flags it runs with
 
 Flags live in `/etc/default/warlocktable` and survive reinstalls; the unit
 file itself is overwritten on every install, so do not edit it.
+
+**`--dice` (added 2026-09-16)** listens for Pixels dice over Bluetooth.
+A fresh install writes it into the defaults; an existing
+`/etc/default/warlocktable` is left alone, so **add `--dice` by hand** on
+a table installed before then. The unit grants `CAP_NET_RAW` and
+`CAP_NET_ADMIN` (`AmbientCapabilities=`) because the scanner drives the
+Bluetooth chip over a raw HCI socket -- see `warlock/inputs/dice.py` for
+why it does not go through bluetoothd. Nothing to `pip install`.

@@ -46,5 +46,12 @@ SyslogIdentifier=warlocktable
 # fights. Revisit as a set if hardening is ever wanted, not piecemeal.
 NoNewPrivileges=true
 
+# Pixels dice are read by scanning Bluetooth advertisements over a raw HCI
+# socket (warlock/inputs/dice.py), which needs CAP_NET_RAW; CAP_NET_ADMIN
+# is what lets it set the scan parameters. Ambient capabilities are
+# granted at exec and survive NoNewPrivileges, so the service keeps
+# running as an ordinary user with exactly these two extras.
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
 [Install]
 WantedBy=multi-user.target

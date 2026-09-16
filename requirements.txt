@@ -11,3 +11,7 @@ pixelblaze-client>=1.1.8
 # the imaging stack it installs on the Pi without incident. Optional at
 # runtime: warlock/qr.py degrades to printing the URL if it is absent.
 segno>=1.5
+
+# Pixels dice need NO dependency: the scanner talks raw HCI from the
+# standard library (tools/dice_probe.py explains why bleak was dropped --
+# BlueZ 5.55's discovery API delivers one update a minute on this Pi).
