@@ -11,3 +11,9 @@ pixelblaze-client>=1.1.8
 # the imaging stack it installs on the Pi without incident. Optional at
 # runtime: warlock/qr.py degrades to printing the URL if it is absent.
 segno>=1.5
+
+# Pixels dice, read from BLE advertisements (pixels-dice-specification.md).
+# 1.x is the last line that supports the Pi's Python 3.9; 2.0 needs 3.10.
+# Pure Python plus dbus-fast, which ships aarch64 wheels, so this one does
+# install on the Pi as-is.
+bleak>=1.0,<2

@@ -7,8 +7,7 @@ from source: the published `@systemic-games/pixels-core-connect` 1.3.0 and
 `.github/doc/CommunicationsProtocol.md`, the `nat20` 0.1.0 source, and
 PyPI/Debian metadata. Nothing below is inferred from a packet capture.*
 
-**Status: research complete, nothing built.** The decisions marked
-**[Jon]** are held for review before code.
+**Status: research complete, decisions taken (§7), probe being built.**
 
 ---
 
@@ -297,20 +296,21 @@ is carried, shown, and forgotten. Nothing is summed or compared.
 
 ---
 
-## 7. Decisions held for Jon
+## 7. Decisions — resolved 2026-09-15
 
-1. **Approve scanning over connecting** (§3) as the first build. The
-   probe will produce the latency and miss-rate numbers; if they are
-   bad, the fallback is connecting to a small number of named dice.
-2. **Ethernet or Wi-Fi on the Pi?** Decides whether radio coexistence
-   (§4) needs measuring.
-3. **The config shape** (§6), in particular: first-match-wins ordering,
-   `face` as value-or-list only, and `seat` binding a die to a player.
-4. **Should an unmatched roll fire anything at all** — a generic "dice
-   rolled" sting, say — or only appear in the log? *(Lean: log only.
-   Reacting to every roll makes the reaction mean nothing.)*
-
----
+1. **Scanning, not connecting.** Approved. Connecting stays a bounded
+   later addition for making a die blink, if ever.
+2. **The Pi is on Wi-Fi.** So Bluetooth/Wi-Fi radio coexistence is a
+   real question, not a hypothetical: the probe (§5) is run alongside an
+   open panel session on the iPad, and the panel's responsiveness with
+   and without the scan running is part of the hardware verification.
+   If the scan hurts the panel, the options are a USB BLE dongle (its
+   own radio, no coexistence) or moving the Pi to Ethernet — decided on
+   measurement.
+3. **Config shape (§6) approved** as proposed: first match wins, `face`
+   is a value or a list and nothing else, `seat` binds a die to a player.
+4. **An unmatched roll is logged only.** No generic reaction. A roll that
+   the table reacts to means something because most rolls do not.
 
 ## Sources
 
