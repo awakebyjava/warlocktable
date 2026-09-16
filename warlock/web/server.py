@@ -270,6 +270,8 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if self._maps("DELETE", path):
             return
+        if self._dice_api("DELETE", path):
+            return
         if self._sounds_api("DELETE", path):
             return
         if path.startswith("/api/config/scenes/"):
@@ -383,6 +385,8 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if self._dice_api("POST", path):
+            return
         if self._maps("POST", path):
             return
         if self._voice_api("POST", path):
@@ -761,19 +765,41 @@ class _Handler(BaseHTTPRequestHandler):
         return out
 
     def _dice(self) -> dict:
-        """What the scanner hears and what the config says to do about it.
-        Read-only for now; the editor is the next step."""
-        cfg = self.controller.config
+        """What the scanner hears, and what the config says to do about it."""
+        out = self.runtime.store.list_dice()
         status = getattr(self.controller, "_dice_status", None)
-        return {
-            "enabled": cfg.dice_enabled,
-            "scanner": status() if callable(status) else None,
-            "known": [{"die": d.key, "name": d.name, "type": d.die_type,
-                       "seat": d.seat} for d in cfg.dice_known.values()],
-            "triggers": [{"die": t.die, "type": t.die_type, "face": t.faces,
-                          "target": {"type": t.target.kind, "name": t.target.name}}
-                         for t in cfg.dice_triggers],
-        }
+        out["scanner"] = status() if callable(status) else None
+        return out
+
+    def _dice_api(self, method: str, path: str) -> bool:
+        """The dice editor's writes. True if the path was ours."""
+        if not path.startswith("/api/dice"):
+            return False
+        from ..config import ConfigError
+        store = self.runtime.store
+        try:
+            if method == "POST" and path == "/api/dice/enabled":
+                body = self._read_json()
+                store.set_dice_enabled(bool(body.get("enabled")))
+            elif method == "POST" and path == "/api/dice/known":
+                body = self._read_json()
+                store.set_known_die(body.get("die", ""), body.get("name", ""),
+                                    body.get("type") or None, body.get("seat") or None)
+            elif method == "DELETE" and path.startswith("/api/dice/known/"):
+                store.delete_known_die(_unquote(path[len("/api/dice/known/"):]))
+            elif method == "POST" and path == "/api/dice/triggers":
+                body = self._read_json()
+                store.set_dice_triggers(body.get("triggers") or [])
+            else:
+                return False
+        except ConfigError as exc:
+            self._send_json({"error": str(exc)}, 400)
+            return True
+        except Exception as exc:   # noqa: BLE001
+            self._send_json({"error": "%s: %s" % (type(exc).__name__, exc)}, 500)
+            return True
+        self._send_json(self._dice())
+        return True
 
     def _vocabulary(self) -> dict:
         cfg = self.controller.config

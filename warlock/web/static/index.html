@@ -217,6 +217,7 @@
           <span class="sys" data-sys="audio"><i class="lamp"></i>sound</span>
           <span class="sys" data-sys="display"><i class="lamp"></i>screen</span>
           <span class="sys" data-sys="nfc"><i class="lamp"></i>cards</span>
+          <span class="sys" data-sys="pixels"><i class="lamp"></i>dice</span>
           <span class="sys" data-sys="room"><i class="lamp"></i>room</span>
         </div>
         <div class="check-row">
@@ -327,6 +328,13 @@
         <p class="note">The other half of the vocabulary &mdash; what a card
            does when it layers over a scene rather than replacing it.</p>
         <button id="open-int" class="wide">Interruption Editor</button>
+      </section>
+
+      <section>
+        <h2>Pixels Dice</h2>
+        <p class="note">Which physical dice the table knows, whose seat each
+           one belongs to, and which landings make the table react.</p>
+        <button id="open-pixels" class="wide">Dice Management</button>
       </section>
 
       <section id="sfx-entry">
@@ -506,6 +514,108 @@
       <section>
         <h2>Existing <span class="muted" id="int-count"></span></h2>
         <div id="int-list" class="cards"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ======================================================= PIXELS DICE
+       Configuration, like the cards: which physical dice the table knows and
+       what a landing does. The scanner itself needs no setup -- a die that
+       is rolled near the table simply appears under "Heard". -->
+  <section class="panel page" id="panel-pixels" data-panel="pixels" hidden>
+    <div class="panel-col wide-col">
+      <div class="page-head">
+        <button id="pixels-back" class="ghost">&#9664; Settings</button>
+        <h2>Dice Management</h2>
+      </div>
+
+      <section>
+        <div class="check-row">
+          <label><input type="checkbox" id="px-enabled"> React to physical dice</label>
+          <span class="muted" id="px-scanner"></span>
+        </div>
+        <p class="note">Every roll is logged either way. Off means the table
+           stops <i>reacting</i> to landings, not listening for them.</p>
+      </section>
+
+      <section id="px-heard-section" style="display:none">
+        <h2>Heard <span class="muted">rolled near the table recently</span></h2>
+        <div id="px-heard" class="cards"></div>
+      </section>
+
+      <section>
+        <h2 id="px-die-title">Register a Die</h2>
+        <p class="note">A name the log will show, and optionally the seat whose
+           player it belongs to &mdash; that seat's phone then sees its rolls.</p>
+        <label class="field">
+          <span>Die <span class="muted">id from the list above, or an address</span></span>
+          <input type="text" id="px-die-key" maxlength="20" placeholder="03ef405d"
+                 autocapitalize="off" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="px-die-name" maxlength="30" placeholder="Sarah's d20"
+                 autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Type <span class="muted">optional</span></span>
+          <select id="px-die-type"></select>
+        </label>
+        <label class="field">
+          <span>Seat <span class="muted">optional &mdash; whose rolls these are</span></span>
+          <select id="px-die-seat"></select>
+        </label>
+        <div class="map-actions">
+          <button id="px-die-save" class="primary">Save Die</button>
+          <button id="px-die-clear" class="ghost">Clear</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Known Dice <span class="muted" id="px-known-count"></span></h2>
+        <div id="px-known" class="cards"></div>
+      </section>
+
+      <section>
+        <h2 id="px-trig-title">New Trigger</h2>
+        <p class="note">A landing that makes the table do something. Faces are
+           exact &mdash; <b>20</b>, or <b>18, 19, 20</b> &mdash; never "18 or
+           better": the table does not know what game you are playing. Rows are
+           tried top to bottom and the first match wins.</p>
+        <label class="field">
+          <span>Die</span>
+          <select id="px-trig-die"></select>
+        </label>
+        <label class="field">
+          <span>Type</span>
+          <select id="px-trig-type"></select>
+        </label>
+        <label class="field">
+          <span>Faces <span class="muted">blank for any</span></span>
+          <input type="text" id="px-trig-faces" placeholder="20  or  18, 19, 20"
+                 inputmode="numeric" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Does</span>
+          <select id="px-trig-kind">
+            <option value="scene">scene</option>
+            <option value="interruption">interruption</option>
+            <option value="random_table">random table</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Which</span>
+          <select id="px-trig-name"></select>
+        </label>
+        <div class="map-actions">
+          <button id="px-trig-save" class="primary">Save Trigger</button>
+          <button id="px-trig-clear" class="ghost">Clear</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Triggers <span class="muted" id="px-trig-count"></span></h2>
+        <div id="px-triggers" class="cards"></div>
       </section>
     </div>
   </section>
@@ -856,5 +966,6 @@
 <script src="/scenes.js"></script>
 <script src="/sounds.js"></script>
 <script src="/interruptions.js"></script>
+<script src="/pixels.js"></script>
 </body>
 </html>

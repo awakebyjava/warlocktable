@@ -27,7 +27,8 @@ import threading
 from typing import Dict, List, Optional, Tuple
 
 from .config import (Scene, Transition, Card, Config, ConfigError,
-                     Interruption, Target, save_config)
+                     Interruption, Target, save_config,
+                     DIE_TYPES, KnownDie, _die_key, _trigger_from_dict)
 from .zones import MAX_PLAYERS
 
 
@@ -506,6 +507,95 @@ class ConfigStore:
 
         self._with_rollback("card_deleted", mutate, uid=uid)
 
+    # ------------------------------------------------------------- dice
+
+    def list_dice(self) -> dict:
+        """The dice section as the panel edits it, plus the lists it
+        builds its dropdowns from (4.5: nothing offered that does not
+        exist)."""
+        with self._lock:
+            cfg = self.config
+            return {
+                "enabled": cfg.dice_enabled,
+                "known": [{"die": d.key, "name": d.name, "type": d.die_type,
+                           "seat": d.seat} for d in cfg.dice_known.values()],
+                "triggers": [{"die": t.die, "type": t.die_type, "face": t.faces,
+                              "target_kind": t.target.kind,
+                              "target_name": t.target.name}
+                             for t in cfg.dice_triggers],
+                "seats": [z.colour for z in cfg.zones],
+                "types": list(DIE_TYPES),
+                "targets": {
+                    "scene": sorted(cfg.scenes),
+                    "interruption": sorted(cfg.interruptions),
+                    "random_table": sorted(cfg.random_tables),
+                },
+            }
+
+    def set_dice_enabled(self, enabled: bool) -> bool:
+        def mutate():
+            self.config.dice_enabled = bool(enabled)
+        self._with_rollback("dice_enabled", mutate, enabled=bool(enabled))
+        return bool(enabled)
+
+    def set_known_die(self, key: str, name: str, die_type=None, seat=None) -> dict:
+        key = _die_key(key or "")
+        name = (name or "").strip()
+        if not key:
+            raise ConfigError("die is required (its id or address)")
+        if not name:
+            raise ConfigError("name is required")
+        die_type = (die_type or None)
+        if die_type is not None and die_type not in DIE_TYPES:
+            raise ConfigError("unknown die type %r" % die_type)
+        seat = (seat or None)
+        with self._lock:
+            colours = {z.colour for z in self.config.zones}
+        if seat is not None and seat not in colours:
+            raise ConfigError("seat %r is not one of this table's seats" % seat)
+
+        def mutate():
+            existing = self.config.dice_known.get(key)
+            self.config.dice_known[key] = KnownDie(key=key, name=name,
+                                                   die_type=die_type, seat=seat)
+            return "updated" if existing else "created"
+
+        action = self._with_rollback("die", mutate, die=key, name=name,
+                                      seat=seat or "")
+        return {"die": key, "name": name, "type": die_type, "seat": seat,
+                "action": action}
+
+    def delete_known_die(self, key: str) -> None:
+        key = _die_key(key or "")
+        with self._lock:
+            if key not in self.config.dice_known:
+                raise ConfigError("no known die %s" % key)
+            users = ["trigger %d" % (i + 1)
+                     for i, t in enumerate(self.config.dice_triggers)
+                     if t.die == key]
+        if users:
+            raise ConfigError("still used by %s" % ", ".join(users))
+
+        def mutate():
+            del self.config.dice_known[key]
+
+        self._with_rollback("die_deleted", mutate, die=key)
+
+    def set_dice_triggers(self, triggers: List[dict]) -> List[dict]:
+        """Replace the whole ordered table. Order IS the rule (first match
+        wins), so the panel sends the list it shows rather than editing
+        rows in place and hoping the order survives."""
+        parsed = [_trigger_from_dict(i, dict(t)) for i, t in enumerate(triggers or [])]
+        with self._lock:
+            for t in parsed:
+                self.config.resolve(t.target)     # raises if dangling
+
+        def mutate():
+            self.config.dice_triggers = parsed
+
+        self._with_rollback("dice_triggers", mutate, count=len(parsed))
+        return self.list_dice()["triggers"]
+
     # ------------------------------------------- referential integrity (4.5)
 
     def usage_of(self, kind: str, name: str) -> List[str]:
@@ -525,6 +615,9 @@ class ConfigStore:
                     if e.kind == kind and e.name == name:
                         users.append("random table %s" % tname)
                         break
+            for i, t in enumerate(self.config.dice_triggers):
+                if t.target.kind == kind and t.target.name == name:
+                    users.append("dice trigger %d" % (i + 1))
         return users
 
 
