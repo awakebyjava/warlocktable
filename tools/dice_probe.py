@@ -22,10 +22,10 @@ Wi-Fi/Bluetooth radio. This prints those numbers. Run it at the table,
 with every die, from every seat, with the Pixels app open on a phone at
 the same time, and with the panel open on the iPad.
 
-It also reports which firmware each die is on and whether it advertises
-the current service UUID or the legacy one, because the two libraries we
-rejected both speak legacy and a die that does too needs updating in the
-Pixels app before any of this works.
+It also reports each die's firmware date and which service UUID family it
+advertises, and flags the one thing that is actually a problem: the old
+7-byte advert layout with no service data, which means the die needs
+updating in the Pixels app before any of this works.
 
 WHAT A LINE MEANS
 
@@ -44,8 +44,8 @@ current React Native SDK. Manufacturer data (company 0xFFFF), 5 bytes:
 LED count, design-and-colour (high nibble die type), roll state, face
 index, battery (bit 7 charging). Service data under 0x180A, 8 bytes:
 u32 pixel id, u32 firmware build timestamp. Older firmware packed 7 bytes
-into manufacturer data and had no service data; that is reported as
-LEGACY and otherwise ignored.
+into manufacturer data and had no service data; that is flagged and
+otherwise ignored.
 
 `decode_advert()` is deliberately a pure function of the advert fields.
 It will move into warlock/inputs/ unchanged when the real module is
@@ -75,6 +75,11 @@ except ImportError:  # pragma: no cover - the message is the point
 
 # --- protocol constants (spec section 2) -----------------------------
 
+# The SDK calls 6e40... "legacyDie" and a6b9... "die", but a die on
+# firmware 2024-11-07 -- current, the SDK's own last release is two weeks
+# later -- advertises 6e40. So a6b9 is for some newer product, and the
+# UUID family is reported as information, not as a fault. The only thing
+# that IS a fault is the pre-service-data advert layout, below.
 SERVICE_CURRENT = normalize_uuid_str("a6b90001-7a5a-43f2-a962-350c8edc9b5b")
 SERVICE_LEGACY = normalize_uuid_str("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
 SERVICE_INFO = normalize_uuid_str("180a")
@@ -119,7 +124,8 @@ class DieAdvert:
     battery: int
     charging: bool
     firmware: Optional[datetime]
-    legacy: bool
+    uuid_family: str        # "6e40" or "a6b9"
+    old_layout: bool        # 7-byte advert, no service data: update the die
 
     @property
     def state_name(self) -> str:
@@ -156,14 +162,14 @@ def decode_advert(name: Optional[str],
         led_count, design, state, face, batt = struct.unpack_from("<BBBBB", mdata)
         pixel_id, build = struct.unpack_from("<II", sdata)
         firmware = datetime.fromtimestamp(build, tz=timezone.utc)
-        legacy = is_legacy and not is_current
+        old_layout = False
     elif mdata is not None and len(mdata) == 7 and sdata is None:
         # Pre-service-data firmware: id, then the five bytes, roughly.
         # Not worth decoding properly: the answer is "update the die".
         pixel_id = struct.unpack_from("<I", mdata)[0] if len(mdata) >= 4 else 0
         led_count = design = state = face = batt = 0
         firmware = None
-        legacy = True
+        old_layout = True
     else:
         return None
 
@@ -178,7 +184,8 @@ def decode_advert(name: Optional[str],
         battery=batt & 0x7F,
         charging=bool(batt & 0x80),
         firmware=firmware,
-        legacy=legacy,
+        uuid_family="a6b9" if is_current else "6e40",
+        old_layout=old_layout,
     )
 
 
@@ -225,10 +232,11 @@ async def run(args) -> Dict[int, DieStats]:
         if st is None:
             st = dice[adv.pixel_id] = DieStats(adv)
             fw = adv.firmware.strftime("%Y-%m-%d") if adv.firmware else "?"
-            print("\n== new die: %r  id %08x  %s  %d LEDs  firmware %s  %s\n" % (
+            print("\n== new die: %r  id %08x  %s  %d LEDs  firmware %s  uuid %s%s\n" % (
                 adv.name, adv.pixel_id, adv.die_type, adv.led_count, fw,
-                "LEGACY SERVICE UUID - update this die in the Pixels app"
-                if adv.legacy else "current service UUID"))
+                adv.uuid_family,
+                "  OLD ADVERT LAYOUT - update this die in the Pixels app"
+                if adv.old_layout else ""))
 
         st.adverts += 1
         st.rssi_min = min(st.rssi_min, ad.rssi)
@@ -255,9 +263,17 @@ async def run(args) -> Dict[int, DieStats]:
         st.last_state = adv.roll_state
         st.last_seen = now
 
+    # DuplicateData=True is the whole trick on Linux. bleak's default is
+    # False, which asks the controller to report each device ONCE per
+    # scan and then stay silent about it; the kernel restarts the scan
+    # every so often, so you get a snapshot a minute rather than a
+    # stream. The first run at the table saw 2 adverts in 344 seconds
+    # and none of the handling/rolling states in between. We want every
+    # packet, because the state is IN the packet.
     scanner = BleakScanner(
         detection_callback=on_advert,
         service_uuids=[SERVICE_CURRENT, SERVICE_LEGACY],
+        bluez={"filters": {"DuplicateData": True}},
     )
 
     stop = asyncio.Event()
