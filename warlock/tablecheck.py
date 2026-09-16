@@ -87,6 +87,7 @@ def run_check(rt, physical: bool = False) -> Dict[str, Any]:
     results.append(_check_dice(rt))
     results.append(_check_display(rt))
     results.append(_check_video_output(rt))
+    results.append(_check_shutdown_button())
     results.append(_check_disk())
 
     # ---------------------------------------------------------- physical
@@ -380,6 +381,38 @@ def _check_display(rt) -> Dict[str, Any]:
         return _r("Display", WARN, "%s - viewer has been restarted %d time(s)"
                   % (detail, respawns))
     return _r("Display", PASS, detail)
+
+
+def _check_shutdown_button() -> Dict[str, Any]:
+    """Is the physical power button enabled on THIS SD card?
+
+    deploy/shutdown-button.md. The overlay lives in /boot/config.txt, which
+    is per card and is not touched by install.sh, so a freshly cloned card
+    can silently lack it -- and then the button does nothing, which looks
+    exactly like a broken button. Also flags the one thing that would
+    fight it: the ARM I2C bus, which shares GPIO3.
+    """
+    path = "/boot/config.txt"
+    if not os.path.exists(path):
+        return _r("Shutdown button", WARN, "not a Pi (no /boot/config.txt)")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            lines = [ln.strip() for ln in fh]
+    except OSError as exc:
+        return _r("Shutdown button", WARN, "cannot read %s: %s" % (path, exc))
+    overlay = [ln for ln in lines if ln.startswith("dtoverlay=gpio-shutdown")]
+    i2c = any(ln.startswith("dtparam=i2c_arm=on") for ln in lines)
+    if not overlay:
+        return _r("Shutdown button", WARN,
+                  "overlay not enabled on this card — the button will do "
+                  "nothing. sudo deploy/enable-shutdown-button.sh, then reboot")
+    if "gpio_pin=" in overlay[0] and "gpio_pin=3" not in overlay[0]:
+        return _r("Shutdown button", WARN,
+                  "%s — not GPIO3, so the button cannot wake a halted Pi" % overlay[0])
+    if i2c:
+        return _r("Shutdown button", FAIL,
+                  "dtparam=i2c_arm=on shares GPIO3 with the button")
+    return _r("Shutdown button", PASS, "GPIO3 (pin 5): shuts down, wakes from halt")
 
 
 def _check_video_output(rt) -> Dict[str, Any]:
