@@ -988,10 +988,26 @@ class _Handler(BaseHTTPRequestHandler):
                                      body.get("role"))
                     self._send_json({"ok": True, "id": u.id})
                     return True
+                if method == "GET" and action == "footprint":
+                    self._send_json(self._user_footprint(user_id))
+                    return True
+                if method == "GET" and action == "export":
+                    self._send_user_export(user_id)
+                    return True
                 if method == "DELETE" and action == "":
+                    user = users.get(user_id)
+                    if user is None:
+                        self._send_json({"error": "no such account"}, 404)
+                        return True
+                    # If their library is the one running, run the shared one
+                    # instead before the folder goes.
+                    if getattr(self.runtime, "open_profile_id", None) == user_id:
+                        self.runtime.open_profile(None, "shared")
+                    footprint = self._user_footprint(user_id)
                     users.delete(user_id)
                     sessions.revoke_user(user_id)
-                    self._send_json({"ok": True})
+                    self._remove_user_library(user_id)
+                    self._send_json({"ok": True, "removed": footprint})
                     return True
             return False
         except ConfigError as exc:
@@ -1000,6 +1016,73 @@ class _Handler(BaseHTTPRequestHandler):
         except KeyError:
             self._send_json({"error": "no such account"}, 404)
             return True
+
+    def _user_dir(self, user_id: str) -> str:
+        import os as _os
+        return _os.path.join(_os.path.dirname(_os.path.abspath(self.runtime.store.path)),
+                             "profiles", user_id)
+
+    def _user_footprint(self, user_id: str) -> dict:
+        """What deleting this user takes with it: the list 4.8 says to show.
+        Their tags become unknown to the table entirely (decided
+        2026-09-11); nothing is quietly handed to the deck."""
+        import os as _os
+        d = self._user_dir(user_id)
+        out = {"scenes": 0, "interruptions": 0, "random_tables": 0, "cards": [],
+               "maps": 0, "sounds": 0, "dir": d if _os.path.isdir(d) else None}
+        lib = _os.path.join(d, "library.json")
+        if _os.path.exists(lib):
+            try:
+                with open(lib, "r", encoding="utf-8") as fh:
+                    raw = json.load(fh)
+                for k in ("scenes", "interruptions", "random_tables"):
+                    out[k] = len(raw.get(k) or {})
+                out["cards"] = [{"uid": uid, "label": c.get("label", "")}
+                                for uid, c in (raw.get("cards") or {}).items()]
+            except (OSError, ValueError):
+                pass
+        for kind in ("maps", "sounds"):
+            p = _os.path.join(d, kind)
+            if _os.path.isdir(p):
+                out[kind] = sum(len(files) for _, _, files in _os.walk(p))
+        return out
+
+    def _remove_user_library(self, user_id: str) -> None:
+        import os as _os
+        import shutil as _shutil
+        d = self._user_dir(user_id)
+        if _os.path.isdir(d):
+            _shutil.rmtree(d, ignore_errors=True)
+            self.runtime.log.record("users.library_removed", user=user_id)
+
+    def _send_user_export(self, user_id: str) -> None:
+        """One user's whole folder as a zip -- the 4.4 backup requirement,
+        per person. Built in memory; a library is small."""
+        import io as _io
+        import os as _os
+        import zipfile
+        user = self.auth.users.get(user_id)
+        d = self._user_dir(user_id)
+        buf = _io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            if _os.path.isdir(d):
+                for root, _, files in _os.walk(d):
+                    for f in files:
+                        full = _os.path.join(root, f)
+                        zf.write(full, _os.path.relpath(full, d))
+            zf.writestr("USER.json", json.dumps(
+                {"id": user_id, "name": user.name if user else "",
+                 "email": user.email if user else ""}, indent=2))
+        body = buf.getvalue()
+        safe = "".join(c if c.isalnum() else "-" for c in (user.name if user else user_id))
+        self.send_response(200)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition",
+                         'attachment; filename="warlock-library-%s.zip"' % safe)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
 
     def _me_for(self, user, mode: str) -> dict:
         return {"signed_in": True, "id": user.id, "name": user.name,

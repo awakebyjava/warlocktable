@@ -2321,8 +2321,17 @@ verified on hardware.
    importer rebuilds its `MapLibrary` for the open library, and the
    sound uploader writes to `Runtime.media_root()`. The shared library's
    media stays where config's paths point; nothing moves on disk.
-7. **`/admin`, export, delete.** Delete drops the user's tags; and the
-   CLI PIN reset.
+7. **Accounts page, export, delete.** *(built 2026-09-17)* Settings →
+   **Manage Accounts** (admin only): the list with emails, add (PIN
+   optional — blank lets them choose at first sign-in), rename, **Reset
+   PIN** (clears it and signs them out everywhere; nobody types anyone
+   else's PIN), **Export** (a zip of their whole folder plus `USER.json`),
+   and **Delete**, which first shows what goes — scenes, interruptions,
+   tables, cards by label, map and sound files — then removes the account,
+   its sessions and its folder; their tags become unknown to the table
+   (decided 2026-09-11). If their library was the one running, the table
+   falls back to shared first. `run_service.py --reset-admin-pin` is the
+   escape hatch (step 3).
 
 Step 1 is the one that touches everything and adds no feature. That is
 deliberate: it is the change most likely to break the table, and it

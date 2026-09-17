@@ -1327,13 +1327,13 @@ if ("serviceWorker" in navigator) {
  */
 
 const PANELS = ["players", "run", "dice", "settings", "cards", "maps", "sfx",
-                "scenes", "cards-edit", "pixels"];
+                "scenes", "cards-edit", "pixels", "admin"];
 // The pages you reach THROUGH Settings rather than from the tab bar. At
 // browser width they are full-screen overlays with a close control, because
 // there is no tab bar out there to leave by. Adding a page means adding it
 // here and giving its section class="panel page" -- the CSS keys off the
 // class, so it does not need a third list.
-const SUBPAGES = ["cards", "maps", "sfx", "scenes", "cards-edit", "pixels"];
+const SUBPAGES = ["cards", "maps", "sfx", "scenes", "cards-edit", "pixels", "admin"];
 const LANDING = "players";      // people arriving is what happens first
 let current = LANDING;
 
@@ -1400,6 +1400,7 @@ $("#open-pixels").addEventListener("click", () => goto("pixels"));
     $("#acct-who").textContent = me.name + (me.role === "admin" ? "  ·  table owner" : "");
     showCampaign(me.campaign);
     if (me.role === "admin") {
+      $("#admin-section").hidden = false;
       // The admin can run anyone's library -- to help, or to see what a
       // player has built. Everyone else runs their own, opened at login.
       const users = (await api("/api/auth/admin/users")).users || [];
@@ -1435,6 +1436,8 @@ $("#acct-signout").addEventListener("click", async () => {
   location.href = "/";
 });
 $("#pixels-back").addEventListener("click", () => goto("settings"));
+$("#open-admin").addEventListener("click", () => goto("admin"));
+$("#admin-back").addEventListener("click", () => goto("settings"));
 $("#int-back").addEventListener("click", () => goto("settings"));
 $("#maps-back").addEventListener("click", () => goto("settings"));
 window.goto = goto;

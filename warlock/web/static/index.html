@@ -344,6 +344,13 @@
         <button id="open-int" class="wide">Interruption Editor</button>
       </section>
 
+      <section id="admin-section" hidden>
+        <h2>Accounts</h2>
+        <p class="note">Who can sign in. Each person has their own library
+           over the shared one; you can open any of them from Account above.</p>
+        <button id="open-admin" class="wide">Manage Accounts</button>
+      </section>
+
       <section>
         <h2>Pixels Dice</h2>
         <p class="note">Which physical dice the table knows, whose seat each
@@ -528,6 +535,46 @@
       <section>
         <h2>Existing <span class="muted" id="int-count"></span></h2>
         <div id="int-list" class="cards"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ========================================================== ACCOUNTS
+       Admin only. The user list with emails, add, edit, reset a PIN,
+       export a library, delete (with what goes with it). Plan doc 4.8. -->
+  <section class="panel page" id="panel-admin" data-panel="admin" hidden>
+    <div class="panel-col wide-col">
+      <div class="page-head">
+        <button id="admin-back" class="ghost">&#9664; Settings</button>
+        <h2>Accounts</h2>
+      </div>
+
+      <section>
+        <h2 id="adm-form-title">New Account</h2>
+        <p class="note">A name for the door, an email behind it, and a PIN they
+           can change. Leave the PIN blank to let them choose one at their
+           first sign-in.</p>
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="adm-name" maxlength="30" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" id="adm-email" maxlength="80" autocomplete="off" autocapitalize="off">
+        </label>
+        <label class="field" id="adm-pin-field">
+          <span>PIN <span class="muted">optional &mdash; 4 to 6 digits</span></span>
+          <input type="text" id="adm-pin" inputmode="numeric" maxlength="6" autocomplete="off">
+        </label>
+        <div class="map-actions">
+          <button id="adm-save" class="primary">Save Account</button>
+          <button id="adm-clear" class="ghost">Clear</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Everyone <span class="muted" id="adm-count"></span></h2>
+        <div id="adm-list" class="cards"></div>
       </section>
     </div>
   </section>
@@ -981,5 +1028,6 @@
 <script src="/sounds.js"></script>
 <script src="/interruptions.js"></script>
 <script src="/pixels.js"></script>
+<script src="/admin.js"></script>
 </body>
 </html>

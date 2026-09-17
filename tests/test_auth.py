@@ -332,3 +332,93 @@ class GateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AdminFootprintTests(unittest.TestCase):
+    """Step 7: delete shows what goes, then takes the library with it;
+    export is one zip of the user's folder."""
+
+    @classmethod
+    def setUpClass(cls):
+        import argparse
+        from warlock import runtime
+        from warlock.eventlog import EventLog
+        from warlock.profiles import migrate
+        from warlock.web.server import WebPanel
+        cls.tmp = tempfile.TemporaryDirectory()
+        cfg = os.path.join(cls.tmp.name, "config.json")
+        shutil.copy(EXAMPLE, cfg)
+        migrate(cfg)
+        parser = argparse.ArgumentParser()
+        runtime.add_common_arguments(parser)
+        args = parser.parse_args(["--config", cfg, "--web-port", "0"])
+        cls.log = EventLog(path=None)
+        cls.rt = runtime.build(args, cls.log)
+        cls.web = WebPanel(cls.rt.controller, cls.rt, cls.log, port=0, host="127.0.0.1")
+        assert cls.web.start()
+        cls.port = cls.web._server.server_address[1]
+        cls.rt.web = cls.web
+        cls.admin = cls.rt.auth.users.create("Jon", "jon@x.com", "admin", "1234")
+        cls.sarah = cls.rt.auth.users.create("Sarah", "s@x.com", "user", "2222")
+        d = os.path.join(cls.tmp.name, "profiles", cls.sarah.id)
+        os.makedirs(os.path.join(d, "maps"))
+        with open(os.path.join(d, "library.json"), "w") as fh:
+            json.dump({"scenes": {"lair": {"lights": "breathing"}},
+                       "cards": {"04:AA": {"label": "Sarah's omen",
+                                           "target": {"type": "scene", "name": "lair"}}}}, fh)
+        with open(os.path.join(d, "maps", "cave.png"), "wb") as fh:
+            fh.write(b"not really a png")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.rt.shutdown()
+        cls.tmp.cleanup()
+
+    def call(self, method, path, body=None, cookie=None, raw=False):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        headers = {}
+        if body is not None:
+            body = json.dumps(body); headers["Content-Type"] = "application/json"
+        if cookie:
+            headers["Cookie"] = cookie
+        conn.request(method, path, body=body, headers=headers)
+        res = conn.getresponse(); data = res.read(); ctype = res.getheader("Content-Type"); conn.close()
+        if raw:
+            return res.status, data, ctype
+        try:
+            return res.status, json.loads(data), ctype
+        except ValueError:
+            return res.status, data, ctype
+
+    def test_footprint_export_delete(self):
+        import io, zipfile
+        status, me, _ = self.call("POST", "/api/auth/login",
+                                  {"user": self.admin.id, "pin": "1234", "mode": "gm"})
+        conn = http.client.HTTPConnection("127.0.0.1", self.port); conn.request(
+            "POST", "/api/auth/login", body=json.dumps({"user": self.admin.id, "pin": "1234", "mode": "gm"}),
+            headers={"Content-Type": "application/json"})
+        res = conn.getresponse(); res.read(); cookie = res.getheader("Set-Cookie").split(";")[0]; conn.close()
+        base = "/api/auth/admin/users/%s" % self.sarah.id
+        status, f, _ = self.call("GET", base + "/footprint", cookie=cookie)
+        self.assertEqual(status, 200, f)
+        self.assertEqual((f["scenes"], f["maps"]), (1, 1))
+        self.assertEqual(f["cards"][0]["label"], "Sarah's omen")
+        status, blob, ctype = self.call("GET", base + "/export", cookie=cookie, raw=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(ctype, "application/zip")
+        names = zipfile.ZipFile(io.BytesIO(blob)).namelist()
+        self.assertIn("library.json", names)
+        self.assertIn("maps/cave.png", names)
+        self.assertIn("USER.json", names)
+        # open her library, then delete her: the table falls back to shared
+        status, _, _ = self.call("POST", "/api/campaign/open", {"user": self.sarah.id}, cookie=cookie)
+        self.assertEqual(self.rt.open_profile_id, self.sarah.id)
+        status, d, _ = self.call("DELETE", base, cookie=cookie)
+        self.assertEqual(status, 200, d)
+        self.assertEqual(d["removed"]["scenes"], 1)
+        self.assertIsNone(self.rt.open_profile_id)
+        self.assertFalse(os.path.isdir(os.path.join(self.tmp.name, "profiles", self.sarah.id)))
+        self.assertIsNone(self.rt.auth.users.get(self.sarah.id))
+        # a non-admin cannot reach any of it
+        status, _, _ = self.call("GET", base + "/footprint")
+        self.assertEqual(status, 401)
