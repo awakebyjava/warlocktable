@@ -2256,11 +2256,20 @@ verified on hardware.
    equivalence against the example *and the real config snapshotted from
    the table*, and rehearsed on the laptop: card edits land in
    `table.json`, scene edits in `library.json`, `config.json` byte-identical.
-2. **Shared + private composition.** `profiles/shared/` is the library
-   from step 1; a second, empty private library composes on top of it;
-   name uniqueness across the two is enforced. *Verify:* a scene added
-   to the private library fires from the panel; a duplicate name is
-   refused.
+2. **Shared + private composition.** *(built 2026-09-17)* A private
+   library at `profiles/<id>/library.json` composes over the shared one
+   into the same single `Config`. One namespace: a name in both files is
+   refused at load, naming both. The `Config` carries `library_owner`
+   (shared / private per name, not part of equality, not written out) so
+   a save routes every entry back to its own file; a new name goes to the
+   write target — private while a profile is open. Table data and dice
+   triggers never go private (triggers have no names to own by; per-user
+   triggers arrive with per-user cards, step 5). `--profile <id>` opens
+   one until logins exist. `/api/vocabulary` and the scene/interruption
+   lists carry `owner`. *Verified* through the running service on the
+   real-config rehearsal: a scene created via the panel API with a profile
+   open landed in `profiles/jon/`, applied via `/api/action`, and a
+   deliberate collision was refused. 12 tests.
 3. **Users, PINs, sessions, login page.** `/gm` and the action routes
    gated. Migration creates the admin; the set-up page collects name,
    email and PIN. *Verify:* a phone without the cookie gets 401 from

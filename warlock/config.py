@@ -278,6 +278,19 @@ class Config:
     dice_enabled: bool = True
     dice_known: Dict[str, KnownDie] = field(default_factory=dict)
     dice_triggers: List[DieTrigger] = field(default_factory=list)
+
+    # Which library each named entry came from -- "shared" or "private" --
+    # by kind: {"scenes": {name: owner}, "interruptions": ..., ...}. Filled
+    # in by profiles.ProfileStore.load(); empty when the config came from a
+    # single file. Not part of equality and not written out: it is the
+    # store's bookkeeping, riding on the Config so the panel can say
+    # "mine" / "shared" without a second lookup (plan doc 4.8).
+    library_owner: Dict[str, Dict[str, str]] = field(
+        default_factory=dict, compare=False, repr=False)
+
+    def owner_of(self, kind: str, name: str) -> str:
+        """'shared', 'private', or '' for a single-file config."""
+        return self.library_owner.get(kind, {}).get(name, "")
     # Which scene is the resting state (plan doc 4.3). Configurable rather
     # than hardcoded in the controller, so the management UI can change what
     # the table falls back to.

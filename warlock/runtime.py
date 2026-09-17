@@ -98,6 +98,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         help="listen for Pixels dice over Bluetooth (Pi only — needs CAP_NET_RAW)",
     )
     parser.add_argument(
+        "--profile", default=None, metavar="ID",
+        help="open a private library (profiles/<ID>/) over the shared one. "
+             "Development only until logins exist (plan doc 4.8); needs the "
+             "split layout",
+    )
+    parser.add_argument(
         "--real-audio", action="store_true",
         help="play actual sound instead of logging what would play",
     )
@@ -132,7 +138,8 @@ def _minimal_config() -> Config:
                   cards={}, zones=[], players=[])
 
 
-def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
+def load_config_resilient(path: str, log: EventLog,
+                          private: Optional[str] = None) -> Tuple[Config, str]:
     """Load config, falling back rather than refusing to start (5.2).
 
     Order: the requested file, then the last copy known to have loaded, then
@@ -149,7 +156,7 @@ def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
     # single file is the previous build's copy. Either way the last-good
     # fallback stays ONE composed file, because the fallback loader must
     # be the simplest thing that can possibly work.
-    profiles = ProfileStore.beside(path)
+    profiles = ProfileStore.beside(path, private)
     try:
         if profiles is not None:
             config = profiles.load()
@@ -327,7 +334,8 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     Never raises for missing hardware — a device that cannot start makes its
     subsystem unhealthy, not the program dead (5.2).
     """
-    config, source = load_config_resilient(args.config, log)
+    config, source = load_config_resilient(args.config, log,
+                                           getattr(args, "profile", None))
 
     if getattr(args, "real_lights", False):
         from .devices.pixelblaze_lights import PixelblazeLights
@@ -441,7 +449,8 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     store = ConfigStore(config, os.path.abspath(args.config), log,
                         backup_dir=os.path.join(
                             os.path.dirname(os.path.abspath(args.config)), "backups"),
-                        profiles=ProfileStore.beside(args.config))
+                        profiles=ProfileStore.beside(args.config,
+                                                     getattr(args, "profile", None)))
     unassigned = UnassignedCards()
 
     reader = None

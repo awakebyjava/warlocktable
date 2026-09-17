@@ -1,5 +1,6 @@
 """Profiles — the config split into what the TABLE owns and what a LIBRARY
-owns (plan doc 4.8). Step 1 of seven: one file becomes two, nothing else.
+owns (plan doc 4.8). Steps 1 and 2 of seven: the split, and a private
+library composed on top of the shared one.
 
 Today `config.json` holds everything. Section 4.8 makes scenes,
 interruptions, random tables and dice triggers belong to a *library* --
@@ -26,6 +27,20 @@ config the loader accepts, and a Config loaded through a ProfileStore is
 equal to one loaded from the single file it was split from. That is the
 step-1 acceptance test, in tests/test_profiles.py, against the real
 config from the table.
+
+STEP 2 -- A PRIVATE LIBRARY ON TOP OF THE SHARED ONE
+
+    profiles/<id>/library.json     a user's own scenes, interruptions, tables
+
+Opening a profile composes its library over the shared one into the same
+single Config. **One namespace**: a name lives in exactly one of the two
+files, or loading refuses and says which two files collide. The Config
+remembers where each name came from (`library_owner`), so a save routes
+every entry back to its own file; a NEW name goes to the write target --
+the private library while one is open, else shared. Dice triggers stay
+shared for now: they have no names to own by, and per-user triggers
+belong with per-user cards (step 5). Until users exist (step 3), a
+profile is opened with `--profile <id>`.
 """
 
 from __future__ import annotations
@@ -49,6 +64,10 @@ LIBRARY_FILE = "library.json"
 # in this table, not something to guess about: split_raw refuses it.
 TABLE_KEYS = ("settings", "zones", "cards", "players")
 LIBRARY_KEYS = ("scenes", "interruptions", "random_tables")
+# The kinds a private library may hold. Dice triggers are deliberately
+# not here yet (see the module docstring).
+PRIVATE_KINDS = ("scenes", "interruptions", "random_tables")
+SHARED, PRIVATE = "shared", "private"
 # The dice section straddles: which dice exist (and whose seat) is a fact
 # about the table; what a landing DOES is a binding, like a card's target,
 # and lives with the library.
@@ -110,21 +129,35 @@ class ProfileStore:
     underneath change shape.
     """
 
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, private: Optional[str] = None):
         self.data_dir = os.path.abspath(data_dir)
         self.table_path = os.path.join(self.data_dir, TABLE_FILE)
         self.shared_dir = os.path.join(self.data_dir, PROFILES_DIR, SHARED)
         self.library_path = os.path.join(self.shared_dir, LIBRARY_FILE)
+        # The open private profile, if any. Its id is a directory name
+        # under profiles/; "shared" is reserved.
+        if private is not None:
+            private = private.strip()
+            if not private or private == SHARED or not _safe_id(private):
+                raise ConfigError("bad profile id %r" % private)
+        self.private = private
+        self.private_dir = (os.path.join(self.data_dir, PROFILES_DIR, private)
+                            if private else None)
+        self.private_path = (os.path.join(self.private_dir, LIBRARY_FILE)
+                             if private else None)
+        # Where a NEW named entry is written. Opening a profile makes it
+        # the target; the admin (step 3) will be able to point it back.
+        self.write_target = PRIVATE if private else SHARED
 
     @classmethod
-    def beside(cls, config_path: str) -> Optional["ProfileStore"]:
+    def beside(cls, config_path: str, private: Optional[str] = None) -> Optional["ProfileStore"]:
         """The store for a config path, if that directory has been migrated.
 
         This is the ONE switch between the old layout and the new: a
         `profiles/` directory next to config.json means the split files are
         the truth and config.json is the previous build's copy.
         """
-        store = cls(os.path.dirname(os.path.abspath(config_path)))
+        store = cls(os.path.dirname(os.path.abspath(config_path)), private)
         return store if store.exists() else None
 
     def exists(self) -> bool:
@@ -134,28 +167,113 @@ class ProfileStore:
         with open(path, "r", encoding="utf-8") as fh:
             return json.load(fh)
 
+    def _read_private(self) -> Dict[str, Any]:
+        if self.private_path and os.path.exists(self.private_path):
+            raw = self._read(self.private_path)
+            extra = [k for k in raw if k not in PRIVATE_KINDS]
+            if extra:
+                raise ConfigError("%s: a private library may hold only %s, not %s"
+                                  % (self.private_path, ", ".join(PRIVATE_KINDS),
+                                     ", ".join(sorted(extra))))
+            return raw
+        return {}
+
     def raw(self) -> Dict[str, Any]:
-        """The composed single-file structure, as the loader expects it."""
+        """The composed single-file structure, as the loader expects it.
+
+        Also the merge point for a private library: its named entries are
+        added to the shared ones, and a name present in both is refused
+        naming both files, because one namespace is the rule (4.8).
+        """
         table = self._read(self.table_path) if os.path.exists(self.table_path) else {}
         library = self._read(self.library_path) if os.path.exists(self.library_path) else {}
-        return compose_raw(table, library)
+        raw = compose_raw(table, library)
+        private = self._read_private()
+        for kind in PRIVATE_KINDS:
+            mine = private.get(kind) or {}
+            if not mine:
+                continue
+            theirs = raw.setdefault(kind, {})
+            clash = sorted(set(mine) & set(theirs))
+            if clash:
+                raise ConfigError(
+                    "%s %s defined in both %s and %s -- a name may live in "
+                    "only one library" % (kind, ", ".join(clash),
+                                          self.library_path, self.private_path))
+            theirs.update(copy.deepcopy(mine))
+        return raw
+
+    def owners(self) -> Dict[str, Dict[str, str]]:
+        """kind -> name -> 'shared' | 'private', from the files as they are."""
+        out: Dict[str, Dict[str, str]] = {}
+        library = self._read(self.library_path) if os.path.exists(self.library_path) else {}
+        private = self._read_private()
+        for kind in PRIVATE_KINDS:
+            out[kind] = {}
+            for name in (library.get(kind) or {}):
+                out[kind][name] = SHARED
+            for name in (private.get(kind) or {}):
+                out[kind][name] = PRIVATE
+        return out
 
     def load(self) -> Config:
-        return config_from_raw(self.raw())
+        config = config_from_raw(self.raw())
+        config.library_owner = self.owners()
+        return config
 
     def save(self, config: Config, backup_dir: Optional[str] = None) -> None:
-        """Write both halves. Validated first; each file atomic; the
-        previous versions backed up. Same rules as save_config (4.4)."""
+        """Write every half. Validated first; each file atomic; the
+        previous versions backed up. Same rules as save_config (4.4).
+
+        Named library entries go back to the file they came from; a name
+        the Config has not seen before goes to the write target. An entry
+        that has gone from the Config is dropped from whichever file had
+        it. Table-owned data and dice triggers always go to their files.
+        """
         payload = to_dict(config)
         config_from_raw(copy.deepcopy(payload))      # refuse before touching disk
         table, library = split_raw(payload)
+
+        private: Dict[str, Any] = {}
+        if self.private:
+            owners = config.library_owner or {}
+            for kind in PRIVATE_KINDS:
+                entries = library.get(kind) or {}
+                mine = {}
+                for name in list(entries):
+                    owner = owners.get(kind, {}).get(name) or self.write_target
+                    if owner == PRIVATE:
+                        mine[name] = entries.pop(name)
+                if mine:
+                    private[kind] = mine
+                if kind in library and not library[kind]:
+                    library[kind] = {}
+            # The ownership map must reflect what was just written, so a
+            # second save routes the same way.
+            config.library_owner = {
+                kind: dict(
+                    {n: SHARED for n in (library.get(kind) or {})},
+                    **{n: PRIVATE for n in (private.get(kind) or {})})
+                for kind in PRIVATE_KINDS}
+
         os.makedirs(self.shared_dir, exist_ok=True)
         write_json_atomic(self.table_path, table, backup_dir, "table")
         write_json_atomic(self.library_path, library, backup_dir, "library")
+        if self.private:
+            os.makedirs(self.private_dir, exist_ok=True)
+            write_json_atomic(self.private_path, private, backup_dir,
+                              "library-%s" % self.private)
 
     def describe(self) -> str:
-        return "%s + %s" % (os.path.relpath(self.table_path, self.data_dir),
-                            os.path.relpath(self.library_path, self.data_dir))
+        parts = [os.path.relpath(self.table_path, self.data_dir),
+                 os.path.relpath(self.library_path, self.data_dir)]
+        if self.private:
+            parts.append(os.path.relpath(self.private_path, self.data_dir))
+        return " + ".join(parts)
+
+
+def _safe_id(profile_id: str) -> bool:
+    return all(c.isalnum() or c in "-_" for c in profile_id) and len(profile_id) <= 40
 
 
 # ------------------------------------------------------------ migration

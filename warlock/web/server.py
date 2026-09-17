@@ -807,6 +807,10 @@ class _Handler(BaseHTTPRequestHandler):
             "interruptions": sorted(cfg.interruptions),
             "interruption_groups": _group_interruptions(cfg),
             "random_tables": sorted(cfg.random_tables),
+            # "shared" / "private" per name, or absent for a single-file
+            # config. The editors show "mine" against private entries.
+            "owners": {kind: dict(cfg.library_owner.get(kind, {}))
+                       for kind in ("scenes", "interruptions", "random_tables")},
             "idle_scene": cfg.idle_scene_name,
             "backgrounds": self.controller.background_choices(),
             "cue_groups": _group_cues(self.controller.audio.available_cues()),

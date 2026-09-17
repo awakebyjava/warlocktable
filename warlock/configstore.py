@@ -292,6 +292,7 @@ class ConfigStore:
         for name, sc in sorted(self.config.scenes.items()):
             out.append({
                 "name": name,
+                "owner": self.config.owner_of("scenes", name),
                 "lights": sc.lights,
                 "soundscape": sc.soundscape,
                 "background": sc.background,
@@ -423,6 +424,7 @@ class ConfigStore:
                 i = self.config.interruptions[name]
                 out.append({
                     "name": name,
+                    "owner": self.config.owner_of("interruptions", name),
                     "audio": i.audio,
                     "lights": i.lights,
                     "background": i.background,
