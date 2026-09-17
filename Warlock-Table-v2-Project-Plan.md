@@ -2311,9 +2311,16 @@ verified on hardware.
    library open lands in `profiles/<id>/`, resolves on `find_card`, is
    absent from the shared-only view; the deck refuses edits while
    locked and accepts them for the admin.
-6. **Maps and sounds per library.** `MapLibrary` and the sound uploader
-   take a library directory; the audio/background path lists compose
-   shared + open private.
+6. **Maps and sounds per library.** *(built 2026-09-17)* A private
+   library has `maps/`, `mapdata/` and `sounds/{tracks,cues}` under its
+   folder, created on demand. Opening a profile puts them in FRONT of the
+   display's and audio's search paths (a GM's own `forest.png` wins for
+   the evening, the same precedence uploads already have) and rescans;
+   opening another, or the shared library, takes them out again — the
+   base lists are kept on the runtime so nothing accumulates. The map
+   importer rebuilds its `MapLibrary` for the open library, and the
+   sound uploader writes to `Runtime.media_root()`. The shared library's
+   media stays where config's paths point; nothing moves on disk.
 7. **`/admin`, export, delete.** Delete drops the user's tags; and the
    CLI PIN reset.
 

@@ -287,10 +287,56 @@ class Runtime:
         self.open_profile_id = private_id
         self.open_profile_name = label or private_id or "shared"
         self.config_source = profiles.describe()
+        self._apply_media_paths(profiles)
         self.log.record("profile.opened", profile=private_id or "shared",
                         label=self.open_profile_name)
         self.controller.go_idle()
         return self.config_source
+
+    def _apply_media_paths(self, profiles) -> None:
+        """Put the open library's maps and sounds in front of the devices'
+        search paths, and take the previous library's out (4.8 step 6).
+
+        The base lists are what build() gave the devices; they are kept on
+        the runtime so an open never accumulates. A private folder goes
+        FIRST, so a GM's own "forest.png" wins over the shared one for the
+        evening -- the same precedence panel uploads already have over
+        shipped files.
+        """
+        display, audio = self.controller.display, self.controller.audio
+        if not hasattr(self, "_base_paths"):
+            self._base_paths = {
+                "display": list(getattr(display, "search_paths", []) or []),
+                "tracks": list(getattr(audio, "search_paths", []) or []),
+                "cues": list(getattr(audio, "cue_paths", []) or []),
+            }
+        maps = profiles.media_dir("maps")
+        sounds = profiles.media_dir("sounds")
+        if hasattr(display, "search_paths"):
+            display.search_paths = ([maps] if maps else []) + self._base_paths["display"]
+        if hasattr(audio, "search_paths"):
+            audio.search_paths = (
+                [os.path.join(sounds, "tracks")] if sounds else []) + self._base_paths["tracks"]
+        if hasattr(audio, "cue_paths"):
+            audio.cue_paths = (
+                [os.path.join(sounds, "cues")] if sounds else []) + self._base_paths["cues"]
+        for dev in (display, audio):
+            rescan = getattr(dev, "rescan", None)
+            if callable(rescan):
+                try:
+                    rescan()
+                except Exception as exc:   # noqa: BLE001 - a rescan must not break an open
+                    self.log.record("profile.rescan_failed", error=str(exc))
+
+    def media_root(self, kind: str):
+        """Where an upload of `kind` ('maps', 'mapdata', 'sounds') goes
+        right now: the open private library's folder, or None meaning
+        "the shared paths in config"."""
+        store = getattr(self, "store", None)
+        profiles = getattr(store, "profiles", None) if store else None
+        if profiles is None or not profiles.private:
+            return None
+        return profiles.media_dir(kind)
 
     def shutdown(self) -> None:
         """Release hardware. Safe to call more than once.

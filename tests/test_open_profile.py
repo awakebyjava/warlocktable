@@ -163,5 +163,53 @@ class OpenThroughLoginTests(unittest.TestCase):
         self.assertEqual(me["campaign"]["open"], self.sarah.id)        # unchanged
 
 
+class MediaPathsTests(unittest.TestCase):
+    """Step 6: the open library's maps and sounds sit in front of the
+    devices' search paths, and uploads go into its folder."""
+
+    def setUp(self):
+        from warlock.devices.fake import FakeAudioDevice, FakeDisplayDevice
+        self.tmp = tempfile.TemporaryDirectory()
+        self.rt, self.log, self.cfg = _build(self.tmp.name)
+
+        # The real fakes, given the two attributes the real devices have.
+        class Display(FakeDisplayDevice):
+            rescans = 0
+            def rescan(self): self.rescans += 1
+        class Audio(FakeAudioDevice):
+            rescans = 0
+            def rescan(self): self.rescans += 1
+        self.display = Display(self.log); self.display.search_paths = ["/shared/backgrounds"]
+        self.audio = Audio(self.log)
+        self.audio.search_paths = ["/shared/tracks"]; self.audio.cue_paths = ["/shared/cues"]
+        self.rt.controller.display = self.display
+        self.rt.controller.audio = self.audio
+
+    def tearDown(self):
+        self.rt.shutdown()
+        self.tmp.cleanup()
+
+    def test_open_prepends_private_media_and_close_removes_it(self):
+        self.assertIsNone(self.rt.media_root("maps"))
+        self.rt.open_profile("u_sarah", "Sarah")
+        base = os.path.join(self.tmp.name, "profiles", "u_sarah")
+        self.assertEqual(self.display.search_paths[0], os.path.join(base, "maps"))
+        self.assertEqual(self.display.search_paths[1:], ["/shared/backgrounds"])
+        self.assertEqual(self.audio.search_paths[0], os.path.join(base, "sounds", "tracks"))
+        self.assertEqual(self.audio.cue_paths[0], os.path.join(base, "sounds", "cues"))
+        self.assertTrue(os.path.isdir(os.path.join(base, "maps")))
+        self.assertEqual(self.rt.media_root("sounds"), os.path.join(base, "sounds"))
+        self.assertEqual((self.display.rescans, self.audio.rescans), (1, 1))
+        # a second open does not stack
+        self.rt.open_profile("u_dave", "Dave")
+        self.assertEqual(len(self.display.search_paths), 2)
+        self.assertIn("u_dave", self.display.search_paths[0])
+        # back to shared: only the base paths
+        self.rt.open_profile(None)
+        self.assertEqual(self.display.search_paths, ["/shared/backgrounds"])
+        self.assertEqual(self.audio.search_paths, ["/shared/tracks"])
+        self.assertIsNone(self.rt.media_root("maps"))
+
+
 if __name__ == "__main__":
     unittest.main()

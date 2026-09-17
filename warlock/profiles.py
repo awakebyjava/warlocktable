@@ -273,6 +273,28 @@ class ProfileStore:
             write_json_atomic(self.private_path, private, backup_dir,
                               "library-%s" % self.private)
 
+    # ---- media (step 6): a library's own maps and sounds ----------------
+    #
+    #   profiles/<id>/maps/        finished backgrounds, what the display picks from
+    #   profiles/<id>/mapdata/     originals, recipes, working files of the importer
+    #   profiles/<id>/sounds/      tracks/ and cues/, as the upload root is laid out
+    #
+    # The shared library's media stays where config's paths already point
+    # (custom_background_path, map_data_path, sound_upload_path), so
+    # nothing moves on disk for the table owner.
+
+    def media_dir(self, kind: str) -> Optional[str]:
+        """The open PRIVATE library's directory for `kind` ('maps',
+        'mapdata', 'sounds'), created on demand; None when no private
+        library is open."""
+        if not self.private:
+            return None
+        if kind not in ("maps", "mapdata", "sounds"):
+            raise ConfigError("unknown media kind %r" % kind)
+        path = os.path.join(self.private_dir, kind)
+        os.makedirs(path, exist_ok=True)
+        return path
+
     def describe(self) -> str:
         parts = [os.path.relpath(self.table_path, self.data_dir),
                  os.path.relpath(self.library_path, self.data_dir)]
