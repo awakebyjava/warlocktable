@@ -242,6 +242,7 @@ class ConfigStore:
                 "label": c.label,
                 "target_kind": c.target.kind,
                 "target_name": c.target.name,
+                "owner": self.config.owner_of("cards", uid),
             } for uid, c in self.config.cards.items()]
         cards.sort(key=lambda c: c["label"].lower())
         return cards
@@ -259,14 +260,25 @@ class ConfigStore:
                 "random_table": sorted(self.config.random_tables),
             }
 
+    def _deck_is_locked(self) -> bool:
+        """True while a private library is open: the deck (table.json's
+        cards) belongs to the table owner, and a GM running their own
+        library may add tags of their own but not change the deck
+        (plan doc 4.8, decided 2026-09-11)."""
+        return self.profiles is not None and self.profiles.write_target == "private"
+
     def set_card(self, uid: str, label: str, kind: str, name: str) -> dict:
-        """Create or update a card. Raises ConfigError if the target is bogus."""
+        """Create or update a card. Raises ConfigError if the target is bogus,
+        or if it is a deck card and a private library is open."""
         uid = uid.strip()
         label = (label or "").strip()
         if not uid:
             raise ConfigError("uid is required")
         if not label:
             raise ConfigError("label is required")
+        if self._deck_is_locked() and self.config.owner_of("cards", uid) == "shared":
+            raise ConfigError("that card is part of the table's deck, which only the "
+                              "table owner changes; register your own tags instead")
 
         valid = self.valid_targets()
         if kind not in valid:
@@ -515,6 +527,9 @@ class ConfigStore:
         with self._lock:
             if uid not in self.config.cards:
                 raise ConfigError("no card with uid %s" % uid)
+            if self._deck_is_locked() and self.config.owner_of("cards", uid) == "shared":
+                raise ConfigError("that card is part of the table's deck, which only "
+                                  "the table owner changes")
 
         def mutate():
             del self.config.cards[uid]

@@ -69,7 +69,10 @@ class PrivateLibraryTests(unittest.TestCase):
         self.assertIn("jon", msg)
 
     def test_private_library_may_not_hold_table_things(self):
-        _write(self.mine.private_path, {"cards": {}})
+        _write(self.mine.private_path, {"zones": []})
+        with self.assertRaises(ConfigError):
+            self.mine.load()
+        _write(self.mine.private_path, {"settings": {}})
         with self.assertRaises(ConfigError):
             self.mine.load()
 
@@ -107,19 +110,87 @@ class PrivateLibraryTests(unittest.TestCase):
         self.assertNotIn("lair", _raw(self.mine.private_path).get("scenes") or {})
         self.assertIn("forest", _raw(self.mine.library_path)["scenes"])
 
-    def test_table_and_triggers_are_never_private(self):
-        from warlock.config import Card, Target
+    def test_settings_and_triggers_are_never_private(self):
         cfg = self.mine.load()
-        cfg.cards["04:AA"] = Card(uid="04:AA", label="x", target=Target("scene", "forest"))
         cfg.volume = 0.11
         self.mine.save(cfg)
         table = _raw(self.mine.table_path)
-        self.assertIn("04:AA", table["cards"])
         self.assertEqual(table["settings"]["volume"], 0.11)
         private = _raw(self.mine.private_path) if os.path.exists(self.mine.private_path) else {}
-        self.assertNotIn("cards", private)
+        self.assertNotIn("settings", private)
         self.assertNotIn("dice", private)
         self.assertEqual(len(_raw(self.mine.library_path)["dice"]["triggers"]), 2)
+
+
+class OwnCardsTests(unittest.TestCase):
+    """Step 5: a GM's own tags live in their library; the deck is the admin's."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cfg = os.path.join(self.tmp.name, "config.json")
+        shutil.copy(EXAMPLE, self.cfg)
+        migrate(self.cfg)
+        self.shared = ProfileStore.beside(self.cfg)
+        self.mine = ProfileStore.beside(self.cfg, private="jon")
+        self.deck_uid = next(iter(self.shared.load().cards))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def store(self, profiles):
+        from warlock.configstore import ConfigStore
+        from warlock.eventlog import EventLog
+        cfg = profiles.load()
+        return ConfigStore(cfg, self.cfg, EventLog(path=None), profiles=profiles)
+
+    def test_new_tag_is_mine_and_resolves_on_tap(self):
+        st = self.store(self.mine)
+        st.set_card("04:AA:BB", "My omen", "scene", "forest")
+        private = _raw(self.mine.private_path)
+        self.assertIn("04:AA:BB", private["cards"])
+        self.assertNotIn("04:AA:BB", _raw(self.mine.table_path)["cards"])
+        # the composed config sees deck + mine, marked
+        cfg = self.mine.load()
+        self.assertIn(self.deck_uid, cfg.cards)
+        self.assertEqual(cfg.owner_of("cards", "04:AA:BB"), PRIVATE)
+        self.assertEqual(cfg.owner_of("cards", self.deck_uid), SHARED)
+        self.assertEqual(cfg.find_card("04:AA:BB").label, "My omen")
+        # ...and the shared-only view does not
+        self.assertNotIn("04:AA:BB", self.shared.load().cards)
+
+    def test_deck_is_read_only_while_a_private_library_is_open(self):
+        st = self.store(self.mine)
+        with self.assertRaises(ConfigError) as cm:
+            st.set_card(self.deck_uid, "Renamed", "scene", "forest")
+        self.assertIn("deck", str(cm.exception))
+        with self.assertRaises(ConfigError):
+            st.delete_card(self.deck_uid)
+        # the admin, with the shared library open, can
+        st2 = self.store(self.shared)
+        st2.set_card(self.deck_uid, "Renamed", "scene", "forest")
+        self.assertEqual(_raw(self.shared.table_path)["cards"][self.deck_uid]["label"], "Renamed")
+
+    def test_own_card_can_be_edited_and_deleted(self):
+        st = self.store(self.mine)
+        st.set_card("04:AA:BB", "My omen", "scene", "forest")
+        st.set_card("04:AA:BB", "My better omen", "scene", "plains")
+        self.assertEqual(_raw(self.mine.private_path)["cards"]["04:AA:BB"]["label"], "My better omen")
+        st.delete_card("04:AA:BB")
+        self.assertNotIn("04:AA:BB", _raw(self.mine.private_path).get("cards") or {})
+
+    def test_uid_in_both_deck_and_library_is_refused(self):
+        _write(self.mine.private_path, {"cards": {
+            self.deck_uid: {"label": "x", "target": {"type": "scene", "name": "forest"}}}})
+        with self.assertRaises(ConfigError) as cm:
+            self.mine.load()
+        self.assertIn("table.json", str(cm.exception))
+
+    def test_list_cards_marks_owner(self):
+        st = self.store(self.mine)
+        st.set_card("04:AA:BB", "My omen", "scene", "forest")
+        owners = {c["uid"]: c["owner"] for c in st.list_cards()}
+        self.assertEqual(owners["04:AA:BB"], PRIVATE)
+        self.assertEqual(owners[self.deck_uid], SHARED)
 
     def test_second_save_routes_the_same_way(self):
         from warlock.config import Scene, Transition

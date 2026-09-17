@@ -64,9 +64,14 @@ LIBRARY_FILE = "library.json"
 # in this table, not something to guess about: split_raw refuses it.
 TABLE_KEYS = ("settings", "zones", "cards", "players")
 LIBRARY_KEYS = ("scenes", "interruptions", "random_tables")
-# The kinds a private library may hold. Dice triggers are deliberately
-# not here yet (see the module docstring).
-PRIVATE_KINDS = ("scenes", "interruptions", "random_tables")
+# The kinds a private library may hold, and which half of the split holds
+# the shared copy of each. Cards are the step-5 addition: the DECK stays
+# in table.json and is the admin's; a GM's own registered tags live in
+# their library and resolve after the deck (4.8, "a user's own cards").
+# Dice triggers are deliberately not here yet (module docstring).
+PRIVATE_KINDS = ("scenes", "interruptions", "random_tables", "cards")
+_HALF_OF = {"scenes": "library", "interruptions": "library",
+            "random_tables": "library", "cards": "table"}
 SHARED, PRIVATE = "shared", "private"
 # The dice section straddles: which dice exist (and whose seat) is a fact
 # about the table; what a landing DOES is a binding, like a card's target,
@@ -198,19 +203,24 @@ class ProfileStore:
             if clash:
                 raise ConfigError(
                     "%s %s defined in both %s and %s -- a name may live in "
-                    "only one library" % (kind, ", ".join(clash),
-                                          self.library_path, self.private_path))
+                    "only one library" % (
+                        kind, ", ".join(clash),
+                        self.table_path if _HALF_OF[kind] == "table" else self.library_path,
+                        self.private_path))
             theirs.update(copy.deepcopy(mine))
         return raw
 
     def owners(self) -> Dict[str, Dict[str, str]]:
-        """kind -> name -> 'shared' | 'private', from the files as they are."""
+        """kind -> name -> 'shared' | 'private', from the files as they are.
+        For cards, 'shared' means the deck."""
         out: Dict[str, Dict[str, str]] = {}
+        table = self._read(self.table_path) if os.path.exists(self.table_path) else {}
         library = self._read(self.library_path) if os.path.exists(self.library_path) else {}
+        halves = {"table": table, "library": library}
         private = self._read_private()
         for kind in PRIVATE_KINDS:
             out[kind] = {}
-            for name in (library.get(kind) or {}):
+            for name in (halves[_HALF_OF[kind]].get(kind) or {}):
                 out[kind][name] = SHARED
             for name in (private.get(kind) or {}):
                 out[kind][name] = PRIVATE
@@ -237,8 +247,9 @@ class ProfileStore:
         private: Dict[str, Any] = {}
         if self.private:
             owners = config.library_owner or {}
+            halves = {"table": table, "library": library}
             for kind in PRIVATE_KINDS:
-                entries = library.get(kind) or {}
+                entries = halves[_HALF_OF[kind]].get(kind) or {}
                 mine = {}
                 for name in list(entries):
                     owner = owners.get(kind, {}).get(name) or self.write_target
@@ -246,13 +257,11 @@ class ProfileStore:
                         mine[name] = entries.pop(name)
                 if mine:
                     private[kind] = mine
-                if kind in library and not library[kind]:
-                    library[kind] = {}
             # The ownership map must reflect what was just written, so a
             # second save routes the same way.
             config.library_owner = {
                 kind: dict(
-                    {n: SHARED for n in (library.get(kind) or {})},
+                    {n: SHARED for n in (halves[_HALF_OF[kind]].get(kind) or {})},
                     **{n: PRIVATE for n in (private.get(kind) or {})})
                 for kind in PRIVATE_KINDS}
 

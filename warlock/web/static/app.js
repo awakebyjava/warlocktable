@@ -399,20 +399,25 @@ function cardRow(card, opts) {
   const right = el("div");
   right.append(el("div", "target",
     opts && opts.unassigned ? "tap to register"
-                            : `${card.target_kind}: ${card.target_name}`));
+                            : `${card.target_kind}: ${card.target_name}`
+                              + (card.owner === "private" ? "  ·  mine" : "")));
   row.append(right);
   row.append(el("span", "chev", "›"));
   row.addEventListener("click", () => openEditor(card, opts && opts.unassigned));
   return row;
 }
 
+let deckLocked = false;
+
 async function refreshCards() {
   validTargets = await api("/api/config/targets");
 
   const c = await api("/api/config/cards");
+  deckLocked = !!(c.campaign && c.campaign.deck_locked);
   const box = $("#cards");
   box.innerHTML = "";
-  $("#card-count").textContent = `(${c.cards.length})`;
+  $("#card-count").textContent = `(${c.cards.length})`
+    + (deckLocked ? "  ·  deck is the table owner's; your own tags are marked mine" : "");
   c.cards.forEach(card => box.append(cardRow(card)));
 
   const u = await api("/api/config/unassigned");
@@ -446,14 +451,20 @@ function fillNames(kind, selected) {
 
 function openEditor(card, isNew) {
   editing = { uid: card.uid, isNew: !!isNew };
-  $("#ed-title").textContent = isNew ? "Register Card" : "Edit Card";
+  // The deck is the table owner's. With someone else's library open, a
+  // deck card opens read-only: the server would refuse the save anyway,
+  // and a form that cannot be saved should look like one.
+  const locked = !isNew && deckLocked && card.owner !== "private";
+  $("#ed-title").textContent = isNew ? (deckLocked ? "Register My Card" : "Register Card")
+                                     : (locked ? "Deck Card (table owner's)" : "Edit Card");
+  $("#ed-save").disabled = locked;
   $("#ed-label").value = isNew ? "" : (card.label || "");
   $("#ed-uid").value = card.uid;
   const kind = card.target_kind || "scene";
   $("#ed-kind").value = kind;
   fillNames(kind, card.target_name);
   $("#ed-err").textContent = "";
-  $("#ed-delete").style.display = isNew ? "none" : "";
+  $("#ed-delete").style.display = (isNew || locked) ? "none" : "";
   $("#editor").hidden = false;
   if (isNew) setTimeout(() => $("#ed-label").focus(), 50);
 }

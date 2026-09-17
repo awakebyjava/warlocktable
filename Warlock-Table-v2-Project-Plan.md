@@ -2300,9 +2300,17 @@ verified on hardware.
    a later step. *Verified:* a seat, a roll and a whisper survive the
    swap; a library that does not compose leaves the previous one running;
    GM login opens the right library through the real server.
-5. **A GM's own cards.** *My cards* on `/library`; the resolution rule.
-   *Verify:* a `user`'s tag fires their interruption while their profile
-   is open and shows as *unassigned* while the admin's is.
+5. **A GM's own cards.** *(built 2026-09-17)* A private library may
+   hold `cards`; the composed `Config.cards` is the deck plus the open
+   library's own tags, a UID in both refused at load. While a user's
+   library is open the deck is read-only — `set_card`/`delete_card` on
+   a deck card is refused server-side, and the panel opens it as *Deck
+   Card (table owner's)* with save disabled; a new tag registered then
+   is the GM's own and shows *mine*. The admin with the shared library
+   open edits the deck as before. *Verified:* a tag registered with a
+   library open lands in `profiles/<id>/`, resolves on `find_card`, is
+   absent from the shared-only view; the deck refuses edits while
+   locked and accepts them for the admin.
 6. **Maps and sounds per library.** `MapLibrary` and the sound uploader
    take a library directory; the audio/background path lists compose
    shared + open private.

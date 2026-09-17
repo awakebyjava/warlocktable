@@ -318,7 +318,8 @@ class _Handler(BaseHTTPRequestHandler):
             # needs to draw them.
             self._send_json(self.controller.zone_report())
         elif path == "/api/config/cards":
-            self._send_json({"cards": self.runtime.store.list_cards()})
+            self._send_json({"cards": self.runtime.store.list_cards(),
+                             "campaign": self._campaign()})
         elif path == "/api/config/scenes":
             self._send_json({
                 "scenes": self.runtime.store.list_scenes(),
@@ -1009,9 +1010,15 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _campaign(self) -> dict:
         rt = self.runtime
+        store = getattr(rt, "store", None)
+        locked = bool(store is not None and getattr(store, "profiles", None) is not None
+                      and store.profiles.write_target == "private")
         return {"open": getattr(rt, "open_profile_id", None),
                 "name": getattr(rt, "open_profile_name", None) or "shared",
-                "source": getattr(rt, "config_source", "")}
+                "source": getattr(rt, "config_source", ""),
+                # While a private library is open, the deck is read-only
+                # and new tags are the GM's own.
+                "deck_locked": locked}
 
     def _open_for(self, user) -> None:
         """Take the table: the admin runs the shared library alone (they
