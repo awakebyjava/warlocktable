@@ -49,7 +49,7 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 
 *(Updated 2026-08-24. `Warlock-Table-v2-Project-Plan.md` is the detailed source of truth — this is the summary. If they disagree, the plan doc wins.)*
 
-**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.5.0** (2026-09-16). `v0.4.0` is the rollback anchor from before the dice work.
+**The table works.** A physical NFC card tap drives real lights, real sound and real artwork on the embedded TV, from a service that starts itself on boot and survives a power cut. Deployed build: **v0.6.0** (2026-09-17). `v0.5.2` is the rollback anchor from before the accounts work (it boots from the untouched `config.json`); `v0.4.0` from before the dice work.
 
 **All four subsystems are real** — nothing is a fake any more:
 
@@ -91,6 +91,29 @@ There are **two prior implementations** being organized into folders (e.g., `ver
 - **Seats can be vacated** from either side, **initiative counts rounds and turns**, **rolls show the individual dice**, and there are **preset roll bars** for d20 / WoD / BRP.
 - **Latency** measured and cut from ~2s to under 600ms. §5.7.
 - **All 32 physical cards enrolled.**
+
+**Built 2026-09-17, deployed as v0.6.0 (`accounts` branch, merged):**
+- **Accounts, profiles and libraries — plan doc §4.8, all seven steps.**
+  `config.json` is split (additively) into `table.json` + the shared
+  library; each user has a private library composed over it; PIN logins
+  with a three-screen door (who → PIN → *Game Master or Player*); the
+  operator panel is refused without a GM session; choosing GM opens your
+  library live; a non-owner GM **adds** to the table and never changes
+  the shared set (deck, scenes, interruptions, triggers are read-only for
+  them — decided from the first staging run); maps and sounds per
+  library; *Manage Accounts* for the owner. Read §4.8 before touching
+  `warlock/profiles.py`, `warlock/auth.py` or `configstore.py`. The
+  first panel visit after this deploy is the **set-up page** (owner's
+  name, email, PIN). `run_service.py --reset-admin-pin` is the escape
+  hatch. **Not done:** a `/library` page for authoring without taking
+  the table — folded into "sign in as GM" for now (§4.8 step 4).
+- **The shutdown button overlay is enabled** on the card (`v0.5.2`);
+  the switch and jewel are not yet wired — `deploy/shutdown-button.md`.
+- **Two SD-card images** on the Lexar USB key (pre-button, and
+  button-enabled), plus a data snapshot in
+  `~/Documents/warlocktable-backups/` on the laptop, which the tests use.
+- The repo has **99 unit tests** (`python -m unittest discover -s tests`);
+  they run on the Pi's Python 3.9 too. Run them before every merge.
 
 **Built 2026-09-15/16, deployed as v0.5.0 (`pixels-dice` branch, merged):**
 - **Pixels Bluetooth dice as an input.** The Pi scans advertisements
