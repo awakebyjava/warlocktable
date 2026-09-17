@@ -15,6 +15,8 @@ import shutil
 from typing import Optional, Tuple
 
 from .config import Config, ConfigError, load_config
+from .profiles import ProfileStore
+from .auth import Auth
 from .configstore import ConfigStore, UnassignedCards
 from .controller import Controller
 from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
@@ -97,6 +99,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         help="listen for Pixels dice over Bluetooth (Pi only — needs CAP_NET_RAW)",
     )
     parser.add_argument(
+        "--profile", default=None, metavar="ID",
+        help="open a private library (profiles/<ID>/) over the shared one. "
+             "Development only until logins exist (plan doc 4.8); needs the "
+             "split layout",
+    )
+    parser.add_argument(
         "--real-audio", action="store_true",
         help="play actual sound instead of logging what would play",
     )
@@ -131,7 +139,8 @@ def _minimal_config() -> Config:
                   cards={}, zones=[], players=[])
 
 
-def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
+def load_config_resilient(path: str, log: EventLog,
+                          private: Optional[str] = None) -> Tuple[Config, str]:
     """Load config, falling back rather than refusing to start (5.2).
 
     Order: the requested file, then the last copy known to have loaded, then
@@ -144,10 +153,21 @@ def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
     """
     last_good = path + LAST_GOOD_SUFFIX
 
+    # The split layout (4.8 step 1) is the truth once it exists; the
+    # single file is the previous build's copy. Either way the last-good
+    # fallback stays ONE composed file, because the fallback loader must
+    # be the simplest thing that can possibly work.
+    profiles = ProfileStore.beside(path, private)
     try:
-        config = load_config(path)
+        if profiles is not None:
+            config = profiles.load()
+            source = profiles.describe()
+        else:
+            config = load_config(path)
+            source = path
     except (ConfigError, FileNotFoundError, KeyError, ValueError) as exc:
-        log.record("config.load_failed", path=path, error=str(exc))
+        log.record("config.load_failed", path=source if profiles else path,
+                   error=str(exc))
 
         if os.path.exists(last_good):
             try:
@@ -162,14 +182,29 @@ def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
 
     # Loaded cleanly — remember it so a later bad edit has somewhere to land.
     try:
-        shutil.copy2(path, last_good)
+        if profiles is not None:
+            import json as _json
+            with open(last_good, "w", encoding="utf-8") as fh:
+                _json.dump(profiles.raw(), fh, indent=2)
+        else:
+            shutil.copy2(path, last_good)
     except OSError as exc:
         log.record("config.last_good_save_failed", error=str(exc))
 
-    return config, path
+    return config, source
 
 
 # ---------------------------------------------------------------- devices
+
+def build_auth(args, log) -> Auth:
+    """Users and sessions live beside the config. The shipped example
+    config gets an in-memory `dev` admin with PIN 0000, so the laptop's
+    fakes-only loop is not slowed by a login; a real install never does
+    (plan doc 4.8, migration)."""
+    data_dir = os.path.dirname(os.path.abspath(args.config))
+    dev = os.path.basename(args.config) == "config.example.json"
+    return Auth(data_dir, log, dev=dev)
+
 
 def build_dice(args, controller, log):
     """The dice input: real when --dice, otherwise a fake the CLI can drive.
@@ -197,10 +232,12 @@ class Runtime:
 
     def __init__(self, controller: Controller, log: EventLog,
                  audio, lights, reader=None, config_source: str = "",
-                 web=None, store=None, unassigned=None, mic=None, dice=None):
+                 web=None, store=None, unassigned=None, mic=None, dice=None,
+                 auth=None):
         self.controller = controller
         self.mic = mic
         self.dice = dice
+        self.auth = auth
         self.log = log
         self.audio = audio
         self.lights = lights
@@ -213,6 +250,93 @@ class Runtime:
     # How long shutdown will wait for a farewell line. Deliberately short:
     # lines run to 7.9s and systemd's stop timeout is not negotiable.
     shutdown_voice_s = 2.5
+
+    # Which private library is composed over the shared one right now:
+    # a user id, or None for the shared library alone (plan doc 4.8).
+    open_profile_id = None
+    open_profile_name = None
+
+    def open_profile(self, private_id, label=None) -> str:
+        """Compose `private_id`'s library over the shared one and make it the
+        running Config -- the GM taking the table (plan doc 4.8, "opening a
+        profile"). None means the shared library alone.
+
+        Order matters and is the section's rule: compose and VALIDATE the
+        new Config before touching anything; swap it under the same lock
+        the panel's edits take; then go to idle, so no scene from the old
+        library is left playing with its definition gone. Seats, initiative,
+        rolls and whispers live on the Controller, not the Config, so they
+        ride through the swap -- switching GM does not evict the players.
+        Raises ConfigError, leaving the previous library running.
+        """
+        if self.store is None:
+            raise ConfigError("no config store")
+        profiles = ProfileStore.beside(self.store.path, private_id)
+        if profiles is None:
+            raise ConfigError("profiles need the split layout: run "
+                              "tools/migrate_profiles.py first")
+        new_config = profiles.load()                 # raises before any change
+        with self.store._lock:
+            # Seat claims are session state that happens to be stored on
+            # the Config (4.4's Player rows). They belong to the evening,
+            # not the library, so they ride across the swap as they are.
+            new_config.players = list(self.controller.config.players)
+            self.controller.config = new_config
+            self.store.config = new_config
+            self.store.profiles = profiles
+        self.open_profile_id = private_id
+        self.open_profile_name = label or private_id or "shared"
+        self.config_source = profiles.describe()
+        self._apply_media_paths(profiles)
+        self.log.record("profile.opened", profile=private_id or "shared",
+                        label=self.open_profile_name)
+        self.controller.go_idle()
+        return self.config_source
+
+    def _apply_media_paths(self, profiles) -> None:
+        """Put the open library's maps and sounds in front of the devices'
+        search paths, and take the previous library's out (4.8 step 6).
+
+        The base lists are what build() gave the devices; they are kept on
+        the runtime so an open never accumulates. A private folder goes
+        FIRST, so a GM's own "forest.png" wins over the shared one for the
+        evening -- the same precedence panel uploads already have over
+        shipped files.
+        """
+        display, audio = self.controller.display, self.controller.audio
+        if not hasattr(self, "_base_paths"):
+            self._base_paths = {
+                "display": list(getattr(display, "search_paths", []) or []),
+                "tracks": list(getattr(audio, "search_paths", []) or []),
+                "cues": list(getattr(audio, "cue_paths", []) or []),
+            }
+        maps = profiles.media_dir("maps")
+        sounds = profiles.media_dir("sounds")
+        if hasattr(display, "search_paths"):
+            display.search_paths = ([maps] if maps else []) + self._base_paths["display"]
+        if hasattr(audio, "search_paths"):
+            audio.search_paths = (
+                [os.path.join(sounds, "tracks")] if sounds else []) + self._base_paths["tracks"]
+        if hasattr(audio, "cue_paths"):
+            audio.cue_paths = (
+                [os.path.join(sounds, "cues")] if sounds else []) + self._base_paths["cues"]
+        for dev in (display, audio):
+            rescan = getattr(dev, "rescan", None)
+            if callable(rescan):
+                try:
+                    rescan()
+                except Exception as exc:   # noqa: BLE001 - a rescan must not break an open
+                    self.log.record("profile.rescan_failed", error=str(exc))
+
+    def media_root(self, kind: str):
+        """Where an upload of `kind` ('maps', 'mapdata', 'sounds') goes
+        right now: the open private library's folder, or None meaning
+        "the shared paths in config"."""
+        store = getattr(self, "store", None)
+        profiles = getattr(store, "profiles", None) if store else None
+        if profiles is None or not profiles.private:
+            return None
+        return profiles.media_dir(kind)
 
     def shutdown(self) -> None:
         """Release hardware. Safe to call more than once.
@@ -310,7 +434,8 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
     Never raises for missing hardware — a device that cannot start makes its
     subsystem unhealthy, not the program dead (5.2).
     """
-    config, source = load_config_resilient(args.config, log)
+    config, source = load_config_resilient(args.config, log,
+                                           getattr(args, "profile", None))
 
     if getattr(args, "real_lights", False):
         from .devices.pixelblaze_lights import PixelblazeLights
@@ -423,7 +548,9 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
 
     store = ConfigStore(config, os.path.abspath(args.config), log,
                         backup_dir=os.path.join(
-                            os.path.dirname(os.path.abspath(args.config)), "backups"))
+                            os.path.dirname(os.path.abspath(args.config)), "backups"),
+                        profiles=ProfileStore.beside(args.config,
+                                                     getattr(args, "profile", None)))
     unassigned = UnassignedCards()
 
     reader = None
@@ -442,9 +569,11 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
         controller._nfc_status = reader.status
 
     dice = build_dice(args, controller, log)
+    auth = build_auth(args, log)
 
     rt = Runtime(controller, log, audio, lights, reader, source,
-                 store=store, unassigned=unassigned, mic=mic, dice=dice)
+                 store=store, unassigned=unassigned, mic=mic, dice=dice,
+                 auth=auth)
     # Back-reference so show_status_screen() can read live device status.
     controller._runtime = rt
     # The hero the status screen draws. Pointed at the wordmark rather than

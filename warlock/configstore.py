@@ -38,18 +38,30 @@ NAME_OK = re.compile(r"^[a-z0-9_-]+$")
 
 class ConfigStore:
     def __init__(self, config: Config, path: str, log,
-                 backup_dir: Optional[str] = None):
+                 backup_dir: Optional[str] = None, profiles=None):
         self.config = config
         self.path = path
         self.log = log
         self.backup_dir = backup_dir
+        # A ProfileStore when the data directory has been split into
+        # table + library (plan doc 4.8 step 1); None means the single
+        # config.json is still the truth. Everything above this line is
+        # the same either way -- only where the bytes land differs.
+        self.profiles = profiles
         self._lock = threading.RLock()
+
+    def persist(self) -> None:
+        """Write the current in-memory config wherever it lives."""
+        if self.profiles is not None:
+            self.profiles.save(self.config, self.backup_dir)
+        else:
+            save_config(self.config, self.path, self.backup_dir)
 
     # ------------------------------------------------------------ internals
 
     def _commit(self, what: str, **details) -> None:
         """Persist the current in-memory config, or raise without changing it."""
-        save_config(self.config, self.path, self.backup_dir)
+        self.persist()
         self.log.record("config.saved", change=what, **details)
 
     def _with_rollback(self, what: str, mutate, **details):
@@ -230,6 +242,7 @@ class ConfigStore:
                 "label": c.label,
                 "target_kind": c.target.kind,
                 "target_name": c.target.name,
+                "owner": self.config.owner_of("cards", uid),
             } for uid, c in self.config.cards.items()]
         cards.sort(key=lambda c: c["label"].lower())
         return cards
@@ -247,14 +260,33 @@ class ConfigStore:
                 "random_table": sorted(self.config.random_tables),
             }
 
+    def _shared_locked(self) -> bool:
+        """True while a private library is open. Everything already in the
+        table -- the deck, the shared scenes, interruptions, tables and dice
+        triggers -- belongs to the table owner; a GM running their own
+        library ADDS to it and never changes it (plan doc 4.8, decided
+        2026-09-11 for cards and 2026-09-17 for the rest: the shared set is
+        the table's default, and stays what the owner made it)."""
+        return self.profiles is not None and self.profiles.write_target == "private"
+
+    _deck_is_locked = _shared_locked      # older name, same rule
+
+    def _refuse_if_shared(self, kind: str, name: str, what: str) -> None:
+        if self._shared_locked() and self.config.owner_of(kind, name) == "shared":
+            raise ConfigError(
+                "%s %r is part of the table's shared library, which only the "
+                "table owner changes. Make your own instead." % (what, name))
+
     def set_card(self, uid: str, label: str, kind: str, name: str) -> dict:
-        """Create or update a card. Raises ConfigError if the target is bogus."""
+        """Create or update a card. Raises ConfigError if the target is bogus,
+        or if it is a deck card and a private library is open."""
         uid = uid.strip()
         label = (label or "").strip()
         if not uid:
             raise ConfigError("uid is required")
         if not label:
             raise ConfigError("label is required")
+        self._refuse_if_shared("cards", uid, "card")
 
         valid = self.valid_targets()
         if kind not in valid:
@@ -280,6 +312,7 @@ class ConfigStore:
         for name, sc in sorted(self.config.scenes.items()):
             out.append({
                 "name": name,
+                "owner": self.config.owner_of("scenes", name),
                 "lights": sc.lights,
                 "soundscape": sc.soundscape,
                 "background": sc.background,
@@ -320,6 +353,7 @@ class ConfigStore:
         table when the card is tapped.
         """
         name = (name or "").strip().lower().replace(" ", "_")
+        self._refuse_if_shared("scenes", name, "scene")
         lights = (lights or "").strip()
         if not name:
             raise ConfigError("scene name is required")
@@ -362,6 +396,7 @@ class ConfigStore:
         name = (name or "").strip()
         if name not in self.config.scenes:
             raise ConfigError("no scene named %r" % name)
+        self._refuse_if_shared("scenes", name, "scene")
         if name == self.config.idle_scene_name:
             raise ConfigError(
                 "%r is the idle scene -- the table falls back to it, so "
@@ -411,6 +446,7 @@ class ConfigStore:
                 i = self.config.interruptions[name]
                 out.append({
                     "name": name,
+                    "owner": self.config.owner_of("interruptions", name),
                     "audio": i.audio,
                     "lights": i.lights,
                     "background": i.background,
@@ -433,6 +469,7 @@ class ConfigStore:
         referential-integrity rule exists to prevent.
         """
         name = (name or "").strip().lower().replace(" ", "_")
+        self._refuse_if_shared("interruptions", name, "interruption")
         if not name:
             raise ConfigError("interruption name is required")
         if not NAME_OK.match(name):
@@ -484,6 +521,7 @@ class ConfigStore:
         name = (name or "").strip()
         if name not in self.config.interruptions:
             raise ConfigError("no interruption named %r" % name)
+        self._refuse_if_shared("interruptions", name, "interruption")
 
         users = self.usage_of("interruption", name)
         if users:
@@ -501,6 +539,7 @@ class ConfigStore:
         with self._lock:
             if uid not in self.config.cards:
                 raise ConfigError("no card with uid %s" % uid)
+            self._refuse_if_shared("cards", uid, "card")
 
         def mutate():
             del self.config.cards[uid]
@@ -585,6 +624,9 @@ class ConfigStore:
         """Replace the whole ordered table. Order IS the rule (first match
         wins), so the panel sends the list it shows rather than editing
         rows in place and hoping the order survives."""
+        if self._shared_locked():
+            raise ConfigError("the dice triggers are part of the table's shared "
+                              "library, which only the table owner changes")
         parsed = [_trigger_from_dict(i, dict(t)) for i, t in enumerate(triggers or [])]
         with self._lock:
             for t in parsed:

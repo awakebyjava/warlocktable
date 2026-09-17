@@ -20,6 +20,13 @@ let failures = 0;
 
 async function api(path, opts) {
   const res = await fetch(path, Object.assign({ cache: "no-store" }, opts));
+  if (res.status === 401) {
+    // The GM session is gone -- expired, signed out elsewhere, or the
+    // table was set up fresh. The panel cannot do anything useful now,
+    // so go to the door rather than showing a page of failed calls.
+    location.href = "/gm";
+    throw new Error("signed out");
+  }
   if (!res.ok) {
     let msg = res.status + " " + res.statusText;
     try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
@@ -392,20 +399,25 @@ function cardRow(card, opts) {
   const right = el("div");
   right.append(el("div", "target",
     opts && opts.unassigned ? "tap to register"
-                            : `${card.target_kind}: ${card.target_name}`));
+                            : `${card.target_kind}: ${card.target_name}`
+                              + (card.owner === "private" ? "  ·  mine" : "")));
   row.append(right);
   row.append(el("span", "chev", "›"));
   row.addEventListener("click", () => openEditor(card, opts && opts.unassigned));
   return row;
 }
 
+let deckLocked = false;
+
 async function refreshCards() {
   validTargets = await api("/api/config/targets");
 
   const c = await api("/api/config/cards");
+  deckLocked = !!(c.campaign && c.campaign.shared_locked);
   const box = $("#cards");
   box.innerHTML = "";
-  $("#card-count").textContent = `(${c.cards.length})`;
+  $("#card-count").textContent = `(${c.cards.length})`
+    + (deckLocked ? "  ·  deck is the table owner's; your own tags are marked mine" : "");
   c.cards.forEach(card => box.append(cardRow(card)));
 
   const u = await api("/api/config/unassigned");
@@ -439,14 +451,20 @@ function fillNames(kind, selected) {
 
 function openEditor(card, isNew) {
   editing = { uid: card.uid, isNew: !!isNew };
-  $("#ed-title").textContent = isNew ? "Register Card" : "Edit Card";
+  // The deck is the table owner's. With someone else's library open, a
+  // deck card opens read-only: the server would refuse the save anyway,
+  // and a form that cannot be saved should look like one.
+  const locked = !isNew && deckLocked && card.owner !== "private";
+  $("#ed-title").textContent = isNew ? (deckLocked ? "Register My Card" : "Register Card")
+                                     : (locked ? "Deck Card (table owner's)" : "Edit Card");
+  $("#ed-save").disabled = locked;
   $("#ed-label").value = isNew ? "" : (card.label || "");
   $("#ed-uid").value = card.uid;
   const kind = card.target_kind || "scene";
   $("#ed-kind").value = kind;
   fillNames(kind, card.target_name);
   $("#ed-err").textContent = "";
-  $("#ed-delete").style.display = isNew ? "none" : "";
+  $("#ed-delete").style.display = (isNew || locked) ? "none" : "";
   $("#editor").hidden = false;
   if (isNew) setTimeout(() => $("#ed-label").focus(), 50);
 }
@@ -1309,13 +1327,13 @@ if ("serviceWorker" in navigator) {
  */
 
 const PANELS = ["players", "run", "dice", "settings", "cards", "maps", "sfx",
-                "scenes", "cards-edit", "pixels"];
+                "scenes", "cards-edit", "pixels", "admin"];
 // The pages you reach THROUGH Settings rather than from the tab bar. At
 // browser width they are full-screen overlays with a close control, because
 // there is no tab bar out there to leave by. Adding a page means adding it
 // here and giving its section class="panel page" -- the CSS keys off the
 // class, so it does not need a third list.
-const SUBPAGES = ["cards", "maps", "sfx", "scenes", "cards-edit", "pixels"];
+const SUBPAGES = ["cards", "maps", "sfx", "scenes", "cards-edit", "pixels", "admin"];
 const LANDING = "players";      // people arriving is what happens first
 let current = LANDING;
 
@@ -1372,7 +1390,54 @@ $("#open-scenes").addEventListener("click", () => goto("scenes"));
 $("#scenes-back").addEventListener("click", () => goto("settings"));
 $("#open-int").addEventListener("click", () => goto("cards-edit"));
 $("#open-pixels").addEventListener("click", () => goto("pixels"));
+
+// Who is holding the panel. Filled from /api/auth/me once; the sign-out
+// button ends the session everywhere this cookie was used.
+(async function () {
+  try {
+    const me = await api("/api/auth/me");
+    if (!me.signed_in) return;
+    $("#acct-who").textContent = me.name + (me.role === "admin" ? "  ·  table owner" : "");
+    showCampaign(me.campaign);
+    if (me.role === "admin") {
+      $("#admin-section").hidden = false;
+      // The admin can run anyone's library -- to help, or to see what a
+      // player has built. Everyone else runs their own, opened at login.
+      const users = (await api("/api/auth/admin/users")).users || [];
+      const sel = $("#acct-open-user");
+      sel.innerHTML = "";
+      const shared = el("option", null, "shared only (table owner)");
+      shared.value = "";
+      sel.append(shared);
+      users.filter(u => u.role !== "admin").forEach(u => {
+        const o = el("option", null, u.name + "'s library");
+        o.value = u.id;
+        sel.append(o);
+      });
+      $("#acct-open-row").hidden = false;
+      $("#acct-open").addEventListener("click", async () => {
+        try {
+          const c = await api("/api/campaign/open", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user: sel.value || null }) });
+          showCampaign(c);
+          if (window.rebuildVocabulary) window.rebuildVocabulary();
+        } catch (e) { showError(e.message); }
+      });
+    }
+  } catch (e) {}
+})();
+function showCampaign(c) {
+  if (!c) return;
+  $("#acct-campaign").textContent = c.open ? c.name + "'s" : "shared only";
+}
+$("#acct-signout").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch (e) {}
+  location.href = "/";
+});
 $("#pixels-back").addEventListener("click", () => goto("settings"));
+$("#open-admin").addEventListener("click", () => goto("admin"));
+$("#admin-back").addEventListener("click", () => goto("settings"));
 $("#int-back").addEventListener("click", () => goto("settings"));
 $("#maps-back").addEventListener("click", () => goto("settings"));
 window.goto = goto;

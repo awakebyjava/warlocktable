@@ -109,6 +109,10 @@ def main() -> None:
              "CAP_NET_RAW. The 'dice' command still works without it.",
     )
     parser.add_argument(
+        "--profile", default=None, metavar="ID",
+        help="open a private library (profiles/<ID>/) over the shared one",
+    )
+    parser.add_argument(
         "--real-audio",
         action="store_true",
         help="play actual sound through pygame instead of logging what it "
@@ -117,7 +121,15 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        config = load_config(args.config)
+        from .profiles import ProfileStore
+        profiles = ProfileStore.beside(args.config, args.profile)
+        config = profiles.load() if profiles is not None else load_config(args.config)
+        if args.profile and profiles is None:
+            print("--profile needs the split layout; run tools/migrate_profiles.py first",
+                  file=sys.stderr)
+            sys.exit(1)
+        if profiles is not None:
+            print("config: split layout (%s)" % profiles.describe())
     except (ConfigError, FileNotFoundError, KeyError) as exc:
         # Section 5.2 says the controller must never refuse to start over a
         # bad config in production — it should fall back to last-known-good.

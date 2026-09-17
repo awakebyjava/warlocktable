@@ -45,6 +45,12 @@ class SoundsPanel(object):
         from ..runtime import _with_uploads
         cfg = self._config()
         root = getattr(cfg, "sound_upload_path", None)
+        # A GM's uploads go into their own library's folder (4.8 step 6);
+        # the shared library's into the configured root as before.
+        media_root = getattr(self.runtime, "media_root", None)
+        private = media_root("sounds") if callable(media_root) else None
+        if private:
+            root = private
         if not root:
             raise RuntimeError(
                 "Uploading sound is not configured. Set sound_upload_path in "
@@ -53,6 +59,9 @@ class SoundsPanel(object):
         # already exist" is answered against the paths actually in play
         # rather than a second, subtly different list.
         tracks, cues = _with_uploads(cfg)
+        if private:
+            tracks.insert(0, os.path.join(private, "tracks"))
+            cues.insert(0, os.path.join(private, "cues"))
         return AudioLibrary(upload_root=root, track_paths=tracks,
                             cue_paths=cues)
 

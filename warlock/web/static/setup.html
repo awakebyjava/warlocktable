@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Set up the Warlock Table</title>
+<meta name="theme-color" content="#0b0a08">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon-64.png" sizes="64x64" type="image/png">
+<style>
+  .err { color: var(--bad); min-height: 1.4rem; margin: .6rem 0 0; }
+  input[type=text], input[type=email], input[type=password] {
+    width: 100%; box-sizing: border-box; font-size: 1.1rem; padding: .7rem .8rem;
+    background: var(--black-2); color: var(--bone); border: 1px solid var(--line);
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Shown by "/" and "/gm" until there is an admin with a PIN: on a fresh
+     install, after the upgrade that introduced accounts, and after
+     `run_service.py --reset-admin-pin`. Nothing else on the panel is
+     reachable until this is done (plan doc 4.8, migration step 3). -->
+<main class="join">
+  <header class="join-head">
+    <h1>Warlock Table</h1>
+    <p class="muted" id="setup-why">&nbsp;</p>
+  </header>
+
+  <section>
+    <label class="field" id="f-name">
+      <span>Your name <span class="muted">&mdash; as it will appear on the door and the roll log</span></span>
+      <input type="text" id="name" maxlength="30" autocomplete="name" autocapitalize="words">
+    </label>
+    <label class="field" id="f-email">
+      <span>Email <span class="muted">&mdash; the address behind the name; the table does not send mail</span></span>
+      <input type="email" id="email" maxlength="80" autocomplete="email" autocapitalize="off">
+    </label>
+    <label class="field">
+      <span>PIN <span class="muted">&mdash; 4 to 6 digits, for signing in at the table</span></span>
+      <input type="password" id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="new-password">
+    </label>
+    <label class="field">
+      <span>PIN again</span>
+      <input type="password" id="pin2" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="new-password">
+    </label>
+    <button class="primary" id="go" style="width:100%">Set up the table</button>
+    <p class="err" id="err"></p>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (s) { return document.querySelector(s); };
+
+  async function api(path, body) {
+    var res = await fetch(path, body === undefined
+      ? { cache: "no-store" }
+      : { method: "POST", cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body) });
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || (res.status + " " + res.statusText));
+    return data;
+  }
+
+  // Two situations wear this page: no admin at all (name + email + PIN),
+  // or an admin whose PIN was reset (PIN only).
+  var resetOnly = false;
+  (async function () {
+    try {
+      var d = await api("/api/auth/users");
+      if (!d.setup) { location.href = "/"; return; }
+      var admin = (d.users || []).filter(function (u) { return u.role === "admin"; })[0];
+      if (admin) {
+        resetOnly = true;
+        $("#f-name").hidden = true;
+        $("#f-email").hidden = true;
+        $("#setup-why").textContent = admin.name + " — choose a new PIN";
+        $("#go").textContent = "Set PIN";
+      } else {
+        $("#setup-why").textContent = "This is your own account — the table owner’s. "
+          + "Use your real name; everyone else is added from Settings later.";
+      }
+    } catch (e) {
+      $("#err").textContent = "cannot reach the table";
+    }
+  })();
+
+  $("#go").addEventListener("click", async function () {
+    var pin = $("#pin").value, pin2 = $("#pin2").value;
+    $("#err").textContent = "";
+    if (!/^\d{4,6}$/.test(pin)) { $("#err").textContent = "a PIN is 4 to 6 digits"; return; }
+    if (pin !== pin2) { $("#err").textContent = "the PINs do not match"; return; }
+    var body = { pin: pin };
+    if (!resetOnly) { body.name = $("#name").value; body.email = $("#email").value; }
+    this.disabled = true;
+    try {
+      await api("/api/auth/setup", body);
+      location.href = "/gm";
+    } catch (e) {
+      $("#err").textContent = e.message;
+      this.disabled = false;
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

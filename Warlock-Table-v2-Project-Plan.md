@@ -1986,6 +1986,17 @@ already shared, with a note saying so. This is what lets every reference
 be a plain name, as it is today, with no "whose forest?" qualifier — and
 it means there is no shadowing mechanism to build, explain, or debug.
 
+**The shared library is read-only for everyone but the admin.**
+*(decided 2026-09-17, from the first staging run)* A non-owner GM
+running their own library **adds** to the table and never changes what
+is already in it: shared scenes, interruptions, random tables, the dice
+triggers and the deck are all refused server-side (`ConfigStore`
+`_refuse_if_shared`) and open read-only in every editor, labelled
+*shared, the table owner's — make your own instead*. Play-time controls
+— volume, output, brightness, seats, initiative, registering a die and
+its seat — stay open, because they are about tonight, not the library.
+The shared set is the table's default and stays what the owner made it.
+
 **Referential integrity, one direction.** A private library may reference
 the shared library (a private interruption can override the lights of a
 shared scene; a private card can fire a shared scene). The shared library
@@ -2242,33 +2253,96 @@ Each step leaves the table working exactly as before for anyone who does
 not use the new thing. Do not start the next until the previous is
 verified on hardware.
 
-1. **Split `table.json` out of `config.json`.** No users, no profiles,
-   one file becomes two — settings, zones and the deck on one side,
-   scenes / interruptions / tables on the other. `ProfileStore` exists
-   and composes exactly one library. *Verify:* every card, scene and
-   panel control behaves identically.
-2. **Shared + private composition.** `profiles/shared/` is the library
-   from step 1; a second, empty private library composes on top of it;
-   name uniqueness across the two is enforced. *Verify:* a scene added
-   to the private library fires from the panel; a duplicate name is
-   refused.
-3. **Users, PINs, sessions, login page.** `/gm` and the action routes
-   gated. Migration creates the admin; the set-up page collects name,
-   email and PIN. *Verify:* a phone without the cookie gets 401 from
-   `/api/actions`; the iPad stays signed in across a service restart;
-   a guest can still join and roll dice.
-4. **Profiles per user, `/library`, Open.** Editors pointed at the
-   signed-in user's folder with the shared library alongside. Opening a
-   profile does the idle-swap. *Verify:* switching GM mid-session keeps
-   the seats.
-5. **A GM's own cards.** *My cards* on `/library`; the resolution rule.
-   *Verify:* a `user`'s tag fires their interruption while their profile
-   is open and shows as *unassigned* while the admin's is.
-6. **Maps and sounds per library.** `MapLibrary` and the sound uploader
-   take a library directory; the audio/background path lists compose
-   shared + open private.
-7. **`/admin`, export, delete.** Delete drops the user's tags; and the
-   CLI PIN reset.
+1. **Split `table.json` out of `config.json`.** *(built 2026-09-17, on
+   `accounts`)* No users, no profiles, one file becomes two — settings,
+   zones, the deck, seats and known dice on one side; scenes /
+   interruptions / tables and dice triggers on the other.
+   `warlock/profiles.py`: `split_raw`/`compose_raw` are pure and exact
+   inverses; `ProfileStore` loads and saves the pair and hands the
+   Controller the same `Config` as before; `migrate()` writes the pair
+   beside `config.json` and never touches it. `ProfileStore.beside()` is
+   the one switch — a `profiles/` directory means the split is the truth.
+   `install.sh` runs `tools/migrate_profiles.py` once. The last-good
+   fallback stays a single composed file. `tests/test_profiles.py` proves
+   equivalence against the example *and the real config snapshotted from
+   the table*, and rehearsed on the laptop: card edits land in
+   `table.json`, scene edits in `library.json`, `config.json` byte-identical.
+2. **Shared + private composition.** *(built 2026-09-17)* A private
+   library at `profiles/<id>/library.json` composes over the shared one
+   into the same single `Config`. One namespace: a name in both files is
+   refused at load, naming both. The `Config` carries `library_owner`
+   (shared / private per name, not part of equality, not written out) so
+   a save routes every entry back to its own file; a new name goes to the
+   write target — private while a profile is open. Table data and dice
+   triggers never go private (triggers have no names to own by; per-user
+   triggers arrive with per-user cards, step 5). `--profile <id>` opens
+   one until logins exist. `/api/vocabulary` and the scene/interruption
+   lists carry `owner`. *Verified* through the running service on the
+   real-config rehearsal: a scene created via the panel API with a profile
+   open landed in `profiles/jon/`, applied via `/api/action`, and a
+   deliberate collision was refused. 12 tests.
+3. **Users, PINs, sessions, login page.** *(built 2026-09-17)*
+   `warlock/auth.py`: `users.json` (scrypt PINs, 5 wrong → 30 s lockout,
+   one admin, unique emails) and `sessions.json` (token hashed, 30 days
+   sliding, survives restart). **"GM" is a session mode, not a role**
+   *(decided 2026-09-17)*: any account picks Game Master or Player at
+   login; a guest can only be a player. `/` and `/gm` serve the set-up
+   page until there is an admin with a PIN, then the three-screen login
+   (who → PIN pad → chair). Every `/api` route outside the public list
+   (join, QR, player, seats, zones, auth) returns 401 JSON without a GM
+   session; `/gm` serves the login page instead of the panel. Admin
+   manages users at `/api/auth/admin/users/*`; a PIN reset signs the
+   person out everywhere and their next login sets the new PIN.
+   `run_service.py --reset-admin-pin` is the escape hatch. The shipped
+   example config gets an in-memory `dev` admin, PIN 0000, never a real
+   install. *Verified:* 22 tests, 8 of them against the real server on a
+   socket, and the whole flow driven in a browser at phone size.
+4. **Profiles per user, Open.** *(built 2026-09-17)* Choosing *Game
+   Master* at login opens your library: `Runtime.open_profile()`
+   composes `profiles/<your-id>/` over the shared one, validates before
+   touching anything, swaps under the store's lock, carries the seat
+   claims across, then goes to idle. The admin has no private library, so
+   the admin as GM runs the shared library alone, and can open anyone's
+   from Settings (`/api/campaign/open`). Two GMs: last sign-in wins and
+   the panel says whose library is running. **Simplification, recorded:**
+   the separate `/library` page is folded into "sign in as GM" — the
+   existing editors write to whichever library is open and mark entries
+   *mine*. A user who wants to author without taking the table waits for
+   a later step. *Verified:* a seat, a roll and a whisper survive the
+   swap; a library that does not compose leaves the previous one running;
+   GM login opens the right library through the real server.
+5. **A GM's own cards.** *(built 2026-09-17)* A private library may
+   hold `cards`; the composed `Config.cards` is the deck plus the open
+   library's own tags, a UID in both refused at load. While a user's
+   library is open the deck is read-only — `set_card`/`delete_card` on
+   a deck card is refused server-side, and the panel opens it as *Deck
+   Card (table owner's)* with save disabled; a new tag registered then
+   is the GM's own and shows *mine*. The admin with the shared library
+   open edits the deck as before. *Verified:* a tag registered with a
+   library open lands in `profiles/<id>/`, resolves on `find_card`, is
+   absent from the shared-only view; the deck refuses edits while
+   locked and accepts them for the admin.
+6. **Maps and sounds per library.** *(built 2026-09-17)* A private
+   library has `maps/`, `mapdata/` and `sounds/{tracks,cues}` under its
+   folder, created on demand. Opening a profile puts them in FRONT of the
+   display's and audio's search paths (a GM's own `forest.png` wins for
+   the evening, the same precedence uploads already have) and rescans;
+   opening another, or the shared library, takes them out again — the
+   base lists are kept on the runtime so nothing accumulates. The map
+   importer rebuilds its `MapLibrary` for the open library, and the
+   sound uploader writes to `Runtime.media_root()`. The shared library's
+   media stays where config's paths point; nothing moves on disk.
+7. **Accounts page, export, delete.** *(built 2026-09-17)* Settings →
+   **Manage Accounts** (admin only): the list with emails, add (PIN
+   optional — blank lets them choose at first sign-in), rename, **Reset
+   PIN** (clears it and signs them out everywhere; nobody types anyone
+   else's PIN), **Export** (a zip of their whole folder plus `USER.json`),
+   and **Delete**, which first shows what goes — scenes, interruptions,
+   tables, cards by label, map and sound files — then removes the account,
+   its sessions and its folder; their tags become unknown to the table
+   (decided 2026-09-11). If their library was the one running, the table
+   falls back to shared first. `run_service.py --reset-admin-pin` is the
+   escape hatch (step 3).
 
 Step 1 is the one that touches everything and adds no feature. That is
 deliberate: it is the change most likely to break the table, and it

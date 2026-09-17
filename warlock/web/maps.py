@@ -57,7 +57,10 @@ class MapsPanel(object):
         Lazy because importing Pillow costs real time at startup and most
         sessions never open this section at all.
         """
-        if self._library is not None:
+        # Rebuilt when the open library changes: a GM's maps go into THEIR
+        # folder (plan doc 4.8 step 6), the shared ones where config points.
+        open_id = getattr(self.runtime, "open_profile_id", None)
+        if self._library is not None and getattr(self, "_library_for", None) == open_id:
             return self._library
 
         from ..mapimport.library import MapLibrary
@@ -65,6 +68,10 @@ class MapsPanel(object):
         config = self._config()
         custom = getattr(config, "custom_background_path", None)
         data = getattr(config, "map_data_path", None)
+        media_root = getattr(self.runtime, "media_root", None)
+        if callable(media_root) and media_root("maps"):
+            custom = media_root("maps")
+            data = media_root("mapdata")
 
         if not custom or not data:
             raise RuntimeError(
@@ -80,6 +87,7 @@ class MapsPanel(object):
             on_change=self._rescan_display,
             log=self.log,
         )
+        self._library_for = open_id
         return self._library
 
     def _rescan_display(self) -> None:
