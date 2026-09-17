@@ -378,8 +378,7 @@ class _Handler(BaseHTTPRequestHandler):
         if store is None:
             return
         try:
-            from ..config import save_config
-            save_config(store.config, store.path, store.backup_dir)
+            store.persist()
         except Exception as exc:   # noqa: BLE001
             self.runtime.log.record("seat.persist_failed", error=str(exc))
 

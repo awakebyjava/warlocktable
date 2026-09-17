@@ -38,18 +38,30 @@ NAME_OK = re.compile(r"^[a-z0-9_-]+$")
 
 class ConfigStore:
     def __init__(self, config: Config, path: str, log,
-                 backup_dir: Optional[str] = None):
+                 backup_dir: Optional[str] = None, profiles=None):
         self.config = config
         self.path = path
         self.log = log
         self.backup_dir = backup_dir
+        # A ProfileStore when the data directory has been split into
+        # table + library (plan doc 4.8 step 1); None means the single
+        # config.json is still the truth. Everything above this line is
+        # the same either way -- only where the bytes land differs.
+        self.profiles = profiles
         self._lock = threading.RLock()
+
+    def persist(self) -> None:
+        """Write the current in-memory config wherever it lives."""
+        if self.profiles is not None:
+            self.profiles.save(self.config, self.backup_dir)
+        else:
+            save_config(self.config, self.path, self.backup_dir)
 
     # ------------------------------------------------------------ internals
 
     def _commit(self, what: str, **details) -> None:
         """Persist the current in-memory config, or raise without changing it."""
-        save_config(self.config, self.path, self.backup_dir)
+        self.persist()
         self.log.record("config.saved", change=what, **details)
 
     def _with_rollback(self, what: str, mutate, **details):

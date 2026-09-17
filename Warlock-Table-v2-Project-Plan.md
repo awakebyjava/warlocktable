@@ -2242,11 +2242,20 @@ Each step leaves the table working exactly as before for anyone who does
 not use the new thing. Do not start the next until the previous is
 verified on hardware.
 
-1. **Split `table.json` out of `config.json`.** No users, no profiles,
-   one file becomes two — settings, zones and the deck on one side,
-   scenes / interruptions / tables on the other. `ProfileStore` exists
-   and composes exactly one library. *Verify:* every card, scene and
-   panel control behaves identically.
+1. **Split `table.json` out of `config.json`.** *(built 2026-09-17, on
+   `accounts`)* No users, no profiles, one file becomes two — settings,
+   zones, the deck, seats and known dice on one side; scenes /
+   interruptions / tables and dice triggers on the other.
+   `warlock/profiles.py`: `split_raw`/`compose_raw` are pure and exact
+   inverses; `ProfileStore` loads and saves the pair and hands the
+   Controller the same `Config` as before; `migrate()` writes the pair
+   beside `config.json` and never touches it. `ProfileStore.beside()` is
+   the one switch — a `profiles/` directory means the split is the truth.
+   `install.sh` runs `tools/migrate_profiles.py` once. The last-good
+   fallback stays a single composed file. `tests/test_profiles.py` proves
+   equivalence against the example *and the real config snapshotted from
+   the table*, and rehearsed on the laptop: card edits land in
+   `table.json`, scene edits in `library.json`, `config.json` byte-identical.
 2. **Shared + private composition.** `profiles/shared/` is the library
    from step 1; a second, empty private library composes on top of it;
    name uniqueness across the two is enforced. *Verify:* a scene added

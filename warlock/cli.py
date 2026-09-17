@@ -117,7 +117,11 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        config = load_config(args.config)
+        from .profiles import ProfileStore
+        profiles = ProfileStore.beside(args.config)
+        config = profiles.load() if profiles is not None else load_config(args.config)
+        if profiles is not None:
+            print("config: split layout (%s)" % profiles.describe())
     except (ConfigError, FileNotFoundError, KeyError) as exc:
         # Section 5.2 says the controller must never refuse to start over a
         # bad config in production — it should fall back to last-known-good.

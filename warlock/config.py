@@ -462,7 +462,16 @@ def _target_from_dict(d: Dict[str, Any]) -> Target:
 def load_config(path: str) -> Config:
     with open(path, "r", encoding="utf-8") as fh:
         raw = json.load(fh)
+    return config_from_raw(raw)
 
+
+def config_from_raw(raw: Dict[str, Any]) -> Config:
+    """The parsed JSON structure -> a validated Config.
+
+    Split from load_config so the same parse serves a single config.json
+    and the composed table + library halves (profiles.py) -- one loader,
+    one set of rules, whatever the files on disk look like.
+    """
     scenes = {}
     for name, s in raw.get("scenes", {}).items():
         t = s.get("transition", {})
@@ -794,11 +803,30 @@ def save_config(config: Config, path: str, backup_dir: Optional[str] = None) -> 
         except OSError:
             pass
 
+    write_json_atomic(path, payload, backup_dir, "config")
+
+
+def write_json_atomic(path: str, payload: Dict[str, Any],
+                      backup_dir: Optional[str] = None,
+                      backup_prefix: str = "config") -> None:
+    """Replace `path` with `payload` as JSON: backed up, atomic, and wearing
+    the old file's mode and owner. The write half of save_config, on its
+    own so profiles.py can write two files under the same rules.
+
+    Backups land in backup_dir as <prefix>-<stamp>.json. A failed backup
+    never blocks the save.
+    """
+    import os as _os
+    import shutil as _shutil
+    import tempfile
+    from datetime import datetime
+
     if backup_dir and _os.path.exists(path):
         try:
             _os.makedirs(backup_dir, exist_ok=True)
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            _shutil.copy2(path, _os.path.join(backup_dir, "config-%s.json" % stamp))
+            _shutil.copy2(path, _os.path.join(
+                backup_dir, "%s-%s.json" % (backup_prefix, stamp)))
         except OSError:
             pass       # a failed backup must not block the save
 

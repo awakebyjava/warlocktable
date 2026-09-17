@@ -15,6 +15,7 @@ import shutil
 from typing import Optional, Tuple
 
 from .config import Config, ConfigError, load_config
+from .profiles import ProfileStore
 from .configstore import ConfigStore, UnassignedCards
 from .controller import Controller
 from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
@@ -144,10 +145,21 @@ def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
     """
     last_good = path + LAST_GOOD_SUFFIX
 
+    # The split layout (4.8 step 1) is the truth once it exists; the
+    # single file is the previous build's copy. Either way the last-good
+    # fallback stays ONE composed file, because the fallback loader must
+    # be the simplest thing that can possibly work.
+    profiles = ProfileStore.beside(path)
     try:
-        config = load_config(path)
+        if profiles is not None:
+            config = profiles.load()
+            source = profiles.describe()
+        else:
+            config = load_config(path)
+            source = path
     except (ConfigError, FileNotFoundError, KeyError, ValueError) as exc:
-        log.record("config.load_failed", path=path, error=str(exc))
+        log.record("config.load_failed", path=source if profiles else path,
+                   error=str(exc))
 
         if os.path.exists(last_good):
             try:
@@ -162,11 +174,16 @@ def load_config_resilient(path: str, log: EventLog) -> Tuple[Config, str]:
 
     # Loaded cleanly — remember it so a later bad edit has somewhere to land.
     try:
-        shutil.copy2(path, last_good)
+        if profiles is not None:
+            import json as _json
+            with open(last_good, "w", encoding="utf-8") as fh:
+                _json.dump(profiles.raw(), fh, indent=2)
+        else:
+            shutil.copy2(path, last_good)
     except OSError as exc:
         log.record("config.last_good_save_failed", error=str(exc))
 
-    return config, path
+    return config, source
 
 
 # ---------------------------------------------------------------- devices
@@ -423,7 +440,8 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
 
     store = ConfigStore(config, os.path.abspath(args.config), log,
                         backup_dir=os.path.join(
-                            os.path.dirname(os.path.abspath(args.config)), "backups"))
+                            os.path.dirname(os.path.abspath(args.config)), "backups"),
+                        profiles=ProfileStore.beside(args.config))
     unassigned = UnassignedCards()
 
     reader = None

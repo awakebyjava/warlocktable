@@ -85,6 +85,18 @@ install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 755 "$DATA_DIR/soundeffects/
 
 if [[ -f "$DATA_DIR/config.json" ]]; then
     echo "  config.json exists - LEFT ALONE (this is your live data)"
+    # Plan doc 4.8 step 1: split it into table.json + profiles/shared/
+    # library.json, ADDITIVELY -- config.json is not modified, so the
+    # previous tag still boots from it. Runs once; refuses thereafter.
+    if [[ ! -d "$DATA_DIR/profiles" ]]; then
+        echo "  splitting config.json into table + library (profiles/) ..."
+        PY="$CODE_DIR/venv/bin/python"; [[ -x "$PY" ]] || PY=python3
+        sudo -u "$SERVICE_USER" "$PY" \
+            "$SRC/tools/migrate_profiles.py" "$DATA_DIR/config.json" \
+            || { echo "  MIGRATION FAILED - config.json untouched; service will use it" >&2; }
+    else
+        echo "  profiles/ exists - already split"
+    fi
 else
     install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 644 \
         "$SRC/data/config.example.json" "$DATA_DIR/config.json"
