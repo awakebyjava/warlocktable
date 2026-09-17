@@ -2270,11 +2270,22 @@ verified on hardware.
    real-config rehearsal: a scene created via the panel API with a profile
    open landed in `profiles/jon/`, applied via `/api/action`, and a
    deliberate collision was refused. 12 tests.
-3. **Users, PINs, sessions, login page.** `/gm` and the action routes
-   gated. Migration creates the admin; the set-up page collects name,
-   email and PIN. *Verify:* a phone without the cookie gets 401 from
-   `/api/actions`; the iPad stays signed in across a service restart;
-   a guest can still join and roll dice.
+3. **Users, PINs, sessions, login page.** *(built 2026-09-17)*
+   `warlock/auth.py`: `users.json` (scrypt PINs, 5 wrong → 30 s lockout,
+   one admin, unique emails) and `sessions.json` (token hashed, 30 days
+   sliding, survives restart). **"GM" is a session mode, not a role**
+   *(decided 2026-09-17)*: any account picks Game Master or Player at
+   login; a guest can only be a player. `/` and `/gm` serve the set-up
+   page until there is an admin with a PIN, then the three-screen login
+   (who → PIN pad → chair). Every `/api` route outside the public list
+   (join, QR, player, seats, zones, auth) returns 401 JSON without a GM
+   session; `/gm` serves the login page instead of the panel. Admin
+   manages users at `/api/auth/admin/users/*`; a PIN reset signs the
+   person out everywhere and their next login sets the new PIN.
+   `run_service.py --reset-admin-pin` is the escape hatch. The shipped
+   example config gets an in-memory `dev` admin, PIN 0000, never a real
+   install. *Verified:* 22 tests, 8 of them against the real server on a
+   socket, and the whole flow driven in a browser at phone size.
 4. **Profiles per user, `/library`, Open.** Editors pointed at the
    signed-in user's folder with the shared library alongside. Opening a
    profile does the idle-swap. *Verify:* switching GM mid-session keeps

@@ -16,6 +16,7 @@ from typing import Optional, Tuple
 
 from .config import Config, ConfigError, load_config
 from .profiles import ProfileStore
+from .auth import Auth
 from .configstore import ConfigStore, UnassignedCards
 from .controller import Controller
 from .devices.fake import FakeAudioDevice, FakeDisplayDevice, FakeLightDevice
@@ -195,6 +196,16 @@ def load_config_resilient(path: str, log: EventLog,
 
 # ---------------------------------------------------------------- devices
 
+def build_auth(args, log) -> Auth:
+    """Users and sessions live beside the config. The shipped example
+    config gets an in-memory `dev` admin with PIN 0000, so the laptop's
+    fakes-only loop is not slowed by a login; a real install never does
+    (plan doc 4.8, migration)."""
+    data_dir = os.path.dirname(os.path.abspath(args.config))
+    dev = os.path.basename(args.config) == "config.example.json"
+    return Auth(data_dir, log, dev=dev)
+
+
 def build_dice(args, controller, log):
     """The dice input: real when --dice, otherwise a fake the CLI can drive.
 
@@ -221,10 +232,12 @@ class Runtime:
 
     def __init__(self, controller: Controller, log: EventLog,
                  audio, lights, reader=None, config_source: str = "",
-                 web=None, store=None, unassigned=None, mic=None, dice=None):
+                 web=None, store=None, unassigned=None, mic=None, dice=None,
+                 auth=None):
         self.controller = controller
         self.mic = mic
         self.dice = dice
+        self.auth = auth
         self.log = log
         self.audio = audio
         self.lights = lights
@@ -469,9 +482,11 @@ def build(args, log: EventLog, on_card=None) -> Runtime:
         controller._nfc_status = reader.status
 
     dice = build_dice(args, controller, log)
+    auth = build_auth(args, log)
 
     rt = Runtime(controller, log, audio, lights, reader, source,
-                 store=store, unassigned=unassigned, mic=mic, dice=dice)
+                 store=store, unassigned=unassigned, mic=mic, dice=dice,
+                 auth=auth)
     # Back-reference so show_status_screen() can read live device status.
     controller._runtime = rt
     # The hero the status screen draws. Pointed at the wordmark rather than

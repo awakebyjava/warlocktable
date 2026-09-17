@@ -20,6 +20,13 @@ let failures = 0;
 
 async function api(path, opts) {
   const res = await fetch(path, Object.assign({ cache: "no-store" }, opts));
+  if (res.status === 401) {
+    // The GM session is gone -- expired, signed out elsewhere, or the
+    // table was set up fresh. The panel cannot do anything useful now,
+    // so go to the door rather than showing a page of failed calls.
+    location.href = "/gm";
+    throw new Error("signed out");
+  }
   if (!res.ok) {
     let msg = res.status + " " + res.statusText;
     try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
@@ -1372,6 +1379,21 @@ $("#open-scenes").addEventListener("click", () => goto("scenes"));
 $("#scenes-back").addEventListener("click", () => goto("settings"));
 $("#open-int").addEventListener("click", () => goto("cards-edit"));
 $("#open-pixels").addEventListener("click", () => goto("pixels"));
+
+// Who is holding the panel. Filled from /api/auth/me once; the sign-out
+// button ends the session everywhere this cookie was used.
+(async function () {
+  try {
+    const me = await api("/api/auth/me");
+    if (me.signed_in) {
+      $("#acct-who").textContent = me.name + (me.role === "admin" ? "  ·  table owner" : "");
+    }
+  } catch (e) {}
+})();
+$("#acct-signout").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch (e) {}
+  location.href = "/";
+});
 $("#pixels-back").addEventListener("click", () => goto("settings"));
 $("#int-back").addEventListener("click", () => goto("settings"));
 $("#maps-back").addEventListener("click", () => goto("settings"));

@@ -59,7 +59,26 @@ def main(argv=None) -> int:
         help="seconds between periodic status lines in the journal "
              "(0 = only log when something happens)",
     )
+    parser.add_argument(
+        "--reset-admin-pin", action="store_true",
+        help="clear the admin's PIN and sign the admin out everywhere, then "
+             "exit. The next visit to the panel asks for a new PIN. The one "
+             "recovery path for a locked-out admin; needs to be run on the Pi.",
+    )
     args = parser.parse_args(argv)
+
+    if args.reset_admin_pin:
+        log = EventLog(path=None, echo=True)
+        auth = runtime.build_auth(args, log)
+        admin = auth.users.admin()
+        if admin is None:
+            print("no admin account exists yet; the panel's set-up page will create one")
+            return 0
+        auth.users.clear_pin(admin.id)
+        n = auth.sessions.revoke_user(admin.id)
+        print("admin %r (%s): PIN cleared, %d session(s) signed out. Open the "
+              "panel to set a new PIN." % (admin.name, admin.email, n))
+        return 0
 
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)

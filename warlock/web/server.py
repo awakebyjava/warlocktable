@@ -40,10 +40,21 @@ from typing import Optional
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 
+# Paths anyone on the LAN may reach with no session (plan doc 4.8, access
+# table). Everything else under /api, and every operator page, needs a
+# GM session. Guests must keep the ten-second join: name, seat, dice,
+# whispers -- so the whole player surface is here. Prefix matches.
+PUBLIC_PREFIXES = (
+    "/api/join", "/api/qr.svg", "/api/auth/",
+    "/api/player/", "/api/seats/claim", "/api/seats/release", "/api/zones",
+)
+
+
 class _Handler(BaseHTTPRequestHandler):
     # Injected by make_server()
     controller = None
     runtime = None
+    auth = None                 # warlock.auth.Auth
     maps = None                 # web.maps.MapsPanel, or None if not wired
     voice = None                # web.voice.VoicePanel, or None if not wired
     sfx = None                  # web.sfx.SfxPanel, or None if not wired
@@ -127,6 +138,48 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # ------------------------------------------------------------- who is this
+
+    def _who(self):
+        """(user, session, token) from the cookie; cached per request."""
+        if not hasattr(self, "_who_cache"):
+            if self.auth is None:
+                self._who_cache = (None, None, None)
+            else:
+                self._who_cache = self.auth.resolve(self.headers.get("Cookie"))
+        return self._who_cache
+
+    def _is_gm(self) -> bool:
+        """A signed-in session in GM mode. The admin is a GM whenever they
+        are signed in as one, like anyone else -- being admin is about
+        what you may EDIT, not whether you are running the table tonight."""
+        user, sess, _ = self._who()
+        return user is not None and sess is not None and sess.mode == "gm"
+
+    def _is_admin(self) -> bool:
+        user, _, _ = self._who()
+        return user is not None and user.role == "admin"
+
+    def _gate(self, path: str) -> bool:
+        """Refuse an operator route without a GM session. True = refused.
+
+        API calls get 401 JSON, never a redirect: a fetch that follows a
+        redirect to an HTML login page is the classic "why is my JSON a
+        <!DOCTYPE" bug. Operator PAGES get the login page instead, which
+        is what a person holding an iPad wants to see.
+        """
+        if self.auth is None:
+            return False
+        if path.startswith("/api/"):
+            if any(path.startswith(p) for p in PUBLIC_PREFIXES):
+                return False
+            if self._is_gm():
+                return False
+            self._send_json({"error": "sign in as GM to use the panel",
+                             "login": "/"}, 401)
+            return True
+        return False
+
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
         if not length:
@@ -173,6 +226,8 @@ class _Handler(BaseHTTPRequestHandler):
         # PUT exists solely for map upload: the body IS the file, which avoids
         # multipart parsing in a stdlib server. See web/maps.py.
         path = self.path.split("?", 1)[0]
+        if self._gate(path):
+            return
         if self._maps("PUT", path):
             return
         if self._sounds_api("PUT", path):
@@ -181,6 +236,10 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if self._auth_api("GET", path):
+            return
+        if self._gate(path):
+            return
         if self._maps("GET", path):
             return
         if self._voice_api("GET", path):
@@ -194,9 +253,24 @@ class _Handler(BaseHTTPRequestHandler):
         # asks who you are; the GM's iPad goes straight to "/gm" (the PWA's
         # start_url), and a player lands on "/player" after choosing.
         if path == "/":
-            self._send_static("join.html")
+            # The front door: set-up until there is an admin with a PIN,
+            # then the profile picker. The old player-or-GM chooser lives
+            # on as the guest's path through the picker.
+            if self.auth is not None and self.auth.users.needs_setup():
+                self._send_static("setup.html")
+            else:
+                self._send_static("login.html")
         elif path == "/gm":
-            self._send_static("index.html")
+            # The PWA's start_url. Signed in as GM: the panel. Otherwise the
+            # login page, at this address, so the installed app opens on
+            # the right screen after a session expires.
+            if self.auth is not None and not self._is_gm():
+                if self.auth.users.needs_setup():
+                    self._send_static("setup.html")
+                else:
+                    self._send_static("login.html")
+            else:
+                self._send_static("index.html")
         elif path == "/player":
             self._send_static("player.html")
         elif path == "/api/join":
@@ -268,6 +342,10 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         path = self.path.split("?", 1)[0]
+        if self._auth_api("DELETE", path):
+            return
+        if self._gate(path):
+            return
         if self._maps("DELETE", path):
             return
         if self._dice_api("DELETE", path):
@@ -384,6 +462,10 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if self._auth_api("POST", path):
+            return
+        if self._gate(path):
+            return
         if self._dice_api("POST", path):
             return
         if self._maps("POST", path):
@@ -763,6 +845,166 @@ class _Handler(BaseHTTPRequestHandler):
         out["version"] = _read_version()
         return out
 
+    # ---- accounts (plan doc 4.8) -------------------------------------------
+
+    def _me(self) -> dict:
+        user, sess, _ = self._who()
+        if user is None:
+            return {"signed_in": False, "setup": bool(self.auth and self.auth.users.needs_setup())}
+        return {"signed_in": True, "id": user.id, "name": user.name,
+                "role": user.role, "mode": sess.mode,
+                "setup": False}
+
+    def _auth_api(self, method: str, path: str) -> bool:
+        """Login, logout, set-up, and the admin's user management."""
+        if self.auth is None or not path.startswith("/api/auth/"):
+            return False
+        from ..auth import AuthError, ADMIN, GM, PLAYER, MODES
+        from ..auth import clear_cookie_header, set_cookie_header
+        from ..config import ConfigError
+        users, sessions = self.auth.users, self.auth.sessions
+        try:
+            # ---- anyone
+            if method == "GET" and path == "/api/auth/me":
+                self._send_json(self._me())
+                return True
+            if method == "GET" and path == "/api/auth/users":
+                # The picker: names only. Names at a table are not secret;
+                # emails and everything else are the admin's.
+                self._send_json({"users": users.listing(),
+                                 "setup": users.needs_setup()})
+                return True
+            if method == "POST" and path == "/api/auth/setup":
+                # Only while there is no usable admin. Creates the admin,
+                # or gives a PIN-less admin (after --reset-admin-pin) one.
+                if not users.needs_setup():
+                    self._send_json({"error": "already set up"}, 400)
+                    return True
+                body = self._read_json()
+                pin = str(body.get("pin", ""))
+                admin = users.admin()
+                if admin is None:
+                    admin = users.create(body.get("name", ""), body.get("email", ""),
+                                         ADMIN, pin)
+                else:
+                    users.set_pin(admin.id, pin)
+                token = sessions.issue(admin.id, GM)
+                self._send_json_with_cookie(self._me_for(admin, GM), set_cookie_header(token))
+                return True
+            if method == "POST" and path == "/api/auth/login":
+                body = self._read_json()
+                user_id = str(body.get("user", ""))
+                mode = str(body.get("mode", PLAYER))
+                if mode not in MODES:
+                    self._send_json({"error": "mode must be gm or player"}, 400)
+                    return True
+                user = users.get(user_id)
+                if user is None:
+                    self._send_json({"error": "no such account"}, 404)
+                    return True
+                if not user.has_pin:
+                    # First login after a reset: this call SETS the PIN.
+                    pin = str(body.get("new_pin", ""))
+                    users.set_pin(user.id, pin)
+                else:
+                    try:
+                        users.verify(user.id, str(body.get("pin", "")))
+                    except AuthError as exc:
+                        import time as _time
+                        _time.sleep(1.0)          # the deliberate cost of a wrong PIN
+                        self._send_json({"error": str(exc)}, 403)
+                        return True
+                token = sessions.issue(user.id, mode)
+                self.runtime.log.record("auth.login", user=user.id, mode=mode)
+                self._send_json_with_cookie(self._me_for(user, mode), set_cookie_header(token))
+                return True
+            if method == "POST" and path == "/api/auth/logout":
+                _, _, token = self._who()
+                sessions.revoke(token)
+                self._send_json_with_cookie({"signed_in": False}, clear_cookie_header())
+                return True
+            if method == "POST" and path == "/api/auth/mode":
+                # Switch chairs without signing in again.
+                user, sess, token = self._who()
+                if user is None:
+                    self._send_json({"error": "not signed in"}, 401)
+                    return True
+                mode = str(self._read_json().get("mode", ""))
+                sessions.set_mode(token, mode)
+                self._send_json(self._me_for(user, mode))
+                return True
+            if method == "POST" and path == "/api/auth/pin":
+                # Your own PIN.
+                user, _, _ = self._who()
+                if user is None:
+                    self._send_json({"error": "not signed in"}, 401)
+                    return True
+                body = self._read_json()
+                try:
+                    users.verify(user.id, str(body.get("pin", "")))
+                except AuthError as exc:
+                    self._send_json({"error": str(exc)}, 403)
+                    return True
+                users.set_pin(user.id, str(body.get("new_pin", "")))
+                self._send_json({"ok": True})
+                return True
+            # ---- admin only from here
+            if not self._is_admin():
+                self._send_json({"error": "admin only"}, 403 if self._who()[0] else 401)
+                return True
+            if method == "GET" and path == "/api/auth/admin/users":
+                self._send_json({"users": [
+                    {"id": u.id, "name": u.name, "email": u.email, "role": u.role,
+                     "has_pin": u.has_pin, "created": u.created}
+                    for u in users.users.values()]})
+                return True
+            if method == "POST" and path == "/api/auth/admin/users":
+                body = self._read_json()
+                u = users.create(body.get("name", ""), body.get("email", ""),
+                                 body.get("role") or "user", body.get("pin") or None)
+                self._send_json({"ok": True, "id": u.id})
+                return True
+            if path.startswith("/api/auth/admin/users/"):
+                rest = _unquote(path[len("/api/auth/admin/users/"):])
+                user_id, _, action = rest.partition("/")
+                if method == "POST" and action == "reset-pin":
+                    users.clear_pin(user_id)
+                    sessions.revoke_user(user_id)
+                    self._send_json({"ok": True})
+                    return True
+                if method == "POST" and action == "":
+                    body = self._read_json()
+                    u = users.update(user_id, body.get("name"), body.get("email"),
+                                     body.get("role"))
+                    self._send_json({"ok": True, "id": u.id})
+                    return True
+                if method == "DELETE" and action == "":
+                    users.delete(user_id)
+                    sessions.revoke_user(user_id)
+                    self._send_json({"ok": True})
+                    return True
+            return False
+        except ConfigError as exc:
+            self._send_json({"error": str(exc)}, 400)
+            return True
+        except KeyError:
+            self._send_json({"error": "no such account"}, 404)
+            return True
+
+    def _me_for(self, user, mode: str) -> dict:
+        return {"signed_in": True, "id": user.id, "name": user.name,
+                "role": user.role, "mode": mode, "setup": False}
+
+    def _send_json_with_cookie(self, payload, cookie: str, status: int = 200) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Set-Cookie", cookie)
+        self.end_headers()
+        self.wfile.write(body)
+
     def _dice(self) -> dict:
         """What the scanner hears, and what the config says to do about it."""
         out = self.runtime.store.list_dice()
@@ -955,6 +1197,7 @@ class WebPanel:
         handler = type("_BoundHandler", (_Handler,), {
             "controller": self.controller,
             "runtime": self.runtime,
+            "auth": getattr(self.runtime, "auth", None),
             "maps": MapsPanel(self.runtime, self.controller, self.log),
             "voice": VoicePanel(self.runtime, self.controller, self.log),
             "sfx": SfxPanel(self.runtime, self.controller, self.log),

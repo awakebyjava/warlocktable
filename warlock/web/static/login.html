@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Warlock Table</title>
+<meta name="theme-color" content="#0b0a08">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon-64.png" sizes="64x64" type="image/png">
+<style>
+  /* Three screens, one page: who, PIN, which chair. Kept here rather than
+     in style.css because nothing else uses a PIN pad. */
+  .who-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  .who-grid .join-card { text-align: center; padding: 1.1rem .6rem; }
+  .who-grid .join-card.guest { grid-column: 1 / -1; border-style: dashed; }
+  .pin-shown { text-align: center; font-size: 2rem; letter-spacing: .6rem;
+               min-height: 3rem; margin: .6rem 0 1rem; color: var(--brass-bright); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+  .pin-pad button { font-size: 1.4rem; padding: 1rem 0; }
+  .pin-pad .ghost { font-size: .9rem; }
+  .chair-grid { display: grid; gap: .8rem; }
+  .err { color: var(--bad); min-height: 1.4rem; text-align: center; margin: .6rem 0 0; }
+  .back { margin-top: 1.4rem; text-align: center; }
+  .screen[hidden] { display: none; }
+</style>
+</head>
+<body>
+
+<!-- The QR code on the table points here. Who are you, prove it, which
+     chair tonight. A guest skips the middle: a name and a seat is all a
+     player needs, and needing an account to sit down would be the wrong
+     trade (plan doc 4.8). -->
+<main class="join">
+  <header class="join-head">
+    <h1>Warlock Table</h1>
+    <p class="muted" id="join-count">&nbsp;</p>
+  </header>
+
+  <!-- 1. who -->
+  <section class="screen" id="screen-who">
+    <div class="who-grid" id="who-grid"></div>
+    <p class="err" id="who-err"></p>
+  </section>
+
+  <!-- 2. PIN -->
+  <section class="screen" id="screen-pin" hidden>
+    <p class="muted" style="text-align:center" id="pin-title"></p>
+    <div class="pin-shown" id="pin-shown"></div>
+    <div class="pin-pad" id="pin-pad"></div>
+    <p class="err" id="pin-err"></p>
+    <div class="back"><button class="ghost" id="pin-back">&#9664; Someone else</button></div>
+  </section>
+
+  <!-- 3. which chair -->
+  <section class="screen" id="screen-chair" hidden>
+    <p class="muted" style="text-align:center" id="chair-title"></p>
+    <div class="chair-grid">
+      <button class="join-card" id="chair-gm">
+        <span class="join-role">Game Master</span>
+        <span class="join-why">Run the table &mdash; scenes, sound, cards, initiative</span>
+      </button>
+      <button class="join-card join-card-gm" id="chair-player">
+        <span class="join-role">Player</span>
+        <span class="join-why">Claim a seat and pick your colour</span>
+      </button>
+    </div>
+    <p class="err" id="chair-err"></p>
+    <div class="back"><button class="ghost" id="chair-out">Sign out</button></div>
+  </section>
+
+  <section class="join-qr">
+    <div id="qr-holder" class="qr-holder"></div>
+    <p class="note">
+      Same Wi-Fi, then scan or type
+      <code id="join-url">this address</code>
+    </p>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (s) { return document.querySelector(s); };
+  var chosen = null;        // the user picked on screen 1
+  var pin = "";
+  var settingPin = false;   // first login after a reset: this call SETS the PIN
+
+  function show(id) {
+    ["screen-who", "screen-pin", "screen-chair"].forEach(function (s) {
+      document.getElementById(s).hidden = s !== id;
+    });
+  }
+
+  async function api(path, body) {
+    var res = await fetch(path, body === undefined
+      ? { cache: "no-store" }
+      : { method: "POST", cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body) });
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || (res.status + " " + res.statusText));
+    return data;
+  }
+
+  /* ---- screen 1: who ---- */
+
+  function card(label, why, cls) {
+    var b = document.createElement("button");
+    b.className = "join-card" + (cls ? " " + cls : "");
+    b.innerHTML = '<span class="join-role"></span><span class="join-why"></span>';
+    b.firstChild.textContent = label;
+    b.lastChild.textContent = why;
+    return b;
+  }
+
+  async function loadWho() {
+    var grid = $("#who-grid");
+    grid.innerHTML = "";
+    var data;
+    try { data = await api("/api/auth/users"); }
+    catch (e) { $("#who-err").textContent = "cannot reach the table"; return; }
+    (data.users || []).forEach(function (u) {
+      var b = card(u.name, u.role === "admin" ? "table owner" : "",
+                   u.role === "admin" ? "join-card-gm" : "");
+      b.addEventListener("click", function () { pickUser(u); });
+      grid.appendChild(b);
+    });
+    var g = card("Guest", "Just sit down — a name and a seat, no account", "guest");
+    g.addEventListener("click", function () { location.href = "/player"; });
+    grid.appendChild(g);
+  }
+
+  function pickUser(u) {
+    chosen = u;
+    pin = "";
+    settingPin = !!u.needs_pin;
+    $("#pin-title").textContent = settingPin
+      ? u.name + " — choose a new PIN (4 to 6 digits)"
+      : u.name + " — PIN";
+    $("#pin-err").textContent = "";
+    renderPin();
+    show("screen-pin");
+  }
+
+  /* ---- screen 2: PIN ---- */
+
+  function renderPin() {
+    $("#pin-shown").textContent = pin.replace(/./g, "•");
+  }
+
+  function buildPad() {
+    var pad = $("#pin-pad");
+    ["1","2","3","4","5","6","7","8","9","⌫","0","OK"].forEach(function (k) {
+      var b = document.createElement("button");
+      b.textContent = k;
+      if (k === "⌫" || k === "OK") b.className = "ghost";
+      if (k === "OK") b.className = "primary";
+      b.addEventListener("click", function () {
+        if (k === "⌫") { pin = pin.slice(0, -1); renderPin(); return; }
+        if (k === "OK") { submitPin(); return; }
+        if (pin.length < 6) { pin += k; renderPin(); }
+        if (pin.length === 6) submitPin();
+      });
+      pad.appendChild(b);
+    });
+  }
+
+  async function submitPin() {
+    if (pin.length < 4) { $("#pin-err").textContent = "at least 4 digits"; return; }
+    $("#pin-err").textContent = "";
+    // Sign in as a player first; the chair screen upgrades to GM. That
+    // way a wrong PIN is refused before anyone chooses anything.
+    var body = { user: chosen.id, mode: "player" };
+    if (settingPin) body.new_pin = pin; else body.pin = pin;
+    try {
+      var me = await api("/api/auth/login", body);
+      $("#chair-title").textContent = "Signed in as " + me.name + ". Tonight I’m…";
+      show("screen-chair");
+    } catch (e) {
+      pin = ""; renderPin();
+      $("#pin-err").textContent = e.message;
+    }
+  }
+
+  /* ---- screen 3: chair ---- */
+
+  $("#chair-gm").addEventListener("click", async function () {
+    try { await api("/api/auth/mode", { mode: "gm" }); location.href = "/gm"; }
+    catch (e) { $("#chair-err").textContent = e.message; }
+  });
+  $("#chair-player").addEventListener("click", function () { location.href = "/player"; });
+  $("#chair-out").addEventListener("click", async function () {
+    try { await api("/api/auth/logout", {}); } catch (e) {}
+    chosen = null; show("screen-who"); loadWho();
+  });
+  $("#pin-back").addEventListener("click", function () { chosen = null; pin = ""; show("screen-who"); });
+
+  /* ---- already signed in? straight to the chair screen ---- */
+
+  async function start() {
+    buildPad();
+    try {
+      var me = await api("/api/auth/me");
+      if (me.signed_in) {
+        $("#chair-title").textContent = "Signed in as " + me.name + ". Tonight I’m…";
+        show("screen-chair");
+        return;
+      }
+    } catch (e) {}
+    loadWho();
+  }
+
+  /* ---- the QR and address, as on the old join page ---- */
+
+  (async function () {
+    var holder = $("#qr-holder");
+    try {
+      var info = await api("/api/join");
+      $("#join-url").textContent = info.url;
+      var n = info.players;
+      $("#join-count").textContent = n + (n === 1 ? " seat" : " seats") + " at the table";
+    } catch (e) {
+      $("#join-count").textContent = "cannot reach the table";
+    }
+    try {
+      var res = await fetch("/api/qr.svg", { cache: "no-store" });
+      if (!res.ok) throw new Error("no encoder");
+      holder.innerHTML = await res.text();
+    } catch (e) { holder.remove(); }
+  })();
+
+  start();
+})();
+</script>
+
+</body>
+</html>
