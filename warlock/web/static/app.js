@@ -1385,11 +1385,40 @@ $("#open-pixels").addEventListener("click", () => goto("pixels"));
 (async function () {
   try {
     const me = await api("/api/auth/me");
-    if (me.signed_in) {
-      $("#acct-who").textContent = me.name + (me.role === "admin" ? "  ·  table owner" : "");
+    if (!me.signed_in) return;
+    $("#acct-who").textContent = me.name + (me.role === "admin" ? "  ·  table owner" : "");
+    showCampaign(me.campaign);
+    if (me.role === "admin") {
+      // The admin can run anyone's library -- to help, or to see what a
+      // player has built. Everyone else runs their own, opened at login.
+      const users = (await api("/api/auth/admin/users")).users || [];
+      const sel = $("#acct-open-user");
+      sel.innerHTML = "";
+      const shared = el("option", null, "shared only (table owner)");
+      shared.value = "";
+      sel.append(shared);
+      users.filter(u => u.role !== "admin").forEach(u => {
+        const o = el("option", null, u.name + "'s library");
+        o.value = u.id;
+        sel.append(o);
+      });
+      $("#acct-open-row").hidden = false;
+      $("#acct-open").addEventListener("click", async () => {
+        try {
+          const c = await api("/api/campaign/open", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user: sel.value || null }) });
+          showCampaign(c);
+          if (window.rebuildVocabulary) window.rebuildVocabulary();
+        } catch (e) { showError(e.message); }
+      });
     }
   } catch (e) {}
 })();
+function showCampaign(c) {
+  if (!c) return;
+  $("#acct-campaign").textContent = c.open ? c.name + "'s" : "shared only";
+}
 $("#acct-signout").addEventListener("click", async () => {
   try { await api("/api/auth/logout", { method: "POST" }); } catch (e) {}
   location.href = "/";

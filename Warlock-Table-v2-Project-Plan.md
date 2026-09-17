@@ -2286,10 +2286,20 @@ verified on hardware.
    example config gets an in-memory `dev` admin, PIN 0000, never a real
    install. *Verified:* 22 tests, 8 of them against the real server on a
    socket, and the whole flow driven in a browser at phone size.
-4. **Profiles per user, `/library`, Open.** Editors pointed at the
-   signed-in user's folder with the shared library alongside. Opening a
-   profile does the idle-swap. *Verify:* switching GM mid-session keeps
-   the seats.
+4. **Profiles per user, Open.** *(built 2026-09-17)* Choosing *Game
+   Master* at login opens your library: `Runtime.open_profile()`
+   composes `profiles/<your-id>/` over the shared one, validates before
+   touching anything, swaps under the store's lock, carries the seat
+   claims across, then goes to idle. The admin has no private library, so
+   the admin as GM runs the shared library alone, and can open anyone's
+   from Settings (`/api/campaign/open`). Two GMs: last sign-in wins and
+   the panel says whose library is running. **Simplification, recorded:**
+   the separate `/library` page is folded into "sign in as GM" — the
+   existing editors write to whichever library is open and mark entries
+   *mine*. A user who wants to author without taking the table waits for
+   a later step. *Verified:* a seat, a roll and a whisper survive the
+   swap; a library that does not compose leaves the previous one running;
+   GM login opens the right library through the real server.
 5. **A GM's own cards.** *My cards* on `/library`; the resolution rule.
    *Verify:* a `user`'s tag fires their interruption while their profile
    is open and shows as *unassigned* while the admin's is.

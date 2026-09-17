@@ -59,6 +59,7 @@
       if (sc.used_by && sc.used_by.length) {
         bits.push(sc.used_by.length + " card" + (sc.used_by.length === 1 ? "" : "s"));
       }
+      if (sc.owner === "private") bits.unshift("mine");
       detail.textContent = bits.join(" · ");
 
       var edit = document.createElement("button");

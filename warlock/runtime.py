@@ -251,6 +251,47 @@ class Runtime:
     # lines run to 7.9s and systemd's stop timeout is not negotiable.
     shutdown_voice_s = 2.5
 
+    # Which private library is composed over the shared one right now:
+    # a user id, or None for the shared library alone (plan doc 4.8).
+    open_profile_id = None
+    open_profile_name = None
+
+    def open_profile(self, private_id, label=None) -> str:
+        """Compose `private_id`'s library over the shared one and make it the
+        running Config -- the GM taking the table (plan doc 4.8, "opening a
+        profile"). None means the shared library alone.
+
+        Order matters and is the section's rule: compose and VALIDATE the
+        new Config before touching anything; swap it under the same lock
+        the panel's edits take; then go to idle, so no scene from the old
+        library is left playing with its definition gone. Seats, initiative,
+        rolls and whispers live on the Controller, not the Config, so they
+        ride through the swap -- switching GM does not evict the players.
+        Raises ConfigError, leaving the previous library running.
+        """
+        if self.store is None:
+            raise ConfigError("no config store")
+        profiles = ProfileStore.beside(self.store.path, private_id)
+        if profiles is None:
+            raise ConfigError("profiles need the split layout: run "
+                              "tools/migrate_profiles.py first")
+        new_config = profiles.load()                 # raises before any change
+        with self.store._lock:
+            # Seat claims are session state that happens to be stored on
+            # the Config (4.4's Player rows). They belong to the evening,
+            # not the library, so they ride across the swap as they are.
+            new_config.players = list(self.controller.config.players)
+            self.controller.config = new_config
+            self.store.config = new_config
+            self.store.profiles = profiles
+        self.open_profile_id = private_id
+        self.open_profile_name = label or private_id or "shared"
+        self.config_source = profiles.describe()
+        self.log.record("profile.opened", profile=private_id or "shared",
+                        label=self.open_profile_name)
+        self.controller.go_idle()
+        return self.config_source
+
     def shutdown(self) -> None:
         """Release hardware. Safe to call more than once.
 

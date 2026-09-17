@@ -77,6 +77,7 @@
         bits.push(it.used_by.length + " card"
                   + (it.used_by.length === 1 ? "" : "s"));
       }
+      if (it.owner === "private") bits.unshift("mine");
       detail.textContent = bits.join(" · ");
 
       var edit = document.createElement("button");

@@ -240,6 +240,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._gate(path):
             return
+        if self._campaign_api("GET", path):
+            return
         if self._maps("GET", path):
             return
         if self._voice_api("GET", path):
@@ -465,6 +467,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self._auth_api("POST", path):
             return
         if self._gate(path):
+            return
+        if self._campaign_api("POST", path):
             return
         if self._dice_api("POST", path):
             return
@@ -889,6 +893,7 @@ class _Handler(BaseHTTPRequestHandler):
                 else:
                     users.set_pin(admin.id, pin)
                 token = sessions.issue(admin.id, GM)
+                self._open_for(admin)
                 self._send_json_with_cookie(self._me_for(admin, GM), set_cookie_header(token))
                 return True
             if method == "POST" and path == "/api/auth/login":
@@ -916,6 +921,8 @@ class _Handler(BaseHTTPRequestHandler):
                         return True
                 token = sessions.issue(user.id, mode)
                 self.runtime.log.record("auth.login", user=user.id, mode=mode)
+                if mode == GM:
+                    self._open_for(user)
                 self._send_json_with_cookie(self._me_for(user, mode), set_cookie_header(token))
                 return True
             if method == "POST" and path == "/api/auth/logout":
@@ -931,6 +938,8 @@ class _Handler(BaseHTTPRequestHandler):
                     return True
                 mode = str(self._read_json().get("mode", ""))
                 sessions.set_mode(token, mode)
+                if mode == GM:
+                    self._open_for(user)
                 self._send_json(self._me_for(user, mode))
                 return True
             if method == "POST" and path == "/api/auth/pin":
@@ -993,7 +1002,64 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _me_for(self, user, mode: str) -> dict:
         return {"signed_in": True, "id": user.id, "name": user.name,
-                "role": user.role, "mode": mode, "setup": False}
+                "role": user.role, "mode": mode, "setup": False,
+                "campaign": self._campaign()}
+
+    # ---- whose library is running (plan doc 4.8, step 4) --------------------
+
+    def _campaign(self) -> dict:
+        rt = self.runtime
+        return {"open": getattr(rt, "open_profile_id", None),
+                "name": getattr(rt, "open_profile_name", None) or "shared",
+                "source": getattr(rt, "config_source", "")}
+
+    def _open_for(self, user) -> None:
+        """Take the table: the admin runs the shared library alone (they
+        have no private one); anyone else runs theirs over it. Best effort
+        on a single-file layout, where there is nothing to open."""
+        from ..config import ConfigError
+        try:
+            if user.role == "admin":
+                self.runtime.open_profile(None, user.name)
+            else:
+                self.runtime.open_profile(user.id, user.name)
+        except ConfigError as exc:
+            # Single-file layout, or a library that does not compose: the
+            # login still succeeds -- the panel runs what was running --
+            # and the reason is on the record.
+            self.runtime.log.record("profile.open_failed", user=user.id, error=str(exc))
+
+    def _campaign_api(self, method: str, path: str) -> bool:
+        if not path.startswith("/api/campaign"):
+            return False
+        from ..config import ConfigError
+        if method == "GET" and path == "/api/campaign":
+            self._send_json(self._campaign())
+            return True
+        if method == "POST" and path == "/api/campaign/open":
+            if not self._is_admin():
+                self._send_json({"error": "admin only"}, 403)
+                return True
+            body = self._read_json()
+            target = body.get("user") or None
+            try:
+                if target is None:
+                    self.runtime.open_profile(None, "shared")
+                else:
+                    user = self.auth.users.get(str(target))
+                    if user is None:
+                        self._send_json({"error": "no such account"}, 404)
+                        return True
+                    if user.role == "admin":
+                        self.runtime.open_profile(None, user.name)
+                    else:
+                        self.runtime.open_profile(user.id, user.name)
+            except ConfigError as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return True
+            self._send_json(self._campaign())
+            return True
+        return False
 
     def _send_json_with_cookie(self, payload, cookie: str, status: int = 200) -> None:
         body = json.dumps(payload).encode("utf-8")
