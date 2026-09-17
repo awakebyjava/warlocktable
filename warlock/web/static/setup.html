@@ -30,7 +30,7 @@
 
   <section>
     <label class="field" id="f-name">
-      <span>Your name</span>
+      <span>Your name <span class="muted">&mdash; as it will appear on the door and the roll log</span></span>
       <input type="text" id="name" maxlength="30" autocomplete="name" autocapitalize="words">
     </label>
     <label class="field" id="f-email">
@@ -82,7 +82,8 @@
         $("#setup-why").textContent = admin.name + " — choose a new PIN";
         $("#go").textContent = "Set PIN";
       } else {
-        $("#setup-why").textContent = "First, the table needs an owner.";
+        $("#setup-why").textContent = "This is your own account — the table owner’s. "
+          + "Use your real name; everyone else is added from Settings later.";
       }
     } catch (e) {
       $("#err").textContent = "cannot reach the table";
