@@ -39,7 +39,10 @@
     });
   }
 
+  var locked = false;   // a private library is open: shared entries are read-only
+
   function render(data) {
+    if (data.campaign) locked = !!data.campaign.shared_locked;
     var opts = data.options || {};
     if (opts.audio || opts.lights || opts.backgrounds) lastOptions = opts;
     fill($("#int-audio"), opts.audio, "— no sound —");
@@ -80,19 +83,22 @@
       if (it.owner === "private") bits.unshift("mine");
       detail.textContent = bits.join(" · ");
 
+      var shared = locked && it.owner !== "private";
       var edit = document.createElement("button");
       edit.className = "small";
-      edit.textContent = "Edit";
-      edit.addEventListener("click", function () { load(it); });
+      edit.textContent = shared ? "View" : "Edit";
+      edit.addEventListener("click", function () { load(it, shared); });
 
       var del = document.createElement("button");
       del.className = "small";
       del.textContent = "Delete";
       // The server refuses to delete one a card still points at, so do not
-      // offer a button that is going to fail. Same rule as the idle scene.
+      // offer a button that is going to fail. Same rule as the idle scene,
+      // and as a shared interruption while someone else's library is open.
       var used = it.used_by && it.used_by.length;
-      del.disabled = !!used;
-      del.title = used ? "still used by " + it.used_by.join(", ") : "";
+      del.disabled = !!used || shared;
+      del.title = used ? "still used by " + it.used_by.join(", ")
+                : shared ? "part of the table's shared library" : "";
       del.addEventListener("click", function () {
         if (!window.confirm("Delete the interruption “" + it.name + "”?")) return;
         window.api("/api/config/interruptions/" + encodeURIComponent(it.name),
@@ -112,8 +118,11 @@
     });
   }
 
-  function load(it) {
-    $("#int-form-title").textContent = "Editing " + it.name;
+  function load(it, readOnly) {
+    $("#int-form-title").textContent = readOnly
+      ? it.name + " \u2014 shared, the table owner's. Make your own instead."
+      : "Editing " + it.name;
+    $("#int-save").disabled = !!readOnly;
     $("#int-name").value = it.name;
     $("#int-audio").value = it.audio || "";
     $("#int-lights").value = it.lights || "";
@@ -124,6 +133,7 @@
   }
 
   function clearForm() {
+    $("#int-save").disabled = false;
     $("#int-form-title").textContent = "New Interruption";
     $("#int-name").value = "";
     $("#int-audio").value = "";

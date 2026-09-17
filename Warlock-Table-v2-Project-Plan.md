@@ -1986,6 +1986,17 @@ already shared, with a note saying so. This is what lets every reference
 be a plain name, as it is today, with no "whose forest?" qualifier — and
 it means there is no shadowing mechanism to build, explain, or debug.
 
+**The shared library is read-only for everyone but the admin.**
+*(decided 2026-09-17, from the first staging run)* A non-owner GM
+running their own library **adds** to the table and never changes what
+is already in it: shared scenes, interruptions, random tables, the dice
+triggers and the deck are all refused server-side (`ConfigStore`
+`_refuse_if_shared`) and open read-only in every editor, labelled
+*shared, the table owner's — make your own instead*. Play-time controls
+— volume, output, brightness, seats, initiative, registering a die and
+its seat — stay open, because they are about tonight, not the library.
+The shared set is the table's default and stays what the owner made it.
+
 **Referential integrity, one direction.** A private library may reference
 the shared library (a private interruption can override the lights of a
 shared scene; a private card can fire a shared scene). The shared library

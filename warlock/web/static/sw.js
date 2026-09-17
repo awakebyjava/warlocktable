@@ -12,7 +12,7 @@
 // BUMP THIS whenever the shell changes shape. The activate handler deletes
 // every cache that is not this one, so a new name is what guarantees the
 // old shell is actually gone rather than merely out of favour.
-const CACHE = "warlock-shell-v9";
+const CACHE = "warlock-shell-v10";
 const SHELL = [
   // "/" is now the join chooser and "/gm" is the panel. Both are cached:
   // the GM's installed app opens /gm, and a player who scanned the code

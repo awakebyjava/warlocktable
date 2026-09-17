@@ -322,12 +322,14 @@ class _Handler(BaseHTTPRequestHandler):
                              "campaign": self._campaign()})
         elif path == "/api/config/scenes":
             self._send_json({
+                "campaign": self._campaign(),
                 "scenes": self.runtime.store.list_scenes(),
                 "options": self.runtime.store.scene_options(self.controller),
                 "idle_scene": self.controller.config.idle_scene_name,
             })
         elif path == "/api/config/interruptions":
             self._send_json({
+                "campaign": self._campaign(),
                 "interruptions": self.runtime.store.list_interruptions(),
                 "options": self.runtime.store.interruption_options(
                     self.controller),
@@ -1099,9 +1101,9 @@ class _Handler(BaseHTTPRequestHandler):
         return {"open": getattr(rt, "open_profile_id", None),
                 "name": getattr(rt, "open_profile_name", None) or "shared",
                 "source": getattr(rt, "config_source", ""),
-                # While a private library is open, the deck is read-only
-                # and new tags are the GM's own.
-                "deck_locked": locked}
+                # While a private library is open, everything already in the
+                # table is read-only and anything new is the GM's own.
+                "shared_locked": locked, "deck_locked": locked}
 
     def _open_for(self, user) -> None:
         """Take the table: the admin runs the shared library alone (they
@@ -1166,6 +1168,7 @@ class _Handler(BaseHTTPRequestHandler):
         out = self.runtime.store.list_dice()
         status = getattr(self.controller, "_dice_status", None)
         out["scanner"] = status() if callable(status) else None
+        out["campaign"] = self._campaign()
         return out
 
     def _dice_api(self, method: str, path: str) -> bool:

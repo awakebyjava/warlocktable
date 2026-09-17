@@ -413,7 +413,7 @@ async function refreshCards() {
   validTargets = await api("/api/config/targets");
 
   const c = await api("/api/config/cards");
-  deckLocked = !!(c.campaign && c.campaign.deck_locked);
+  deckLocked = !!(c.campaign && c.campaign.shared_locked);
   const box = $("#cards");
   box.innerHTML = "";
   $("#card-count").textContent = `(${c.cards.length})`

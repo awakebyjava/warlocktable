@@ -33,7 +33,10 @@
     });
   }
 
+  var locked = false;   // a private library is open: shared entries are read-only
+
   function render(data) {
+    locked = !!(data.campaign && data.campaign.shared_locked);
     var opts = data.options || {};
     fill($("#scene-lights"), opts.lights, null);
     fill($("#scene-soundscape"), opts.soundscapes, "— none, silent —");
@@ -62,18 +65,21 @@
       if (sc.owner === "private") bits.unshift("mine");
       detail.textContent = bits.join(" · ");
 
+      var shared = locked && sc.owner !== "private";
       var edit = document.createElement("button");
       edit.className = "small";
-      edit.textContent = "Edit";
-      edit.addEventListener("click", function () { load(sc); });
+      edit.textContent = shared ? "View" : "Edit";
+      edit.addEventListener("click", function () { load(sc, shared); });
 
       var del = document.createElement("button");
       del.className = "small";
       del.textContent = "Delete";
       // The idle scene is the table's resting state; the server refuses to
-      // remove it, so do not offer a button that is going to fail.
-      del.disabled = !!sc.is_idle;
-      del.title = sc.is_idle ? "the table falls back to this one" : "";
+      // remove it, so do not offer a button that is going to fail. Same for
+      // a shared scene while someone else's library is open.
+      del.disabled = !!sc.is_idle || shared;
+      del.title = sc.is_idle ? "the table falls back to this one"
+                : shared ? "part of the table's shared library" : "";
       del.addEventListener("click", function () {
         if (!window.confirm("Delete the scene “" + sc.name + "”?")) return;
         window.api("/api/config/scenes/" + encodeURIComponent(sc.name),
@@ -90,9 +96,12 @@
     });
   }
 
-  function load(sc) {
+  function load(sc, readOnly) {
     editing = sc.name;
-    $("#scene-form-title").textContent = "Editing " + sc.name;
+    $("#scene-form-title").textContent = readOnly
+      ? sc.name + " \u2014 shared, the table owner's. Make your own instead."
+      : "Editing " + sc.name;
+    $("#scene-save").disabled = !!readOnly;
     $("#scene-name").value = sc.name;
     $("#scene-lights").value = sc.lights || "";
     $("#scene-soundscape").value = sc.soundscape || "";
@@ -105,6 +114,7 @@
 
   function clearForm() {
     editing = null;
+    $("#scene-save").disabled = false;
     $("#scene-form-title").textContent = "New Scene";
     $("#scene-name").value = "";
     $("#scene-soundscape").value = "";

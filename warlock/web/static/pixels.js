@@ -70,8 +70,14 @@
 
   /* ---------- rendering ---------- */
 
+  var locked = false;   // a private library is open: the trigger table is the owner's
+
   function render(data) {
     last = data;
+    locked = !!(data.campaign && data.campaign.shared_locked);
+    $("#px-trig-save").disabled = locked;
+    $("#px-trig-title").textContent = locked
+      ? "Triggers are the table owner's while your library is open" : "New Trigger";
     var scanner = data.scanner || {};
     $("#px-enabled").checked = !!data.enabled;
     $("#px-scanner").textContent = scanner.healthy
@@ -171,16 +177,16 @@
       detail.textContent = "→ " + t.target_kind.replace("_", " ") + ": " + t.target_name;
 
       var up = document.createElement("button");
-      up.className = "small"; up.textContent = "▲"; up.disabled = i === 0;
+      up.className = "small"; up.textContent = "▲"; up.disabled = i === 0 || locked;
       up.addEventListener("click", function () { move(i, -1); });
       var down = document.createElement("button");
-      down.className = "small"; down.textContent = "▼"; down.disabled = i === trigs.length - 1;
+      down.className = "small"; down.textContent = "▼"; down.disabled = i === trigs.length - 1 || locked;
       down.addEventListener("click", function () { move(i, 1); });
       var edit = document.createElement("button");
-      edit.className = "small"; edit.textContent = "Edit";
+      edit.className = "small"; edit.textContent = "Edit"; edit.disabled = locked;
       edit.addEventListener("click", function () { loadTrigger(i); });
       var del = document.createElement("button");
-      del.className = "small"; del.textContent = "Delete";
+      del.className = "small"; del.textContent = "Delete"; del.disabled = locked;
       del.addEventListener("click", function () {
         var next = trigs.slice(); next.splice(i, 1);
         saveTriggers(next);

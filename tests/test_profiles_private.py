@@ -162,7 +162,7 @@ class OwnCardsTests(unittest.TestCase):
         st = self.store(self.mine)
         with self.assertRaises(ConfigError) as cm:
             st.set_card(self.deck_uid, "Renamed", "scene", "forest")
-        self.assertIn("deck", str(cm.exception))
+        self.assertIn("table owner", str(cm.exception))
         with self.assertRaises(ConfigError):
             st.delete_card(self.deck_uid)
         # the admin, with the shared library open, can
@@ -245,3 +245,41 @@ class PrivateSceneFiresTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SharedIsReadOnlyTests(unittest.TestCase):
+    """Decided 2026-09-17: a non-owner GM adds to the table, never changes
+    what is already in it -- shared scenes, interruptions, dice triggers,
+    and the deck alike."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cfg = os.path.join(self.tmp.name, "config.json")
+        shutil.copy(EXAMPLE, self.cfg)
+        migrate(self.cfg)
+        from warlock.configstore import ConfigStore
+        from warlock.eventlog import EventLog
+        self.mine = ProfileStore.beside(self.cfg, private="jon")
+        self.st = ConfigStore(self.mine.load(), self.cfg, EventLog(path=None), profiles=self.mine)
+        self.shared = ProfileStore.beside(self.cfg)
+        self.st_owner = ConfigStore(self.shared.load(), self.cfg, EventLog(path=None), profiles=self.shared)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_shared_scene_and_interruption_refuse_edit_and_delete(self):
+        for call in (lambda: self.st.set_scene("forest", "breathing"),
+                     lambda: self.st.delete_scene("forest"),
+                     lambda: self.st.set_interruption("the_sun", audio="x"),
+                     lambda: self.st.delete_interruption("the_sun"),
+                     lambda: self.st.set_dice_triggers([])):
+            with self.assertRaises(ConfigError) as cm:
+                call()
+            self.assertIn("table owner", str(cm.exception))
+
+    def test_own_entries_still_editable_and_shared_owner_unaffected(self):
+        self.st.set_scene("lair", "breathing")
+        self.st.set_scene("lair", "plains")
+        self.st.delete_scene("lair")
+        self.st_owner.set_scene("forest", "plains")          # the owner may
+        self.st_owner.set_dice_triggers([])
