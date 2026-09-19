@@ -127,11 +127,13 @@ There are **two prior implementations** being organized into folders (e.g., `ver
   editor — known dice, seat binding, triggers — is not built.** The
   repo now has `tests/` (`python -m unittest discover -s tests`).
 
-**Not built yet:**
-- **Audio for the 26 tarot cards.** The cards fire silently; `Interruption.audio` is optional so they work before the clips exist. `tools/audio_worksheet.py` lists what is missing.
-- Audio upload and scene authoring in the panel (§4.5 steps 3–4)
-- **Display redesign** (§3.6) — real grid/hex overlays and battle maps.
-- Voice/personality, session recap — Phase 3+. Overseer is explicitly **not planned**.
+**Not built yet** *(pruned 2026-09-18 — tarot audio, panel audio upload and
+authoring, and the display redesign are all done; the dev machine is now a
+Debian box, not the Windows laptop described above)*:
+- The **shutdown button's switch and jewel** are not physically wired
+  (`deploy/shutdown-button.md`); the software side is done.
+- A `/library` page for authoring without taking the table (§4.8 step 4).
+- Session recap — Phase 3+. Overseer is explicitly **not planned**.
 - **NPC binding editor** — *dropped.* The user's call: "NPC binding isn't going to happen." Do not resurrect it.
 
 **Before measuring frame rate, read §5.3.** `getStatistics()` turns on
